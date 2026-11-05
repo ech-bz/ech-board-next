@@ -1,5 +1,9 @@
 pub use ech_board_entity_macros::{entity, Bind};
 
+mod write_batch;
+
+pub use write_batch::WriteBatch;
+
 use std::fmt;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
@@ -55,7 +59,7 @@ pub trait Record: Serialize + DeserializeOwned + Clone + Sized {
 }
 
 pub trait Dispatch<C>: Record {
-    fn dispatch(entity: Entity<Self>, context: &C, method: &str, args: &[u8]) -> Result<Vec<u8>>;
+    fn dispatch(id: &[u8; 32], context: &C, method: &str, args: &[u8]) -> Result<Vec<u8>>;
 }
 
 thread_local! {
@@ -713,19 +717,7 @@ impl<T: Record> Entity<T> {
     }
 
     pub fn save(&mut self) -> Result<()> {
-        let write = current_write().ok_or_else(|| b"missing write context".to_vec())?;
-        if self.value.version() != T::CURRENT {
-            return Err(b"entity version is not current".to_vec());
-        }
-        let id = self.id();
-        let sequence = next_sequence(&id);
-        self.seq = sequence;
-        let raw =
-            bcs::to_bytes(&*self).map_err(|error| format!("save entity: {error}").into_bytes())?;
-        ech_db_guest::Host::put(&payload_key(&id), &raw);
-        record_history(&id, sequence, &write.txid);
-        change(T::NAMESPACE, id, raw);
-        Ok(())
+        WriteBatch::new(&[self.id()])?.save(self)
     }
 }
 
@@ -832,42 +824,64 @@ pub fn load_many<T: Record>(_ids: &[[u8; 32]]) -> Result<Vec<Option<Entity<T>>>>
 }
 
 #[cfg(target_arch = "wasm32")]
-pub fn load_pair<A: Record, B: Record>(a: &A::Key, b: &B::Key) -> Result<(Entity<A>, Entity<B>)> {
-    let a = A::id(a);
-    let b = B::id(b);
+pub fn load_pair<A: Record, B: Record>(
+    a: &[u8; 32],
+    b: &[u8; 32],
+) -> Result<(Entity<A>, Entity<B>)> {
     let keys = [
-        ech_db_guest::ReadKey::kv(payload_key(&a)),
-        ech_db_guest::ReadKey::kv(payload_key(&b)),
+        ech_db_guest::ReadKey::kv(payload_key(a)),
+        ech_db_guest::ReadKey::kv(payload_key(b)),
     ];
     let mut values = ech_db_guest::Host::get_raw(&keys).into_iter();
-    let a = decode_entity::<A>(&a, values.next().flatten())?.ok_or_else(A::missing)?;
-    let b = decode_entity::<B>(&b, values.next().flatten())?.ok_or_else(B::missing)?;
+    let a = decode_entity::<A>(a, values.next().flatten())?.ok_or_else(A::missing)?;
+    let b = decode_entity::<B>(b, values.next().flatten())?.ok_or_else(B::missing)?;
     Ok((a, b))
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub fn load_pair<A: Record, B: Record>(_a: &A::Key, _b: &B::Key) -> Result<(Entity<A>, Entity<B>)> {
+pub fn load_pair<A: Record, B: Record>(
+    _a: &[u8; 32],
+    _b: &[u8; 32],
+) -> Result<(Entity<A>, Entity<B>)> {
     unimplemented!("entity objects require the wasm runtime")
 }
 
 #[cfg(target_arch = "wasm32")]
-pub fn insert<T: Record>(key: T::Key, mut value: T, id: &[u8; 32]) -> Result<Entity<T>> {
-    value.attach(id);
-    let write = current_write().ok_or_else(|| b"missing write context".to_vec())?;
-    let sequence = next_sequence(id);
-    let entity = Entity {
-        genesis: write.tx,
-        key,
-        value,
-        seq: sequence,
-    };
-    let raw =
-        bcs::to_bytes(&entity).map_err(|error| format!("insert entity: {error}").into_bytes())?;
-    ech_db_guest::Host::put(&payload_key(id), &raw);
-    ech_db_guest::Host::put(&type_key(T::NAMESPACE, id), &[]);
-    record_history(id, sequence, &write.txid);
-    change(T::NAMESPACE, *id, raw);
-    Ok(entity)
+pub fn load_with_entries<T: Record, K: Key, V: DeserializeOwned>(
+    id: &[u8; 32],
+    entries: &[(&Table<K, V>, &K)],
+) -> Result<(Entity<T>, Vec<Option<V>>)> {
+    let mut keys = Vec::with_capacity(entries.len() + 1);
+    keys.push(ech_db_guest::ReadKey::kv(payload_key(id)));
+    for (table, key) in entries {
+        keys.push(ech_db_guest::ReadKey::kv(table.key(key)?));
+    }
+    let mut values = ech_db_guest::Host::get_raw(&keys).into_iter();
+    let entity = decode_entity::<T>(id, values.next().flatten())?.ok_or_else(T::missing)?;
+    let entries = values
+        .map(|value| {
+            value
+                .map(|bytes| {
+                    bcs::from_bytes(&bytes)
+                        .map_err(|error| format!("table row: {error}").into_bytes())
+                })
+                .transpose()
+        })
+        .collect::<Result<_>>()?;
+    Ok((entity, entries))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn load_with_entries<T: Record, K: Key, V: DeserializeOwned>(
+    _id: &[u8; 32],
+    _entries: &[(&Table<K, V>, &K)],
+) -> Result<(Entity<T>, Vec<Option<V>>)> {
+    unimplemented!("entity objects require the wasm runtime")
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn insert<T: Record>(key: T::Key, value: T, id: &[u8; 32]) -> Result<Entity<T>> {
+    WriteBatch::new(&[*id])?.insert(key, value)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
