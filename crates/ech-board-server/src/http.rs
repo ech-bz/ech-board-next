@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use actix_multipart::form::bytes::Bytes as MultipartBytes;
 use actix_multipart::form::MultipartForm;
 use actix_web::http::header;
@@ -199,7 +201,41 @@ async fn submit_handler(
     app: web::Data<App>,
     form: MultipartForm<SubmitForm>,
 ) -> Result<HttpResponse, ServerError> {
+    let started = Instant::now();
     let signed: Signed = from_bytes(&form.signed.data)?;
+    let function = signed.user.call.function.clone();
+    let content = submit_content(&app, &form, &signed).await;
+    let content_ms = started.elapsed().as_secs_f64() * 1000.0;
+    if let Err(error) = content {
+        tracing::warn!(%error, %function, content_ms, "submit content rejected");
+        return Err(error);
+    }
+    let transaction_started = Instant::now();
+    let output = app.forum.submit(signed.user, signed.decryptions).await;
+    let transaction_ms = transaction_started.elapsed().as_secs_f64() * 1000.0;
+    let output = match output {
+        Ok(output) => output,
+        Err(error) => {
+            tracing::warn!(%error, %function, content_ms, transaction_ms, "submit rejected");
+            return Err(error);
+        }
+    };
+    let total_ms = started.elapsed().as_secs_f64() * 1000.0;
+    if total_ms >= 500.0 {
+        tracing::info!(%function, content_ms, transaction_ms, total_ms, "slow submit");
+    }
+    Ok(HttpResponse::Ok()
+        .content_type(CONTENT_TYPE)
+        .insert_header((
+            "Server-Timing",
+            format!(
+                "content;dur={content_ms:.2}, transaction;dur={transaction_ms:.2}, total;dur={total_ms:.2}"
+            ),
+        ))
+        .body(output.result))
+}
+
+async fn submit_content(app: &App, form: &SubmitForm, signed: &Signed) -> Result<(), ServerError> {
     let expected = postpart::expected(&signed.user.call.function, &signed.user.call.args);
     let mut received = std::collections::BTreeSet::new();
     for part in &form.blob {
@@ -233,15 +269,7 @@ async fn submit_handler(
             return Err(ServerError::BadRequest("missing content".to_string()));
         }
     }
-    let function = signed.user.call.function.clone();
-    let output = match app.forum.submit(signed.user, signed.decryptions).await {
-        Ok(output) => output,
-        Err(error) => {
-            tracing::warn!(%error, %function, "submit rejected");
-            return Err(error);
-        }
-    };
-    Ok(encoded(&output.result))
+    Ok(())
 }
 
 async fn query_handler(app: web::Data<App>, body: web::Bytes) -> Result<HttpResponse, ServerError> {

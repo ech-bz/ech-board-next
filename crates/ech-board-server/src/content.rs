@@ -3,6 +3,7 @@ mod key;
 pub use key::{Key, Kind};
 
 use std::sync::Arc;
+use std::time::Instant;
 
 use bytes::Bytes;
 use futures_util::stream::{self, BoxStream, StreamExt};
@@ -70,15 +71,27 @@ impl Store {
     }
 
     pub async fn put(&self, key: Key, bytes: Bytes) -> Result<(), ServerError> {
+        let started = Instant::now();
         let _permit = self
             .requests
             .acquire()
             .await
             .map_err(|error| ServerError::Store(error.to_string()))?;
-        self.backend
-            .put(&key.path(), bytes.clone().into())
-            .await
-            .map_err(storage_error)?;
+        let wait_ms = started.elapsed().as_secs_f64() * 1000.0;
+        let storage_started = Instant::now();
+        let result = self.backend.put(&key.path(), bytes.clone().into()).await;
+        let storage_ms = storage_started.elapsed().as_secs_f64() * 1000.0;
+        if wait_ms + storage_ms >= 250.0 {
+            tracing::info!(
+                kind = ?key.kind,
+                bytes = bytes.len(),
+                wait_ms,
+                storage_ms,
+                success = result.is_ok(),
+                "slow content write"
+            );
+        }
+        result.map_err(storage_error)?;
         if self.cacheable(bytes.len() as u64) {
             self.cache.insert(key, bytes).await;
         }

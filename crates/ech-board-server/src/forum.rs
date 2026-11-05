@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use bcs::to_bytes;
 
@@ -118,9 +118,24 @@ impl Forum {
         user: UserPart,
         decryptions: Vec<Esid>,
     ) -> Result<Output, ServerError> {
+        let started = Instant::now();
         let request = self.request(user, decryptions)?;
         let txid = request.tx.txid(&self.root())?;
-        match self.db.append(&self.root(), &request).await {
+        let prepare_ms = started.elapsed().as_secs_f64() * 1000.0;
+        let append_started = Instant::now();
+        let outcome = self.db.append(&self.root(), &request).await;
+        let append_ms = append_started.elapsed().as_secs_f64() * 1000.0;
+        if prepare_ms + append_ms >= 250.0 {
+            tracing::info!(
+                %txid,
+                function = %request.tx.user.call.function,
+                prepare_ms,
+                append_ms,
+                success = outcome.is_ok(),
+                "slow database submission"
+            );
+        }
+        match outcome {
             Ok(outcome) => decode(&outcome.result),
             Err(DbError::Reject(Reject::Duplicate)) => decode(&self.record(txid).await?.result),
             Err(error) => Err(error.into()),
