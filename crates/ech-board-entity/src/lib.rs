@@ -374,6 +374,17 @@ impl<K: Key + Clone, V: Serialize + DeserializeOwned> Table<K, V> {
         Ok(ech_db_guest::Host::get::<V>(&reads))
     }
 
+    pub fn get_batch(entries: &[(&Self, &K)]) -> Result<Vec<Option<V>>> {
+        if entries.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut reads = Vec::with_capacity(entries.len());
+        for (table, key) in entries {
+            reads.push(ech_db_guest::ReadKey::kv(table.key(key)?));
+        }
+        Ok(ech_db_guest::Host::get::<V>(&reads))
+    }
+
     pub fn insert(&self, key: &K, value: &V) -> Result<()> {
         ech_db_guest::Host::put_value(&self.key(key)?, value);
         Ok(())
@@ -455,6 +466,10 @@ impl<K: Key, V: Serialize + DeserializeOwned> Table<K, V> {
     }
 
     pub fn get_many(&self, _keys: &[K]) -> Result<Vec<Option<V>>> {
+        unimplemented!("entity tables require the wasm runtime")
+    }
+
+    pub fn get_batch(_entries: &[(&Self, &K)]) -> Result<Vec<Option<V>>> {
         unimplemented!("entity tables require the wasm runtime")
     }
 
@@ -770,7 +785,12 @@ pub fn read_raw(_key: &[u8]) -> Result<Option<Vec<u8>>> {
 
 #[cfg(target_arch = "wasm32")]
 pub fn load<T: Record>(id: &[u8; 32]) -> Result<Option<Entity<T>>> {
-    let Some(raw) = read_raw(&payload_key(id))? else {
+    decode_entity(id, read_raw(&payload_key(id))?)
+}
+
+#[cfg(target_arch = "wasm32")]
+fn decode_entity<T: Record>(id: &[u8; 32], raw: Option<Vec<u8>>) -> Result<Option<Entity<T>>> {
+    let Some(raw) = raw else {
         return Ok(None);
     };
     let mut entity: Entity<T> =
@@ -800,28 +820,33 @@ pub fn load_many<T: Record>(ids: &[[u8; 32]]) -> Result<Vec<Option<Entity<T>>>> 
         .map(|id| ech_db_guest::ReadKey::kv(payload_key(id)))
         .collect();
     let values = ech_db_guest::Host::get_raw(&keys);
-    let mut out = Vec::with_capacity(values.len());
-    for (id, raw) in ids.iter().zip(values) {
-        let Some(raw) = raw else {
-            out.push(None);
-            continue;
-        };
-        let mut entity: Entity<T> =
-            bcs::from_bytes(&raw).map_err(|error| format!("load entity: {error}").into_bytes())?;
-        if entity.value.version() > T::CURRENT {
-            return Err(unsupported_version(entity.value.version(), T::CURRENT));
-        }
-        if T::id(&entity.key) != *id {
-            return Err(b"entity key changed".to_vec());
-        }
-        entity.value.attach(id);
-        out.push(Some(entity));
-    }
-    Ok(out)
+    ids.iter()
+        .zip(values)
+        .map(|(id, raw)| decode_entity(id, raw))
+        .collect()
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn load_many<T: Record>(_ids: &[[u8; 32]]) -> Result<Vec<Option<Entity<T>>>> {
+    unimplemented!("entity objects require the wasm runtime")
+}
+
+#[cfg(target_arch = "wasm32")]
+pub fn load_pair<A: Record, B: Record>(a: &A::Key, b: &B::Key) -> Result<(Entity<A>, Entity<B>)> {
+    let a = A::id(a);
+    let b = B::id(b);
+    let keys = [
+        ech_db_guest::ReadKey::kv(payload_key(&a)),
+        ech_db_guest::ReadKey::kv(payload_key(&b)),
+    ];
+    let mut values = ech_db_guest::Host::get_raw(&keys).into_iter();
+    let a = decode_entity::<A>(&a, values.next().flatten())?.ok_or_else(A::missing)?;
+    let b = decode_entity::<B>(&b, values.next().flatten())?.ok_or_else(B::missing)?;
+    Ok((a, b))
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+pub fn load_pair<A: Record, B: Record>(_a: &A::Key, _b: &B::Key) -> Result<(Entity<A>, Entity<B>)> {
     unimplemented!("entity objects require the wasm runtime")
 }
 

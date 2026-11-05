@@ -46,6 +46,21 @@ pub struct BoardPage {
 }
 
 impl BoardV1 {
+    fn check_bans(&self, context: &Context, forum: &ForumV1) -> Result<(), Vec<u8>> {
+        if crate::context::read_only() || context.is_server() {
+            return Ok(());
+        }
+        let sid = context.author_sid()?;
+        let mut bans = vec![&self.bans];
+        if !self.ignore_forum_bans {
+            bans.push(&forum.bans);
+        }
+        if Bans::any_banned(&bans, &sid, context.time)? {
+            return Err(fail(ForumError::Banned));
+        }
+        Ok(())
+    }
+
     pub(crate) fn is_moderator(&self, context: &Context, forum: &ForumV1) -> bool {
         forum.is_moderator(context) || self.moderators.iter().any(|esid| context.is_author(esid))
     }
@@ -89,14 +104,12 @@ impl Dispatch<Context> for Board {
         method: &str,
         args: &[u8],
     ) -> Result<Vec<u8>, Vec<u8>> {
+        if method == "create_post" {
+            return create_post(board, context, args);
+        }
         if !crate::context::read_only() && !context.is_server() {
-            let sid = context.author_sid()?;
             let forum = Forum::load(&ForumKey {})?;
-            if board.bans.banned(&sid, context.time)?
-                || (!board.ignore_forum_bans && forum.bans.banned(&sid, context.time)?)
-            {
-                return Err(fail(ForumError::Banned));
-            }
+            board.check_bans(context, forum.inner())?;
         }
         match method {
             "meta" => encode(&board),
@@ -350,70 +363,6 @@ impl Dispatch<Context> for Board {
                 board.save()?;
                 encode(&number)
             }
-            "create_post" => {
-                let (number, text_hash, media_hashes, name_hash, vote_keys, multi_vote): (
-                    u64,
-                    Option<Hash>,
-                    Vec<Hash>,
-                    Option<Hash>,
-                    Vec<Hash>,
-                    bool,
-                ) = decode_arguments(args)?;
-                let forum = Forum::load(&ForumKey {})?;
-                let mut thread = Thread::load(&ThreadKey {
-                    board: board.key.slug.clone(),
-                    number,
-                })?;
-                if board.readonly && !board.is_moderator(context, forum.inner()) {
-                    return Err(fail(ForumError::BoardReadOnly));
-                }
-                if thread.closed && !thread.is_moderator(context, forum.inner(), board.inner()) {
-                    return Err(fail(ForumError::ThreadClosed));
-                }
-                if media_hashes.len() > board.max_media as usize {
-                    return Err(fail(ForumError::TooManyAttachments));
-                }
-                if !vote_keys.is_empty() && !(2..=16).contains(&vote_keys.len()) {
-                    return Err(fail(ForumError::InvalidPollSize));
-                }
-                if unique(&vote_keys).is_none() {
-                    return Err(fail(ForumError::DuplicatePollChoice));
-                }
-                if text_hash.is_none() && media_hashes.is_empty() {
-                    return Err(fail(ForumError::EmptyPost));
-                }
-                let bump = thread.post_count < board.bump_limit as u64;
-                let post_number = board.allocate_post(number, bump)?;
-                if bump {
-                    thread.bump = post_number;
-                }
-                let post = Post::insert(
-                    PostKey {
-                        board: board.key.slug.clone(),
-                        number: post_number,
-                    },
-                    Post::V1(PostV1::new(
-                        number,
-                        text_hash,
-                        media_hashes,
-                        name_hash,
-                        multi_vote,
-                        vote_keys,
-                    )),
-                )?;
-                thread.post_count = thread
-                    .post_count
-                    .checked_add(1)
-                    .ok_or_else(|| fail(ForumError::CounterOverflow))?;
-                thread.posts.insert(&thread.post_count, &post_number)?;
-                thread.last_posts.push(post_number);
-                if thread.last_posts.len() > 3 {
-                    thread.last_posts.remove(0);
-                }
-                thread.save()?;
-                board.save()?;
-                encode(post.inner())
-            }
             _ => Err(ech_board_entity::unknown_function("board", method)),
         }
     }
@@ -441,4 +390,76 @@ fn previews(
         }
     }
     Ok(threads)
+}
+
+fn create_post(
+    mut board: Entity<Board>,
+    context: &Context,
+    args: &[u8],
+) -> Result<Vec<u8>, Vec<u8>> {
+    let (number, text_hash, media_hashes, name_hash, vote_keys, multi_vote): (
+        u64,
+        Option<Hash>,
+        Vec<Hash>,
+        Option<Hash>,
+        Vec<Hash>,
+        bool,
+    ) = decode_arguments(args)?;
+    let (forum, mut thread) = ech_board_entity::load_pair::<Forum, Thread>(
+        &ForumKey {},
+        &ThreadKey {
+            board: board.key.slug.clone(),
+            number,
+        },
+    )?;
+    board.check_bans(context, forum.inner())?;
+    if board.readonly && !board.is_moderator(context, forum.inner()) {
+        return Err(fail(ForumError::BoardReadOnly));
+    }
+    if thread.closed && !thread.is_moderator(context, forum.inner(), board.inner()) {
+        return Err(fail(ForumError::ThreadClosed));
+    }
+    if media_hashes.len() > board.max_media as usize {
+        return Err(fail(ForumError::TooManyAttachments));
+    }
+    if !vote_keys.is_empty() && !(2..=16).contains(&vote_keys.len()) {
+        return Err(fail(ForumError::InvalidPollSize));
+    }
+    if unique(&vote_keys).is_none() {
+        return Err(fail(ForumError::DuplicatePollChoice));
+    }
+    if text_hash.is_none() && media_hashes.is_empty() {
+        return Err(fail(ForumError::EmptyPost));
+    }
+    let bump = thread.post_count < board.bump_limit as u64;
+    let post_number = board.allocate_post(number, bump)?;
+    if bump {
+        thread.bump = post_number;
+    }
+    let post = Post::insert(
+        PostKey {
+            board: board.key.slug.clone(),
+            number: post_number,
+        },
+        Post::V1(PostV1::new(
+            number,
+            text_hash,
+            media_hashes,
+            name_hash,
+            multi_vote,
+            vote_keys,
+        )),
+    )?;
+    thread.post_count = thread
+        .post_count
+        .checked_add(1)
+        .ok_or_else(|| fail(ForumError::CounterOverflow))?;
+    thread.posts.insert(&thread.post_count, &post_number)?;
+    thread.last_posts.push(post_number);
+    if thread.last_posts.len() > 3 {
+        thread.last_posts.remove(0);
+    }
+    thread.save()?;
+    board.save()?;
+    encode(post.inner())
 }
