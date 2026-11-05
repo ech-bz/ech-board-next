@@ -1,0 +1,16 @@
+[package]
+name = "ech-board-program"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+ech-board-entity.workspace = true
+ech-board-entity-macros.workspace = true
+ech-db-guest.workspace = true
+ech-db-protocol.workspace = true
+serde.workspace = true
+bcs.workspace = true

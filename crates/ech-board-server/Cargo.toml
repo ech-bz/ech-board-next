@@ -1,0 +1,30 @@
+[package]
+name = "ech-board-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+actix-cors.workspace = true
+actix-multipart.workspace = true
+actix-web.workspace = true
+bcs.workspace = true
+clap.workspace = true
+curve25519-dalek.workspace = true
+ech-board-program = { path = "../ech-board-program" }
+ech-board-entity.workspace = true
+ech-db-protocol.workspace = true
+ech-db-sdk.workspace = true
+futures-util.workspace = true
+hex.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+bytes.workspace = true
+moka.workspace = true
+object_store.workspace = true
+tempfile.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
