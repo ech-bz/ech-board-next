@@ -1,12 +1,11 @@
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use tokio::sync::broadcast;
 
 use bcs::to_bytes;
-use ech_board_entity::{entity_id, Entity};
+use ech_board_entity::{entity_id, Entity, Record};
 use ech_board_program::model::{Board, BoardKey, Forum, Post, Thread, ThreadKey};
 
 use crate::content::Store;
@@ -44,11 +43,8 @@ pub struct Event {
     pub attachments: Vec<BlobPayload>,
 }
 
-type PostScope = ([u8; 32], [u8; 32]);
-
 pub struct Hub {
     sender: broadcast::Sender<Event>,
-    scopes: Mutex<HashMap<[u8; 32], PostScope>>,
 }
 
 impl Default for Hub {
@@ -60,10 +56,7 @@ impl Default for Hub {
 impl Hub {
     pub fn new() -> Self {
         let (sender, _) = broadcast::channel(1024);
-        Self {
-            sender,
-            scopes: Mutex::new(HashMap::new()),
-        }
+        Self { sender }
     }
 
     pub fn subscribe(&self) -> broadcast::Receiver<Event> {
@@ -118,96 +111,65 @@ impl Hub {
         Ok((contents, attachments))
     }
 
-    async fn scope(&self, forum: &ForumApi, function: &str, args: &[u8]) -> (String, String) {
-        let Some(id) = args
-            .get(..32)
-            .and_then(|bytes| <[u8; 32]>::try_from(bytes).ok())
-        else {
-            return (String::new(), String::new());
-        };
-        match function.split_once('.').map(|(namespace, _)| namespace) {
-            Some("board") => match self.thread_of_post(forum, function, args).await {
-                Some(thread) => (hex_of(&id), hex_of(&thread)),
-                None => (hex_of(&id), String::new()),
-            },
-            Some("thread") => match self.thread_board(forum, &id).await {
-                Some(board) => (hex_of(&board), hex_of(&id)),
-                None => (hex_of(&id), String::new()),
-            },
-            Some("post") => match self.post_scope(forum, &id).await {
-                Some((board, thread)) => (hex_of(&board), hex_of(&thread)),
-                None => (String::new(), String::new()),
-            },
-            _ => (String::new(), String::new()),
-        }
-    }
-
-    async fn thread_board(&self, forum: &ForumApi, id: &[u8; 32]) -> Option<[u8; 32]> {
-        let record = forum
-            .call("debug.entity", to_bytes(&("thread".to_string(), *id)).ok()?)
-            .await
-            .ok()?;
-        let thread: Entity<Thread> = bcs::from_bytes(&record).ok()?;
-        Some(entity_id(
-            "board",
-            &BoardKey {
-                slug: thread.key.board.clone(),
-            },
-        ))
-    }
-
-    async fn thread_of_post(
+    async fn scope(
         &self,
         forum: &ForumApi,
         function: &str,
         args: &[u8],
-    ) -> Option<[u8; 32]> {
-        if function != "board.create_post" {
-            return None;
-        }
-        let board_id = <[u8; 32]>::try_from(args.get(..32)?).ok()?;
-        let number: u64 = bcs::from_bytes(args.get(32..40)?).ok()?;
-        let record = forum
-            .call(
-                "debug.entity",
-                to_bytes(&("board".to_string(), board_id)).ok()?,
-            )
-            .await
-            .ok()?;
-        let board: Entity<Board> = bcs::from_bytes(&record).ok()?;
-        Some(entity_id(
-            "thread",
-            &ThreadKey {
-                number,
-                board: board.key.slug.clone(),
-            },
-        ))
-    }
-
-    async fn post_scope(&self, forum: &ForumApi, id: &[u8; 32]) -> Option<([u8; 32], [u8; 32])> {
-        if let Some(scope) = self.scopes.lock().ok()?.get(id).copied() {
-            return Some(scope);
-        }
-        let record = forum
-            .call("debug.entity", to_bytes(&("post".to_string(), *id)).ok()?)
-            .await
-            .ok()?;
-        let post: Entity<Post> = bcs::from_bytes(&record).ok()?;
-        let board = entity_id(
-            "board",
-            &BoardKey {
-                slug: post.key.board.clone(),
-            },
-        );
-        let thread = entity_id(
-            "thread",
-            &ThreadKey {
-                number: post.thread,
-                board: post.key.board.clone(),
-            },
-        );
-        self.scopes.lock().ok()?.insert(*id, (board, thread));
-        Some((board, thread))
+        entities: &[EntityPayload],
+    ) -> Result<(String, String), ServerError> {
+        let Some(id) = args
+            .get(..32)
+            .and_then(|bytes| <[u8; 32]>::try_from(bytes).ok())
+        else {
+            return Ok((String::new(), String::new()));
+        };
+        let scope = match function.split_once('.').map(|(namespace, _)| namespace) {
+            Some("board") if function == "board.create_post" => {
+                let board = event_entity::<Board>(forum, entities, &id).await?;
+                let number = args
+                    .get(32..40)
+                    .ok_or_else(|| ServerError::BadRequest("missing thread number".into()))?;
+                let thread = entity_id(
+                    "thread",
+                    &ThreadKey {
+                        number: bcs::from_bytes(number)?,
+                        board: board.key.slug,
+                    },
+                );
+                (hex_of(&id), hex_of(&thread))
+            }
+            Some("board") => (hex_of(&id), String::new()),
+            Some("thread") => {
+                let thread = event_entity::<Thread>(forum, entities, &id).await?;
+                let board = entity_id(
+                    "board",
+                    &BoardKey {
+                        slug: thread.key.board,
+                    },
+                );
+                (hex_of(&board), hex_of(&id))
+            }
+            Some("post") => {
+                let post = event_entity::<Post>(forum, entities, &id).await?;
+                let board = entity_id(
+                    "board",
+                    &BoardKey {
+                        slug: post.key.board.clone(),
+                    },
+                );
+                let thread = entity_id(
+                    "thread",
+                    &ThreadKey {
+                        number: post.thread,
+                        board: post.key.board,
+                    },
+                );
+                (hex_of(&board), hex_of(&thread))
+            }
+            _ => (String::new(), String::new()),
+        };
+        Ok(scope)
     }
 
     pub fn spawn(self: &Arc<Self>, forum: Arc<ForumApi>, content: Arc<Store>) {
@@ -228,11 +190,12 @@ impl Hub {
                 }
             };
             loop {
+                let history_started = Instant::now();
                 match forum.history(cursor).await {
-                    Ok(records) if records.is_empty() => {
-                        tokio::time::sleep(Duration::from_millis(50)).await;
-                    }
                     Ok(records) => {
+                        let history_ms = history_started.elapsed().as_secs_f64() * 1000.0;
+                        let received = Instant::now();
+                        let mut idle = true;
                         for record in records {
                             let Ok(txid) = record.tx.txid(&forum.root()) else {
                                 continue;
@@ -240,20 +203,47 @@ impl Hub {
                             if Some(txid) == cursor {
                                 continue;
                             }
+                            idle = false;
+                            let queue_ms = received.elapsed().as_secs_f64() * 1000.0;
                             let function = record.tx.user.call.function.clone();
-                            let (board, thread) = hub
-                                .scope(&forum, &function, &record.tx.user.call.args)
-                                .await;
                             let entities = changed(&record.result);
-                            let (contents, attachments) =
-                                match hub.resources(&content, &entities).await {
-                                    Ok(resources) => resources,
-                                    Err(error) => {
-                                        tracing::warn!(%error, "journal resources");
-                                        tokio::time::sleep(Duration::from_secs(1)).await;
-                                        break;
-                                    }
-                                };
+                            let scope_started = Instant::now();
+                            let (board, thread) = match hub
+                                .scope(&forum, &function, &record.tx.user.call.args, &entities)
+                                .await
+                            {
+                                Ok(scope) => scope,
+                                Err(error) => {
+                                    tracing::warn!(%error, %txid, %function, "journal scope");
+                                    tokio::time::sleep(Duration::from_secs(1)).await;
+                                    break;
+                                }
+                            };
+                            let scope_ms = scope_started.elapsed().as_secs_f64() * 1000.0;
+                            let resources_started = Instant::now();
+                            let (contents, attachments) = match hub
+                                .resources(&content, &entities)
+                                .await
+                            {
+                                Ok(resources) => resources,
+                                Err(error) => {
+                                    tracing::warn!(%error, %txid, %function, "journal resources");
+                                    tokio::time::sleep(Duration::from_secs(1)).await;
+                                    break;
+                                }
+                            };
+                            let resources_ms = resources_started.elapsed().as_secs_f64() * 1000.0;
+                            if history_ms + queue_ms + scope_ms + resources_ms >= 100.0 {
+                                tracing::info!(
+                                    %txid,
+                                    %function,
+                                    history_ms,
+                                    queue_ms,
+                                    scope_ms,
+                                    resources_ms,
+                                    "slow live update"
+                                );
+                            }
                             hub.publish(Event {
                                 txid: txid.to_string(),
                                 function,
@@ -265,6 +255,9 @@ impl Hub {
                             });
                             cursor = Some(txid);
                         }
+                        if idle {
+                            tokio::time::sleep(Duration::from_millis(50)).await;
+                        }
                     }
                     Err(error) => {
                         tracing::warn!(%error, "journal polling");
@@ -274,6 +267,28 @@ impl Hub {
             }
         });
     }
+}
+
+async fn event_entity<T: Record>(
+    forum: &ForumApi,
+    entities: &[EntityPayload],
+    id: &[u8; 32],
+) -> Result<Entity<T>, ServerError> {
+    let id_hex = hex_of(id);
+    let bytes = match entities
+        .iter()
+        .find(|entity| entity.kind == T::NAMESPACE && entity.id == id_hex)
+    {
+        Some(entity) => {
+            hex::decode(&entity.value).map_err(|error| ServerError::Store(error.to_string()))?
+        }
+        None => {
+            forum
+                .call("debug.entity", to_bytes(&(T::NAMESPACE, *id))?)
+                .await?
+        }
+    };
+    Ok(bcs::from_bytes(&bytes)?)
 }
 
 fn hex_of(bytes: &[u8]) -> String {
