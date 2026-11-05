@@ -57,11 +57,12 @@ impl ForumV1 {
 
 impl Dispatch<Context> for Forum {
     fn dispatch(
-        mut forum: Entity<Self>,
+        id: &[u8; 32],
         context: &Context,
         method: &str,
         args: &[u8],
     ) -> Result<Vec<u8>, Vec<u8>> {
+        let mut forum = Self::load_by_id(id)?;
         if !crate::context::read_only()
             && !context.is_server()
             && forum.bans.banned(&context.author_sid()?, context.time)?

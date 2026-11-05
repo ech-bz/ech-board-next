@@ -64,9 +64,13 @@ impl Bans {
     pub fn any_banned(bans: &[&Self], sid: &Sid, now: u64) -> Result<bool, Vec<u8>> {
         let private: Vec<_> = bans.iter().map(|bans| (&bans.private, sid)).collect();
         let authors = ech_board_entity::Table::get_batch(&private)?;
+        Self::any_active(bans, &authors, now)
+    }
+
+    pub fn any_active(bans: &[&Self], authors: &[Option<Esid>], now: u64) -> Result<bool, Vec<u8>> {
         let public: Vec<_> = bans
             .iter()
-            .zip(&authors)
+            .zip(authors)
             .filter_map(|(bans, author)| author.as_ref().map(|author| (&bans.public, author)))
             .collect();
         let values = ech_board_entity::Table::get_batch(&public)?;

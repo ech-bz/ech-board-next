@@ -99,14 +99,17 @@ impl BoardV1 {
 impl Dispatch<Context> for Board {
     #[allow(clippy::type_complexity)]
     fn dispatch(
-        mut board: Entity<Self>,
+        id: &[u8; 32],
         context: &Context,
         method: &str,
         args: &[u8],
     ) -> Result<Vec<u8>, Vec<u8>> {
         if method == "create_post" {
-            return create_post(board, context, args);
+            let (board, forum) =
+                ech_board_entity::load_pair::<Board, Forum>(id, &Forum::id(&ForumKey {}))?;
+            return create_post(board, forum, context, args);
         }
+        let mut board = Self::load_by_id(id)?;
         if !crate::context::read_only() && !context.is_server() {
             let forum = Forum::load(&ForumKey {})?;
             board.check_bans(context, forum.inner())?;
@@ -394,6 +397,7 @@ fn previews(
 
 fn create_post(
     mut board: Entity<Board>,
+    forum: Entity<Forum>,
     context: &Context,
     args: &[u8],
 ) -> Result<Vec<u8>, Vec<u8>> {
@@ -405,14 +409,32 @@ fn create_post(
         Vec<Hash>,
         bool,
     ) = decode_arguments(args)?;
-    let (forum, mut thread) = ech_board_entity::load_pair::<Forum, Thread>(
-        &ForumKey {},
-        &ThreadKey {
+    let sid = if crate::context::read_only() || context.is_server() {
+        None
+    } else {
+        Some(context.author_sid()?)
+    };
+    let mut bans = Vec::new();
+    if sid.is_some() {
+        bans.push(&board.bans);
+        if !board.ignore_forum_bans {
+            bans.push(&forum.bans);
+        }
+    }
+    let entries: Vec<_> = bans
+        .iter()
+        .filter_map(|bans| sid.as_ref().map(|sid| (&bans.private, sid)))
+        .collect();
+    let (mut thread, authors) = ech_board_entity::load_with_entries::<Thread, _, _>(
+        &Thread::id(&ThreadKey {
             board: board.key.slug.clone(),
             number,
-        },
+        }),
+        &entries,
     )?;
-    board.check_bans(context, forum.inner())?;
+    if Bans::any_active(&bans, &authors, context.time)? {
+        return Err(fail(ForumError::Banned));
+    }
     if board.readonly && !board.is_moderator(context, forum.inner()) {
         return Err(fail(ForumError::BoardReadOnly));
     }
@@ -436,11 +458,14 @@ fn create_post(
     if bump {
         thread.bump = post_number;
     }
-    let post = Post::insert(
-        PostKey {
-            board: board.key.slug.clone(),
-            number: post_number,
-        },
+    let post_key = PostKey {
+        board: board.key.slug.clone(),
+        number: post_number,
+    };
+    let mut writes =
+        ech_board_entity::WriteBatch::new(&[Post::id(&post_key), thread.id(), board.id()])?;
+    let post = writes.insert(
+        post_key,
         Post::V1(PostV1::new(
             number,
             text_hash,
@@ -459,7 +484,7 @@ fn create_post(
     if thread.last_posts.len() > 3 {
         thread.last_posts.remove(0);
     }
-    thread.save()?;
-    board.save()?;
+    writes.save(&mut thread)?;
+    writes.save(&mut board)?;
     encode(post.inner())
 }

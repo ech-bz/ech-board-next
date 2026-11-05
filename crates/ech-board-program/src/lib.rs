@@ -9,7 +9,7 @@ pub mod model;
 
 pub use model::{Board, Forum, Post, Thread};
 
-use ech_board_entity::{Dispatch, Entity, Record};
+use ech_board_entity::{Dispatch, Record};
 use ech_db_guest::{CallOutput, Request, Root};
 use ech_db_protocol::hash::Blake2b256;
 
@@ -32,8 +32,7 @@ fn route<T: Record + Dispatch<context::Context>>(
     let (id, rest) = args
         .split_first_chunk::<32>()
         .ok_or_else(ech_board_entity::invalid_arguments)?;
-    let entity: Entity<T> = T::load_by_id(id)?;
-    T::dispatch(entity, context, method, rest)
+    T::dispatch(id, context, method, rest)
 }
 
 pub fn handle(root: Root, request: Request) -> Result<Vec<u8>, Vec<u8>> {

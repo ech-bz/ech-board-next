@@ -129,11 +129,12 @@ impl ThreadV1 {
 impl Dispatch<Context> for Thread {
     #[allow(clippy::type_complexity)]
     fn dispatch(
-        mut thread: Entity<Self>,
+        id: &[u8; 32],
         context: &Context,
         method: &str,
         args: &[u8],
     ) -> Result<Vec<u8>, Vec<u8>> {
+        let mut thread = Self::load_by_id(id)?;
         if !crate::context::read_only() && !context.is_server() {
             let sid = context.author_sid()?;
             let board = Board::load(&BoardKey {
