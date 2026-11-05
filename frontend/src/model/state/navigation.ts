@@ -1,0 +1,37 @@
+export type SettingSlug = 'key' | 'appearance'
+export type SettingKey = 'Master Key' | 'Appearance'
+
+
+export type Route =
+  | { page: 'boards'; forumId?: string }
+  | { page: 'board'; forumId: string; slug: string }
+  | { page: 'thread'; forumId: string; slug: string; threadNum: number; replyTo?: number; scrollTo?: 'top' | 'bottom'; postNum?: number }
+  | { page: 'compose'; forumId: string; slug: string }
+  | { page: 'settings'; setting?: SettingSlug }
+
+
+export interface ForumInfo {
+  forumId: string
+  relayUrl: string
+  host: string
+}
+
+export interface BoardInfo {
+  slug: string
+  id: string
+  title: string
+  count: number
+}
+
+export interface NavigationState {
+  defaultForumId: string | null
+  route: Route | null
+  lastContentRoute: Route | null
+  context: { forumId: string; relayUrl: string } | null
+  forums: ForumInfo[]
+  loading: boolean
+  refreshing: boolean
+  reconnecting: boolean
+  error: string | null
+  collapsed: boolean
+}
