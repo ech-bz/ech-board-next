@@ -12,7 +12,7 @@ use crate::model::{
     PostV1, EDIT_WINDOW_MS,
 };
 
-pub const PAGE_POSTS: u64 = 256;
+pub const PAGE_POSTS: u64 = 1024;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub struct ThreadKey {
