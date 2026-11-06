@@ -146,6 +146,8 @@ export function createEntityUpdates(model: ForumState, write: SetStoreFunction<F
       indexAttachments(root, id, post.mediaHashes.map(toHex), [])
       write('scopes', root, 'postIds', produce((values) => { delete values[numberKey(post.board, post.number)] }))
       write('scopes', root, 'entities', 'posts', produce((posts) => { delete posts[id] }))
+      write('scopes', root, 'myReactions', produce((reactions) => { delete reactions[id] }))
+      write('scopes', root, 'pendingReactions', produce((reactions) => { delete reactions[id] }))
       lifecycle.releasePost(root, id)
       removePermissionDeadline(model, write, root, id)
     }

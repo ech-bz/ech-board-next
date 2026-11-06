@@ -41,6 +41,7 @@ export interface Post extends Entity {
   readonly reactionGlyph: string | null
   readonly myReaction: string | null
   readonly myReactionBase: string | null
+  readonly reactionPending: boolean
   readonly repliedMine: boolean
   readonly banned: boolean
   readonly bannedLevel: string | null

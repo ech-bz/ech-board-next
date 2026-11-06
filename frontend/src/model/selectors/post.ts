@@ -69,7 +69,8 @@ export function postFields(model: ForumState, root: string, id: string) {
       const pending = scope().pendingReactions[id]
       return pending && pending.base === base ? pending.local : base
     },
-    myReactionBase: () => scope().myReactions[id] ?? null,
+    myReactionBase: () => scope().myReactions[id]?.value ?? null,
+    reactionPending: () => scope().pendingReactions[id] !== undefined,
     repliedMine: () => false,
     hidden: () => post().deleted || post().op && (thread()?.deleted ?? false),
     banned: () => post().bannedBy !== null,

@@ -34,7 +34,12 @@ export function createReceiver(model: ForumState, commit: Commit, isDisposed: ()
       for (const author of thread.moderators) rememberOwner(author)
       if (thread.admin) rememberOwner(thread.admin)
     }
-    return [{ type: 'entities.ingest', value: changes }, { type: 'authors.merge', value: { root, values: authors } }, { type: 'permissions.refresh', value: { root, posts: (changes.posts ?? []).map((post) => ({ board: post.key.board, number: Number(post.key.number) })), at: Date.now() } }]
+    return [
+      { type: 'entities.ingest', value: changes },
+      { type: 'authors.merge', value: { root, values: authors } },
+      { type: 'permissions.refresh', value: { root, posts: (changes.posts ?? []).map((post) => ({ board: post.key.board, number: Number(post.key.number) })), at: Date.now() } },
+      { type: 'reactions.confirm', value: { root, values: changes.myReactions ?? [], txid: changes.txid } },
+    ]
   }
   const receive: Receive = (changes, ...operations) => {
     if (!isDisposed()) commit(...prepare(changes), ...operations)

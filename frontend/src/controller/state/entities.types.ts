@@ -1,9 +1,11 @@
 import type { Media } from '../../model/entities/media'
-import type { PostPreview } from '../../model/state/forum'
+import type { PostPreview, ReactionSelection } from '../../model/state/forum'
 import type { PostRetention } from '../../model/state/retention'
 import type { BoardEntity, ForumEntity, PostEntity, ThreadEntity } from '../io/ech/protocol/entities'
 
 export interface EntityUpdate {
+  txid?: string
+  myReactions?: ReadonlyArray<readonly [string, ReactionSelection]>
   scope: { forumId: string; relayUrl: string }
   posts?: readonly PostEntity[]
   threads?: readonly ThreadEntity[]

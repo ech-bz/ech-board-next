@@ -7,6 +7,7 @@ export interface EntityPayload {
 export interface RealtimeEvent {
   txid: string
   function: string
+  reaction: { author: string; post: string; value: string | null } | null
   board: string
   thread: string
   entities: EntityPayload[]

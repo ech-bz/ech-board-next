@@ -2,7 +2,7 @@ import { bcs } from '@mysten/bcs'
 
 import type { SessionState } from '../../../model/state/session'
 import { Identity, randomTweak } from '../crypto/identity'
-import type { BoardPageEntity, PostEntity, ThreadPageEntity } from './protocol/entities'
+import type { BoardPageEntity, PostPageEntity, ThreadPageEntity } from './protocol/entities'
 import { EntityId } from './protocol/entityId'
 import { EsidSchema, type Esid, type Media, type Resources } from './protocol/transactions'
 import * as relay from './relay'
@@ -358,9 +358,10 @@ export class ForumApi {
     operation: Call,
     blobs: { hash: string; bytes: Uint8Array }[] = [],
     tweak: Uint8Array = randomTweak(),
+    onPrepared?: (txid: string) => void,
   ): Promise<{ txid: string; result: Uint8Array }> {
     const identity = this.identity
-    const result = await relay.submit(
+    return relay.submit(
       this.relay,
       identity,
       relay.call(this.relay, operation.function, operation.args),
@@ -369,8 +370,13 @@ export class ForumApi {
         decrypt: [identity.esid(this.relay.root, tweak), ...operation.decryptions],
       },
       blobs.map((blob) => blob.bytes),
+      onPrepared,
     )
-    return { txid: '', result }
+  }
+
+  private access(): relay.Access {
+    const tweak = randomTweak()
+    return { tweak, decrypt: [this.identity.esid(this.root, tweak)] }
   }
 
   async query(operation: Call): Promise<Uint8Array> {
@@ -402,7 +408,7 @@ export class ForumApi {
       this.identity,
       EntityId.board(slug),
       before,
-      {},
+      this.access(),
     )
     return page
   }
@@ -413,17 +419,17 @@ export class ForumApi {
       this.identity,
       EntityId.thread(slug, number),
       cursors,
-      {},
+      this.access(),
     )
     return pages
   }
 
-  async post(id: string): Promise<Resources<PostEntity>> {
+  async post(id: string): Promise<Resources<PostPageEntity>> {
     const page = await relay.readPost(
       this.relay,
       this.identity,
       relay.unhex(clean(id)),
-      {},
+      this.access(),
     )
     return page
   }

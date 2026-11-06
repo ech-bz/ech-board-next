@@ -159,7 +159,13 @@ export const ThreadMetaSchema = struct('ThreadMeta', {
   page_size: bcs.u64(),
 })
 
+export const PostPageSchema = struct('PostPage', {
+  post: PostEntitySchema,
+  my_reactions: bcs.map(Hash, Hash),
+})
+
 export const ThreadPageSchema = struct('ThreadPage', {
+  my_reactions: bcs.map(Hash, Hash),
   posts: bcs.map(bcs.u64(), PostEntitySchema),
   next: bcs.option(bcs.u64()),
 })
@@ -170,6 +176,7 @@ export const ThreadPreviewSchema = struct('ThreadPreview', {
 })
 
 export const BoardPageSchema = struct('BoardPage', {
+  my_reactions: bcs.map(Hash, Hash),
   threads: bcs.vector(ThreadPreviewSchema),
   next: bcs.option(bcs.u64()),
 })
@@ -187,3 +194,5 @@ export type ThreadPageEntity = typeof ThreadPageSchema.$inferType
 export type ThreadPreviewEntity = typeof ThreadPreviewSchema.$inferType
 export type BoardPageEntity = typeof BoardPageSchema.$inferType
 export type ForumPageEntity = typeof ForumPageSchema.$inferType
+
+export type PostPageEntity = typeof PostPageSchema.$inferType

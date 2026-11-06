@@ -116,7 +116,7 @@ export function PostBody(props: {
   const selection = usePostSelection()
   const composer = useComposerBridge()
   const mobile = useIsMobile()
-  const reactBusy = () => model.operations.reacting[resourceKey(props.ctx.forumId, props.post.id)] ?? false
+  const reactBusy = () => props.post.reactionPending || (model.operations.reacting[resourceKey(props.ctx.forumId, props.post.id)] ?? false)
   const [expanded, setExpanded] = createSignal(false)
   let postEl: HTMLElement | undefined
   const selectable = () => !!selection?.canSelect()

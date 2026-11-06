@@ -8,7 +8,7 @@ import type { ForumGateway } from '../forumGateway'
 import { parseEntity, type BoardEntity, type ForumEntity, type PostEntity, type ThreadEntity } from '../io/ech/protocol/entities'
 import { EntityId } from '../io/ech/protocol/entityId'
 import type { RealtimeEvent } from '../io/ech/protocol/events'
-import { MediaMetaSchema } from '../io/ech/protocol/transactions'
+import { EsidSchema, MediaMetaSchema } from '../io/ech/protocol/transactions'
 import type { EntityUpdate } from '../state/entities.types'
 
 
@@ -26,7 +26,7 @@ export async function eventChanges(model: ForumState, gateway: ForumGateway, rel
   const threads: ThreadEntity[] = []
   const boards: BoardEntity[] = []
   const forums: ForumEntity[] = []
-  const changes: EntityUpdate = { scope: { forumId: root, relayUrl }, posts, threads, boards, forums }
+  const changes: EntityUpdate = { txid: event.txid, scope: { forumId: root, relayUrl }, posts, threads, boards, forums }
   for (const entity of event.entities) {
     const bytes = fromHex(entity.value)
     if (entity.kind === 'post') posts.push(parseEntity('post', bytes))
@@ -41,6 +41,14 @@ export async function eventChanges(model: ForumState, gateway: ForumGateway, rel
     changes.posts = posts.filter((entity) => model.page.mode === 'thread'
       ? EntityId.thread(entity.key.board, Number(postValue(entity).thread)) === model.page.threadId
       : model.page.mode === 'board' && EntityId.board(entity.key.board) === model.page.boardId)
+  }
+  if (event.reaction) {
+    const author = EsidSchema.parse(fromHex(event.reaction.author))
+    const id = toHex(fromHex(event.reaction.post))
+    const post = changes.posts?.find((post) => EntityId.post(post.key.board, Number(post.key.number)) === id)
+    if (post && api.identity.owns(api.root, author)) {
+      changes.myReactions = [[id, { seq: post.seq, value: event.reaction.value === null ? null : toHex(fromHex(event.reaction.value)) }]]
+    }
   }
   const { contentHashes, attachmentHashes } = requiredResources(changes)
   for (const hash of contents.keys()) if (!contentHashes.has(hash)) contents.delete(hash)

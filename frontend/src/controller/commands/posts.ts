@@ -22,14 +22,13 @@ export function createPostCommands(model: ForumState, commit: Commit, gateway: F
       const scope = model.scopes[forumKey(data.forumId)]
       return { post: scope.entities.posts[id], board: scope.entities.boards[EntityId.board(data.board.key.slug)], thread: scope.entities.threads[data.threadId] }
     },
-    async refetchPost(id: string, myReaction?: string | null, root = model.page.forumId) {
+    async refetchPost(id: string, root = model.page.forumId) {
       const scope = root ? model.scopes[forumKey(root)] : null
       if (!scope) return
       const data = await readPost(scope.relayUrl, id)
       if (model.scopes[scope.root] !== scope) return
       const changes = postChanges(data)
-      if (myReaction !== undefined) receive(changes, { type: 'reactions.confirm', value: { root: scope.root, values: [[id, myReaction]] } })
-      else receive(changes)
+      receive(changes)
     },
     addContent(hash: string, bytes: Uint8Array, root = model.page.forumId) {
       const scope = root ? model.scopes[forumKey(root)] : null
@@ -38,15 +37,17 @@ export function createPostCommands(model: ForumState, commit: Commit, gateway: F
     async reactToPost(record: Post, context: { forumId: string; relayUrl: string }, reaction: string) {
       const id = record.id
       const key = resourceKey(context.forumId, id)
-      if (model.operations.reacting[key]) return
+      if (model.operations.reacting[key] || record.reactionPending) return
       commit({ type: 'reaction.setBusy', value: { key, busy: true } })
       const current = record.myReaction
       const root = forumKey(context.forumId)
       const scope = model.scopes[root]
-      commit({ type: 'reaction.setPending', value: { root, id, value: { local: current === reaction ? null : reaction, base: record.myReactionBase } } })
       try {
         const api = await connect(context.relayUrl)
-        await api.append(Calls.post.react(id, current, reaction))
+        if (model.scopes[root] !== scope) return
+        await api.append(Calls.post.react(id, current, reaction), [], undefined, (txid) => {
+          commit({ type: 'reaction.setPending', value: { root, id, value: { txid, local: current === reaction ? null : reaction, base: record.myReactionBase } } })
+        })
       } catch (error) {
         if (model.scopes[root] === scope) commit({ type: 'reaction.setPending', value: { root, id, value: null } })
         throw error

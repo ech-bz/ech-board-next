@@ -1,5 +1,6 @@
 import type { BcsType } from '@mysten/bcs'
 import { bcs, toHex as hex, fromHex as unhex } from '@mysten/bcs'
+import { blake2b } from '@noble/hashes/blake2'
 export { toHex as hex, fromHex as unhex } from '@mysten/bcs'
 
 import { SERVER_URL } from '../browser/relays'
@@ -9,12 +10,12 @@ import {
   BoardPageSchema,
   ForumEntitySchema,
   ForumPageSchema,
-  PostEntitySchema,
+  PostPageSchema,
   ThreadMetaSchema,
   ThreadPageSchema,
   type BoardPageEntity,
   type ForumPageEntity,
-  type PostEntity,
+  type PostPageEntity,
   type ThreadPageEntity,
 } from './protocol/entities'
 import { EntityId } from './protocol/entityId'
@@ -23,6 +24,7 @@ import {
   MediaMetaSchema,
   type Media,
   SignedSchema,
+  UserPartSchema,
   type Call,
   type Esid,
   type Resources,
@@ -71,18 +73,21 @@ export async function submit(
   request: Call,
   access: Access,
   blobs: Uint8Array[] = [],
-): Promise<Uint8Array> {
+  onPrepared?: (txid: string) => void,
+): Promise<{ txid: string; result: Uint8Array }> {
   const user = identity.sign(relay.root, new Uint8Array(), request, access.tweak)
+  const txid = hex(blake2b(bcs.tuple([bcs.bytes(32), UserPartSchema]).serialize([relay.root, user]).toBytes(), { dkLen: 32 }))
   const payload = SignedSchema.serialize({ user, decryptions: access.decrypt ?? [] }).toBytes()
   const form = new FormData()
   form.append('signed', new Blob([payload.slice().buffer as ArrayBuffer], { type: CONTENT_TYPE }))
   for (const blob of blobs) {
     form.append('blob', new Blob([blob.slice().buffer as ArrayBuffer], { type: CONTENT_TYPE }))
   }
+  onPrepared?.(txid)
   const response = await fetch(`${relay.base}/submit`, { method: 'POST', body: form })
   const bytes = new Uint8Array(await response.arrayBuffer())
   if (!response.ok) throw new Error(message(bytes))
-  return bytes
+  return { txid, result: bytes }
 }
 
 export async function query(
@@ -213,13 +218,13 @@ export function readPost(
   identity: Identity,
   id: Uint8Array,
   access: Access,
-): Promise<Resources<PostEntity>> {
-  return read<PostEntity>(
+): Promise<Resources<PostPageEntity>> {
+  return read<PostPageEntity>(
     relay,
     identity,
     call(relay, 'post.get', id),
     access,
-    PostEntitySchema,
+    PostPageSchema,
   )
 }
 

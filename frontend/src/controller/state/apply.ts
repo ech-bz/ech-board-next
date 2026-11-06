@@ -65,12 +65,17 @@ export function applyLocalOperation(model: ForumState, write: SetStoreFunction<F
       break
     }
     case 'reactions.confirm': {
-      const { root, values } = operation.value
-      for (const [id, value] of values) {
-        if (value === null) write('scopes', root, 'myReactions', produce((reactions) => { delete reactions[id] }))
-        else write('scopes', root, 'myReactions', id, value)
-        const pending = model.scopes[root].pendingReactions[id]
-        if (pending && pending.base !== value) write('scopes', root, 'pendingReactions', produce((reactions) => { delete reactions[id] }))
+      const { root, values, txid } = operation.value
+      const scope = model.scopes[root]
+      for (const [id, selection] of values) {
+        if (!scope.entities.posts[id]) continue
+        const previous = scope.myReactions[id]
+        const pending = scope.pendingReactions[id]
+        const current = !previous || previous.seq <= selection.seq
+        if (current) write('scopes', root, 'myReactions', id, reconcile(selection))
+        if (pending && (pending.txid === txid || (current && pending.base !== selection.value))) {
+          write('scopes', root, 'pendingReactions', produce((reactions) => { delete reactions[id] }))
+        }
       }
       break
     }

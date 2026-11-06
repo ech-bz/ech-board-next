@@ -16,7 +16,13 @@ import type { RelayDescriptor, SessionState } from './session'
 import type { ThreadPosts } from './threadPosts'
 import { emptyUnread, type UnreadState } from './unread'
 
+export interface ReactionSelection {
+  seq: bigint
+  value: string | null
+}
+
 export interface PendingReaction {
+  txid: string
   local: string | null
   base: string | null
 }
@@ -47,7 +53,7 @@ export interface ForumScope {
   authors: Record<string, { mine: boolean; tweak: Uint8Array }>
   boardPages: Record<string, { threadIds: string[]; next: number | null }>
   loadedThreads: Record<string, boolean>
-  myReactions: Record<string, string>
+  myReactions: Record<string, ReactionSelection>
   pendingReactions: Record<string, PendingReaction>
 }
 

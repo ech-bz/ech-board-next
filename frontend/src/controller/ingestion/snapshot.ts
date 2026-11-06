@@ -27,12 +27,21 @@ export function pageSnapshot(updates: EntityUpdate[], page: ForumState['page']):
     .filter((entity) => page.mode === 'thread'
       ? !!thread && entity.key.board === thread.key.board && postValue(entity).thread === thread.key.number
       : page.mode === 'board' && previews.has(numberKey(entity.key.board, Number(entity.key.number))))
+  const myReactions = new Map<string, NonNullable<EntityUpdate['myReactions']>[number][1]>()
+  for (const update of updates) {
+    for (const [id, selection] of update.myReactions ?? []) {
+      const previous = myReactions.get(id)
+      if (!previous || previous.seq < selection.seq) myReactions.set(id, selection)
+    }
+  }
+  const postIds = new Set(posts.map((post) => EntityId.post(post.key.board, Number(post.key.number))))
   const snapshot: EntityUpdate = {
     ...initial,
     forums: latest(updates.flatMap((update) => update.forums ?? []), () => EntityId.forum()),
     boards: latest(updates.flatMap((update) => update.boards ?? []), (entity) => entity.key.slug),
     threads,
     posts,
+    myReactions: [...myReactions].filter(([id]) => postIds.has(id)),
     contents: new Map(updates.flatMap((update) => [...update.contents ?? []])),
     attachments: new Map(updates.flatMap((update) => [...update.attachments ?? []])),
     feed: initial.feed ? { ...initial.feed, threadIds: threads.map((entity) => EntityId.thread(entity.key.board, Number(entity.key.number))) } : undefined,

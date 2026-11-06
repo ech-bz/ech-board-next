@@ -2,7 +2,7 @@ import type { ForumState } from '../model/state/forum'
 import type { Commit } from './commit'
 import { postValue, threadValue } from './convert/versions'
 import { ForumApi } from './io/ech/forumApi'
-import type { BoardEntity, ForumEntity, PostEntity, ThreadEntity, ThreadPreviewEntity } from './io/ech/protocol/entities'
+import type { BoardEntity, ForumEntity, PostEntity, PostPageEntity, ThreadEntity, ThreadPreviewEntity } from './io/ech/protocol/entities'
 import { EntityId } from './io/ech/protocol/entityId'
 import type { Media, Resources } from './io/ech/protocol/transactions'
 import * as relay from './io/ech/relay'
@@ -20,6 +20,7 @@ export interface ForumViewData {
 
 export interface PostCtx extends ForumViewData {
   board: BoardEntity
+  myReactions: PostPageEntity['my_reactions']
 }
 
 export interface ThreadViewData extends PostCtx {
@@ -96,6 +97,7 @@ export function createForumGateway(model: ForumState, commit: Commit) {
       board: data.board!.view,
       threadId: EntityId.thread(board, number),
       thread,
+      myReactions: new Map(pages.flatMap((page) => [...page.view.my_reactions])),
       posts: pages.flatMap((page) => [...page.view.posts.values()]),
       contentMap: new Map([...context.contentMap, ...content.contentMap]),
       mediaMeta: new Map([...context.mediaMeta, ...content.mediaMeta]),
@@ -111,6 +113,7 @@ export function createForumGateway(model: ForumState, commit: Commit) {
       board: data.board!.view,
       boardId: EntityId.board(slug),
       threads: response.view.threads,
+      myReactions: response.view.my_reactions,
       next: response.view.next === null ? null : Number(response.view.next),
       contentMap: new Map([...context.contentMap, ...content.contentMap]),
       mediaMeta: new Map([...context.mediaMeta, ...content.mediaMeta]),
@@ -124,7 +127,7 @@ export function createForumGateway(model: ForumState, commit: Commit) {
   async function readPost(relayUrl: string, postId: string): Promise<PostViewData> {
     const api = await connect(relayUrl)
     const postPage = await api.post(postId)
-    const post = postPage.view
+    const post = postPage.view.post
     const board = post.key.board
     const thread = Number(postValue(post).thread)
     const { data, context } = await metadata(relayUrl, board, thread)
@@ -136,7 +139,8 @@ export function createForumGateway(model: ForumState, commit: Commit) {
       threadId: EntityId.thread(board, thread),
       thread: data.thread!.view.thread,
       post,
-      op: opPage.view,
+      op: opPage.view.post,
+      myReactions: new Map([...postPage.view.my_reactions, ...opPage.view.my_reactions]),
       contentMap: new Map([...context.contentMap, ...content.contentMap]),
       mediaMeta: new Map([...context.mediaMeta, ...content.mediaMeta]),
     }

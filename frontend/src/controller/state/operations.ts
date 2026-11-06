@@ -1,4 +1,4 @@
-import type { ForumState, PendingReaction, PostPreview } from '../../model/state/forum'
+import type { ForumState, PendingReaction, PostPreview, ReactionSelection } from '../../model/state/forum'
 import type { BanListState, FeedState, SnapshotState } from '../../model/state/inspection'
 import type { SecretState } from '../../model/state/resources'
 import type { EntityUpdate } from './entities.types'
@@ -35,7 +35,7 @@ interface OperationValues {
   'entities.ingest': EntityUpdate
   'preview.set': PostPreview
   'authors.merge': { root: string; values: ForumState['scopes'][string]['authors'] }
-  'reactions.confirm': { root: string; values: Iterable<readonly [string, string | null]> }
+  'reactions.confirm': { root: string; values: Iterable<readonly [string, ReactionSelection]>; txid?: string }
   'reaction.setPending': { root: string; id: string; value: PendingReaction | null }
 }
 
