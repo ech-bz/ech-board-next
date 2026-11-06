@@ -1,6 +1,7 @@
 use bcs::{from_bytes, to_bytes};
 use reqwest::Client;
 use serde::de::DeserializeOwned;
+use tracing::Instrument;
 
 use ech_db_protocol::error::Reject;
 use ech_db_protocol::id::{Root, Txid};
@@ -44,13 +45,18 @@ impl DbClient {
     }
 
     pub async fn query(&self, root: &Root, request: &Request) -> Result<Outcome, DbError> {
-        let body = to_bytes(request)?;
+        let body = tracing::debug_span!(target: "latency", "query.encode_request")
+            .in_scope(|| to_bytes(request))?;
+        let size = body.len();
         let response = self
             .http
             .post(format!("{}/{}/query", self.base, root))
             .header("content-type", "application/octet-stream")
             .body(body)
             .send()
+            .instrument(
+                tracing::debug_span!(target: "latency", "query.http_headers", request_bytes = size),
+            )
             .await?;
         Self::decode(response).await
     }
@@ -72,13 +78,22 @@ impl DbClient {
 
     async fn decode<T: DeserializeOwned>(response: reqwest::Response) -> Result<T, DbError> {
         let status = response.status();
-        let bytes = response.bytes().await?;
-        if status.is_success() {
-            return Ok(from_bytes(&bytes)?);
-        }
-        match from_bytes::<Reject>(&bytes) {
-            Ok(reject) => Err(DbError::Reject(reject)),
-            Err(_) => Err(DbError::Status(status.as_u16())),
-        }
+        let bytes = response
+            .bytes()
+            .instrument(
+                tracing::debug_span!(target: "latency", "db.http_body", status = status.as_u16()),
+            )
+            .await?;
+        tracing::debug_span!(target: "latency", "db.decode_response", bytes = bytes.len()).in_scope(
+            || {
+                if status.is_success() {
+                    return Ok(from_bytes(&bytes)?);
+                }
+                match from_bytes::<Reject>(&bytes) {
+                    Ok(reject) => Err(DbError::Reject(reject)),
+                    Err(_) => Err(DbError::Status(status.as_u16())),
+                }
+            },
+        )
     }
 }

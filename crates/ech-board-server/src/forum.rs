@@ -142,6 +142,8 @@ impl Forum {
         }
     }
 
+    #[tracing::instrument(target = "latency", level = "debug", name = "query.database", skip_all,
+        fields(root = %self.root(), function = %user.call.function, txid = tracing::field::Empty))]
     pub async fn query(
         &self,
         user: UserPart,
@@ -154,6 +156,10 @@ impl Forum {
             )));
         }
         let request = self.request(user, decryptions)?;
+        if tracing::enabled!(target: "latency", tracing::Level::DEBUG) {
+            let txid = request.tx.txid(&self.root())?;
+            tracing::Span::current().record("txid", tracing::field::display(txid));
+        }
         match self.db.query(&self.root(), &request).await {
             Ok(outcome) => decode(&outcome.result),
             Err(error) => Err(error.into()),
@@ -206,6 +212,12 @@ impl Forum {
         Ok(records.remove(0))
     }
 
+    #[tracing::instrument(
+        target = "latency",
+        level = "debug",
+        name = "query.prepare_request",
+        skip_all
+    )]
     fn request(&self, user: UserPart, decryptions: Vec<Esid>) -> Result<Request, ServerError> {
         let tx = self.domain.sign(user, Self::context())?;
         let mut resolved = BTreeMap::new();
@@ -242,6 +254,8 @@ fn now() -> u64 {
         .as_millis() as u64
 }
 
+#[tracing::instrument(target = "latency", level = "debug", name = "query.decode_output", skip_all,
+    fields(bytes = bytes.len()))]
 fn decode(bytes: &[u8]) -> Result<Output, ServerError> {
     bcs::from_bytes(bytes).map_err(Into::into)
 }

@@ -8,6 +8,7 @@ use bcs::{from_bytes, to_bytes};
 use futures_util::stream::{self, StreamExt as _, TryStreamExt as _};
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
+use tracing::Instrument;
 
 use ech_board_entity::{Entity, HistoryEntry};
 use ech_board_program::context::ServerContext;
@@ -278,60 +279,37 @@ async fn submit_content(app: &App, form: &SubmitForm, signed: &Signed) -> Result
     Ok(())
 }
 
+#[tracing::instrument(target = "latency", level = "debug", name = "query.batch", skip_all,
+    fields(input_bytes = body.len(), queries = tracing::field::Empty))]
 async fn query_handler(app: web::Data<App>, body: web::Bytes) -> Result<HttpResponse, ServerError> {
-    let started = Instant::now();
-    let batch: Vec<Signed> = from_bytes(&body)?;
-    let results: Vec<(Vec<u8>, f64, f64)> = stream::iter(batch)
-        .map(|signed| {
-            let app = &app;
-            async move {
-                let function = signed.user.call.function.clone();
-                let query_started = Instant::now();
-                let output = app.forum.query(signed.user, signed.decryptions).await;
-                let db_ms = query_started.elapsed().as_secs_f64() * 1000.0;
-                let output = match output {
-                    Ok(output) => output,
-                    Err(error) => {
-                        tracing::warn!(%error, %function, db_ms, "query rejected");
-                        return Err(error);
-                    }
-                };
-                let resources_started = Instant::now();
-                let result = hydrate(app, &function, output.result).await;
-                let resources_ms = resources_started.elapsed().as_secs_f64() * 1000.0;
-                let total_ms = query_started.elapsed().as_secs_f64() * 1000.0;
-                let result = match result {
-                    Ok(result) => result,
-                    Err(error) => {
-                        tracing::warn!(%error, %function, db_ms, resources_ms, total_ms, "query resources failed");
-                        return Err(error);
-                    }
-                };
-                if total_ms >= 100.0 {
-                    tracing::info!(%function, db_ms, resources_ms, total_ms, "slow query");
-                }
-                Ok((result, db_ms, resources_ms))
-            }
-        })
+    let batch: Vec<Signed> = tracing::debug_span!(target: "latency", "query.decode_batch")
+        .in_scope(|| from_bytes(&body))?;
+    tracing::Span::current().record("queries", batch.len());
+    let results: Vec<Vec<u8>> = stream::iter(batch)
+        .map(|signed| query_page(&app, signed))
         .buffered(QUERY_CONCURRENCY)
         .try_collect()
         .await?;
-    let mut timing = match results.as_slice() {
-        [(_, db_ms, resources_ms)] => {
-            format!("db;dur={db_ms:.2}, resources;dur={resources_ms:.2}, ")
-        }
-        _ => String::new(),
-    };
-    let results: Vec<Vec<u8>> = results.into_iter().map(|(result, _, _)| result).collect();
-    let body = to_bytes(&results)?;
-    let total_ms = started.elapsed().as_secs_f64() * 1000.0;
-    timing.push_str(&format!("total;dur={total_ms:.2}"));
-    Ok(HttpResponse::Ok()
-        .content_type(CONTENT_TYPE)
-        .insert_header(("Server-Timing", timing))
-        .body(body))
+    let body = tracing::debug_span!(target: "latency", "query.encode_batch")
+        .in_scope(|| to_bytes(&results))?;
+    Ok(HttpResponse::Ok().content_type(CONTENT_TYPE).body(body))
 }
 
+#[tracing::instrument(target = "latency", level = "debug", name = "query.page", skip_all,
+    fields(root = %app.forum.root(), function = %signed.user.call.function))]
+async fn query_page(app: &App, signed: Signed) -> Result<Vec<u8>, ServerError> {
+    let function = signed.user.call.function.clone();
+    let output = app
+        .forum
+        .query(signed.user, signed.decryptions)
+        .await
+        .inspect_err(|error| tracing::warn!(%error, %function, "query rejected"))?;
+    hydrate(app, &function, output.result)
+        .await
+        .inspect_err(|error| tracing::warn!(%error, %function, "query resources failed"))
+}
+
+#[tracing::instrument(target = "latency", level = "debug", name = "query.hydrate", skip_all)]
 async fn hydrate(app: &App, function: &str, result: Vec<u8>) -> Result<Vec<u8>, ServerError> {
     match function {
         "forum.meta" => view::<Entity<Forum>>(app, &result).await,
@@ -351,9 +329,14 @@ async fn view<T>(app: &App, result: &[u8]) -> Result<Vec<u8>, ServerError>
 where
     T: PageResources + serde::de::DeserializeOwned + Serialize,
 {
-    let view: T = from_bytes(result)?;
-    let resources = WithResources::load(&app.content, view).await?;
-    Ok(to_bytes(&resources)?)
+    let view: T =
+        tracing::debug_span!(target: "latency", "query.decode_page", bytes = result.len())
+            .in_scope(|| from_bytes(result))?;
+    let resources = WithResources::load(&app.content, view)
+        .instrument(tracing::debug_span!(target: "latency", "query.resources"))
+        .await?;
+    Ok(tracing::debug_span!(target: "latency", "query.encode_page")
+        .in_scope(|| to_bytes(&resources))?)
 }
 
 async fn feed_page(
