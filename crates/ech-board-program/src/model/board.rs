@@ -3,17 +3,17 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use ech_board_entity::{entity, Dispatch, Entity, Record};
-use ech_db_guest::{BigLog, Bind};
+use ech_db_guest::Bind;
 
 use crate::context::{decode_arguments, encode, fail, Context};
 use crate::error::ForumError;
 use crate::model::{
-    unique, BanValue, Bans, Esid, Forum, ForumKey, ForumV1, Hash, Post, PostKey, PostV1, Thread,
-    ThreadKey, ThreadPreview, ThreadV1,
+    unique, BanValue, Bans, BoardIndex, BoardOrderKey, Esid, Forum, ForumKey, ForumV1, Hash, Post,
+    PostKey, PostV1, Thread, ThreadKey, ThreadPreview, ThreadV1,
 };
 
-static PAGE_THREADS: usize = 10;
-static PAGE_BUMP: usize = 128;
+const PAGE_THREADS: usize = 20;
+const PINNED_LIMIT: usize = 8;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub struct BoardKey {
@@ -38,15 +38,22 @@ pub struct BoardV1 {
     pub reactions: Vec<Hash>,
     pub moderators: Vec<Esid>,
     pub ignore_forum_bans: bool,
-    pub bumps: BigLog<u64>,
+    pub order: BoardIndex,
     pub bans: Bans,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct BoardCursor {
+    pub root: u64,
+    pub before: BoardOrderKey,
+    pub pinned: Vec<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct BoardPage {
     pub my_reactions: BTreeMap<Hash, Hash>,
     pub threads: Vec<ThreadPreview>,
-    pub next: Option<u64>,
+    pub next: Option<BoardCursor>,
 }
 
 impl BoardV1 {
@@ -69,19 +76,27 @@ impl BoardV1 {
         forum.is_moderator(context) || self.moderators.iter().any(|esid| context.is_author(esid))
     }
 
-    pub(crate) fn allocate_post(&mut self, thread: u64, bump: bool) -> Result<u64, Vec<u8>> {
+    pub(crate) fn allocate_post(
+        &mut self,
+        thread: u64,
+        previous_bump: u64,
+        bump: bool,
+    ) -> Result<u64, Vec<u8>> {
         self.post_count = self
             .post_count
             .checked_add(1)
             .ok_or_else(|| fail(ForumError::CounterOverflow))?;
         if bump {
-            self.bumps.push(&thread)?;
+            self.order.replace(
+                Some(BoardOrderKey::new(thread, previous_bump)),
+                BoardOrderKey::new(thread, self.post_count),
+            )?;
         }
         Ok(self.post_count)
     }
 
     pub(crate) fn pin(&mut self, number: u64) -> Result<(), Vec<u8>> {
-        if self.pinned.len() >= 8 && !self.pinned.contains(&number) {
+        if self.pinned.len() >= PINNED_LIMIT && !self.pinned.contains(&number) {
             return Err(fail(ForumError::PinnedThreadLimit));
         }
         if !self.pinned.contains(&number) {
@@ -93,6 +108,50 @@ impl BoardV1 {
 
     pub(crate) fn unpin(&mut self, number: u64) {
         self.pinned.retain(|entry| *entry != number);
+    }
+
+    fn page(
+        &self,
+        cursor: Option<BoardCursor>,
+    ) -> Result<(Vec<u64>, Option<BoardCursor>), Vec<u8>> {
+        let pinned = cursor
+            .as_ref()
+            .map_or(&self.pinned, |cursor| &cursor.pinned);
+        if pinned.len() > PINNED_LIMIT
+            || pinned
+                .iter()
+                .enumerate()
+                .any(|(index, number)| pinned[..index].contains(number))
+        {
+            return Err(fail(ForumError::InvalidBoardCursor));
+        }
+        let mut numbers = if cursor.is_none() {
+            pinned.clone()
+        } else {
+            Vec::new()
+        };
+        let remaining = PAGE_THREADS - numbers.len();
+        let (root, entries) = self.order.page(
+            cursor.as_ref().map(|cursor| cursor.root),
+            cursor.as_ref().map(|cursor| cursor.before),
+            remaining + pinned.len() + 1,
+        )?;
+        let entries: Vec<_> = entries
+            .into_iter()
+            .filter(|entry| !pinned.contains(&entry.thread))
+            .collect();
+        let next = (entries.len() > remaining).then(|| BoardCursor {
+            root,
+            before: entries[remaining - 1],
+            pinned: pinned.clone(),
+        });
+        numbers.extend(
+            entries
+                .into_iter()
+                .take(remaining)
+                .map(|entry| entry.thread),
+        );
+        Ok((numbers, next))
     }
 
     pub(crate) fn listing() -> Result<Vec<Entity<Board>>, Vec<u8>> {
@@ -121,50 +180,16 @@ impl Dispatch<Context> for Board {
         match method {
             "meta" => encode(&board),
             "page" => {
-                let (before,): (u64,) = decode_arguments(args)?;
-                let pinned = board.pinned.clone();
-                let mut numbers: Vec<u64> = if before == 0 {
-                    pinned.clone()
-                } else {
-                    Vec::new()
-                };
-                let mut cursor = if before == 0 {
-                    board.bumps.len()
-                } else {
-                    before
-                };
-                loop {
-                    let rows = board.bumps.tail(Some(cursor), PAGE_BUMP)?;
-                    if rows.is_empty() {
-                        break;
-                    }
-                    for (sequence, number) in rows {
-                        cursor = sequence;
-                        if numbers.contains(&number) {
-                            continue;
-                        }
-                        numbers.push(number);
-                        if numbers.len() == pinned.len() + PAGE_THREADS {
-                            let threads = previews(&board, &numbers, pinned.len())?;
-                            return encode(&BoardPage {
-                                my_reactions: PostV1::my_reactions(
-                                    context,
-                                    threads.iter().flat_map(|thread| thread.posts.values()),
-                                )?,
-                                threads,
-                                next: (cursor > 0).then_some(cursor),
-                            });
-                        }
-                    }
-                }
-                let threads = previews(&board, &numbers, pinned.len())?;
+                let (cursor,): (Option<BoardCursor>,) = decode_arguments(args)?;
+                let (numbers, next) = board.page(cursor)?;
+                let threads = previews(&board, &numbers)?;
                 encode(&BoardPage {
                     my_reactions: PostV1::my_reactions(
                         context,
                         threads.iter().flat_map(|thread| thread.posts.values()),
                     )?,
                     threads,
-                    next: (cursor > 0).then_some(cursor),
+                    next,
                 })
             }
             "add_moderator" => {
@@ -294,13 +319,38 @@ impl Dispatch<Context> for Board {
                 encode(&(board.key.clone(), board.inner().clone()))
             }
             "set_pinned" => {
-                let (values,): (Vec<u64>,) = decode_arguments(args)?;
+                let (mut values,): (Vec<u64>,) = decode_arguments(args)?;
                 let forum = Forum::load(&ForumKey {})?;
                 if !board.is_moderator(context, forum.inner()) {
                     return Err(fail(ForumError::NotAuthorized));
                 }
+                values.sort_unstable_by(|a, b| b.cmp(a));
+                values.dedup();
+                if values.len() > PINNED_LIMIT {
+                    return Err(fail(ForumError::PinnedThreadLimit));
+                }
+                let mut numbers = board.pinned.clone();
+                numbers.extend(&values);
+                numbers.sort_unstable();
+                numbers.dedup();
+                let keys: Vec<_> = numbers
+                    .iter()
+                    .map(|number| ThreadKey {
+                        board: board.key.slug.clone(),
+                        number: *number,
+                    })
+                    .collect();
+                let threads = Thread::load_many(&keys)?;
+                for thread in threads {
+                    let mut thread = thread.ok_or_else(|| fail(ForumError::NotFound))?;
+                    let number = thread.key.number;
+                    let pinned = values.contains(&number);
+                    if thread.pinned != pinned {
+                        thread.pinned = pinned;
+                        thread.save()?;
+                    }
+                }
                 board.pinned = values;
-                board.pinned.sort_unstable_by(|a, b| b.cmp(a));
                 board.save()?;
                 encode(&(board.key.clone(), board.inner().clone()))
             }
@@ -374,7 +424,9 @@ impl Dispatch<Context> for Board {
                     .thread_count
                     .checked_add(1)
                     .ok_or_else(|| fail(ForumError::CounterOverflow))?;
-                board.bumps.push(&number)?;
+                board
+                    .order
+                    .replace(None, BoardOrderKey::new(number, number))?;
                 board.save()?;
                 encode(&number)
             }
@@ -383,11 +435,7 @@ impl Dispatch<Context> for Board {
     }
 }
 
-fn previews(
-    board: &Entity<Board>,
-    numbers: &[u64],
-    pinned: usize,
-) -> Result<Vec<ThreadPreview>, Vec<u8>> {
+fn previews(board: &Entity<Board>, numbers: &[u64]) -> Result<Vec<ThreadPreview>, Vec<u8>> {
     let keys: Vec<ThreadKey> = numbers
         .iter()
         .map(|number| ThreadKey {
@@ -396,13 +444,8 @@ fn previews(
         })
         .collect();
     let mut threads = Vec::new();
-    for (index, thread) in Thread::load_many(&keys)?.into_iter().enumerate() {
-        let Some(thread) = thread else {
-            continue;
-        };
-        if index < pinned || !thread.pinned {
-            threads.push(thread);
-        }
+    for thread in Thread::load_many(&keys)? {
+        threads.push(thread.ok_or_else(|| fail(ForumError::NotFound))?);
     }
     ThreadV1::previews(threads)
 }
@@ -466,7 +509,7 @@ fn create_post(
         return Err(fail(ForumError::EmptyPost));
     }
     let bump = thread.post_count < board.bump_limit as u64;
-    let post_number = board.allocate_post(number, bump)?;
+    let post_number = board.allocate_post(number, thread.bump, bump)?;
     if bump {
         thread.bump = post_number;
     }

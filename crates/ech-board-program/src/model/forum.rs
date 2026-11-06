@@ -1,12 +1,12 @@
 use serde::{Deserialize, Serialize};
 
 use ech_board_entity::{entity, Dispatch, Entity, Record};
-use ech_db_guest::{BigLog, Bind};
+use ech_db_guest::Bind;
 
 use crate::context::{decode_arguments, encode, fail, Context};
 use crate::error::ForumError;
 
-use crate::model::{BanValue, Bans, Board, BoardKey, BoardV1, Esid, Hash};
+use crate::model::{BanValue, Bans, Board, BoardIndex, BoardKey, BoardV1, Esid, Hash};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub struct ForumKey {}
@@ -103,7 +103,7 @@ impl Dispatch<Context> for Forum {
                         reactions: Vec::new(),
                         moderators: Vec::new(),
                         ignore_forum_bans: false,
-                        bumps: BigLog::new(),
+                        order: BoardIndex::default(),
                         bans: Bans::new(),
                     }),
                 )?;

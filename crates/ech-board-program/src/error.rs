@@ -35,6 +35,7 @@ pub enum ForumError {
     ForumExists,
     BoardExists,
     InvalidContentHash,
+    InvalidBoardCursor,
 }
 
 impl ForumError {
@@ -73,6 +74,7 @@ impl ForumError {
             Self::ForumExists => "forum already exists",
             Self::BoardExists => "board already exists",
             Self::InvalidContentHash => "content hash mismatch",
+            Self::InvalidBoardCursor => "invalid board cursor",
         }
     }
 }
