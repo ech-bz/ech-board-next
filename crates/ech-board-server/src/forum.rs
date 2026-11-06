@@ -147,6 +147,12 @@ impl Forum {
         user: UserPart,
         decryptions: Vec<Esid>,
     ) -> Result<Output, ServerError> {
+        if user.call.program != Program::Txid(self.program) {
+            return Err(ServerError::BadRequest(format!(
+                "program mismatch: requested {:?}, current {}; reconnect to refresh the program",
+                user.call.program, self.program,
+            )));
+        }
         let request = self.request(user, decryptions)?;
         match self.db.query(&self.root(), &request).await {
             Ok(outcome) => decode(&outcome.result),

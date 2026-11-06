@@ -82,10 +82,14 @@ async fn health() -> &'static str {
 }
 
 async fn root_info(app: web::Data<App>) -> web::Json<serde_json::Value> {
-    web::Json(serde_json::json!({
+    web::Json(connection_info(&app))
+}
+
+fn connection_info(app: &App) -> serde_json::Value {
+    serde_json::json!({
         "root": app.forum.root().to_string(),
         "program": app.forum.program().to_string(),
-    }))
+    })
 }
 
 const THREAD_BOARD_EVENTS: &[&str] = &[
@@ -165,11 +169,12 @@ fn events(app: &App, subscription: Subscription) -> HttpResponse {
             }
         },
     );
-    let head = stream::once(async {
-        Ok::<web::Bytes, actix_web::Error>(web::Bytes::from_static(
-            b"retry: 100\nevent: ready\ndata: {}\n\n",
-        ))
-    });
+    let ready = format!(
+        "retry: 100\nevent: ready\ndata: {}\n\n",
+        connection_info(app)
+    );
+    let head =
+        stream::once(async move { Ok::<web::Bytes, actix_web::Error>(web::Bytes::from(ready)) });
     HttpResponse::Ok()
         .insert_header((header::CONTENT_TYPE, "text/event-stream"))
         .insert_header((header::CACHE_CONTROL, "no-cache"))
