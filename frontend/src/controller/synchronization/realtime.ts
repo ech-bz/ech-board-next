@@ -33,6 +33,9 @@ export function createRealtime(model: ForumState, commit: Commit, gateway: Forum
     return next
   }
   const client = new RealtimeClient({
+    onReady(relay) {
+      commit({ type: 'relay.set', value: { key: relay.base.replace(/\/api$/, ''), value: relay } })
+    },
     onEvent(event) {
       if (model.realtime.phase === 'loading') commit({ type: 'realtime.enqueue', value: event })
       else {
@@ -42,6 +45,12 @@ export function createRealtime(model: ForumState, commit: Commit, gateway: Forum
           catch { restore() }
         }
       }
+    },
+    onError(error) {
+      commit(
+        { type: 'realtime.set', value: { phase: 'idle', events: [] } },
+        { type: 'navigation.patch', value: { error: failure(error), loading: false, refreshing: false, reconnecting: false } },
+      )
     },
     onDrop() {
       commit({ type: 'realtime.set', value: { phase: 'disconnected', events: [] } }, { type: 'navigation.patch', value: { reconnecting: true } })

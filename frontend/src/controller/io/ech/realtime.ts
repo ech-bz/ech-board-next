@@ -1,8 +1,12 @@
+import { connectionInfo, type Relay } from './relay'
+
 export type Subscription = { kind: 'forum' | 'thread' | 'board'; id: string }
 
 export interface RealtimeHandlers {
+  onReady: (relay: Relay) => void
   onEvent: (event: string) => void
   onDrop: () => void
+  onError: (error: Error) => void
   onRestored: () => void
 }
 
@@ -23,8 +27,18 @@ export class RealtimeClient {
     source.addEventListener('append', (message) => {
       if (source === this.source && connected) this.handlers.onEvent((message as MessageEvent).data)
     })
-    source.addEventListener('ready', () => {
+    source.addEventListener('ready', (message) => {
       if (source !== this.source) return
+      try {
+        this.handlers.onReady(connectionInfo(`${base}/api`, JSON.parse((message as MessageEvent).data)))
+      } catch (error) {
+        const failure = error instanceof Error ? error : new Error(String(error))
+        this.pending?.reject(failure)
+        this.pending = null
+        this.close()
+        this.handlers.onError(failure)
+        return
+      }
       connected = true
       if (this.pending) {
         this.pending.resolve()

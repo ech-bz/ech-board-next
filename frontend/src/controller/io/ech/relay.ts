@@ -44,19 +44,22 @@ export type Access = {
   decrypt?: Esid[]
 }
 
+export function connectionInfo(base: string, value: unknown): Relay {
+  if (!value || typeof value !== 'object' || !('root' in value) || !('program' in value)
+    || typeof value.root !== 'string' || typeof value.program !== 'string') {
+    throw new Error('Server did not provide root and program. Update ech-board-server.')
+  }
+  const root = unhex(value.root)
+  const program = unhex(value.program)
+  if (root.length !== 32 || program.length !== 32) throw new Error('Invalid relay connection info')
+  return { base: base.replace(/\/$/, ''), root, program }
+}
+
 export async function connect(base = BASE): Promise<Relay> {
   base = base.replace(/\/$/, '')
   const response = await fetch(`${base}/root`)
   if (!response.ok) throw new Error(`${response.status} /root`)
-  const value = (await response.json()) as {
-    root: string
-    program: string
-  }
-  return {
-    base,
-    root: unhex(value.root),
-    program: unhex(value.program),
-  }
+  return connectionInfo(base, await response.json())
 }
 
 export function call(relay: Relay, functionName: string, args: Uint8Array): Call {
