@@ -106,7 +106,6 @@ export async function query(
 async function post(relay: Relay, endpoint: string, payload: Uint8Array): Promise<Uint8Array> {
   const response = await fetch(`${relay.base}/${endpoint}`, {
     method: 'POST',
-    headers: { 'content-type': CONTENT_TYPE },
     body: payload.slice().buffer,
   })
   const bytes = new Uint8Array(await response.arrayBuffer())
