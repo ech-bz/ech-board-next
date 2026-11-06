@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use ech_board_entity::Entity;
 use ech_board_program::model::{
-    Board, BoardPage, Forum, ForumPage, Hash, Post, PostV1, Thread, ThreadMeta, ThreadPage,
-    ThreadPreview,
+    Board, BoardPage, Forum, ForumPage, Hash, Post, PostPage, PostV1, Thread, ThreadMeta,
+    ThreadPage, ThreadPreview,
 };
 
 use crate::content::{Key, Kind, Store};
@@ -149,6 +149,12 @@ impl PageResources for PostV1 {
         resources.text(Kind::Plaintext, self.votes.iter().map(|(hash, _)| *hash));
         resources.media(Kind::Media, self.media_hashes.iter().copied());
         resources
+    }
+}
+
+impl PageResources for PostPage {
+    fn resources(&self) -> Resources {
+        self.post.resources()
     }
 }
 

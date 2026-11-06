@@ -6,7 +6,8 @@ use tokio::sync::broadcast;
 
 use bcs::to_bytes;
 use ech_board_entity::{entity_id, Entity, Record};
-use ech_board_program::model::{Board, BoardKey, Forum, Post, Thread, ThreadKey};
+use ech_board_program::model::{Board, BoardKey, Forum, Hash, Post, Thread, ThreadKey};
+use ech_db_protocol::value::{Author, UserPart};
 
 use crate::content::Store;
 use crate::error::ServerError;
@@ -33,9 +34,35 @@ pub struct BlobPayload {
 }
 
 #[derive(Clone, Serialize)]
+pub struct ReactionEvent {
+    pub author: String,
+    pub post: String,
+    pub value: Option<String>,
+}
+
+impl ReactionEvent {
+    fn from_user(user: &UserPart) -> Result<Option<Self>, ServerError> {
+        if user.call.function != "post.react" {
+            return Ok(None);
+        }
+        let Author::User { esid, .. } = &user.author else {
+            return Ok(None);
+        };
+        let (post, previous, reaction): (Hash, Option<Hash>, Hash) =
+            bcs::from_bytes(&user.call.args)?;
+        Ok(Some(Self {
+            author: hex::encode(to_bytes(esid)?),
+            post: hex::encode(post),
+            value: (previous != Some(reaction)).then(|| hex::encode(reaction)),
+        }))
+    }
+}
+
+#[derive(Clone, Serialize)]
 pub struct Event {
     pub txid: String,
     pub function: String,
+    pub reaction: Option<ReactionEvent>,
     pub board: String,
     pub thread: String,
     pub entities: Vec<EntityPayload>,
@@ -244,9 +271,18 @@ impl Hub {
                                     "slow live update"
                                 );
                             }
+                            let reaction = match ReactionEvent::from_user(&record.tx.user) {
+                                Ok(reaction) => reaction,
+                                Err(error) => {
+                                    tracing::warn!(%error, %txid, "journal reaction");
+                                    tokio::time::sleep(Duration::from_secs(1)).await;
+                                    break;
+                                }
+                            };
                             hub.publish(Event {
                                 txid: txid.to_string(),
                                 function,
+                                reaction,
                                 board,
                                 thread,
                                 entities,

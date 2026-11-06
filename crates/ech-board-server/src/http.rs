@@ -12,7 +12,8 @@ use tokio::sync::broadcast;
 use ech_board_entity::{Entity, HistoryEntry};
 use ech_board_program::context::ServerContext;
 use ech_board_program::model::{
-    Board, BoardKey, BoardPage, Esid, Forum, ForumPage, Hash, Post, Thread, ThreadMeta, ThreadPage,
+    Board, BoardKey, BoardPage, Esid, Forum, ForumPage, Hash, PostPage, Thread, ThreadMeta,
+    ThreadPage,
 };
 use ech_db_protocol::id::Txid;
 use ech_db_protocol::value::{Author, UserPart};
@@ -336,7 +337,7 @@ async fn hydrate(app: &App, function: &str, result: Vec<u8>) -> Result<Vec<u8>, 
         "thread.page" | "thread.by_number" | "thread.by_id" => {
             view::<ThreadPage>(app, &result).await
         }
-        "post.get" => view::<Entity<Post>>(app, &result).await,
+        "post.get" => view::<PostPage>(app, &result).await,
         _ => Ok(result),
     }
 }

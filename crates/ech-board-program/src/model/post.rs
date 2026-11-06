@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
 use ech_board_entity::{entity, Bind, Dispatch, Entity, Record, Table};
@@ -37,7 +39,34 @@ pub struct PostV1 {
     pub banned: Option<Esid>,
 }
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct PostPage {
+    pub post: Entity<Post>,
+    pub my_reactions: BTreeMap<Hash, Hash>,
+}
+
 impl PostV1 {
+    pub(crate) fn my_reactions<'a>(
+        context: &Context,
+        posts: impl IntoIterator<Item = &'a Entity<Post>>,
+    ) -> Result<BTreeMap<Hash, Hash>, Vec<u8>> {
+        if context.is_server() {
+            return Ok(BTreeMap::new());
+        }
+        let sid = context.author_sid()?;
+        let posts: Vec<_> = posts
+            .into_iter()
+            .filter(|post| !post.reactions.is_empty())
+            .collect();
+        let entries: Vec<_> = posts.iter().map(|post| (&post.reacted, &sid)).collect();
+        let reactions = Table::get_batch(&entries)?;
+        Ok(posts
+            .into_iter()
+            .zip(reactions)
+            .filter_map(|(post, reaction)| reaction.map(|reaction| (Post::id(&post.key), reaction)))
+            .collect())
+    }
+
     pub(crate) fn genesis(tx: &ech_db_protocol::value::Tx) -> Result<(Esid, u64), Vec<u8>> {
         let author = match &tx.user.author {
             ech_db_guest::Author::User { esid, .. } => *esid,
@@ -147,7 +176,10 @@ impl Dispatch<Context> for Post {
             }
         }
         match method {
-            "get" => encode(&post),
+            "get" => encode(&PostPage {
+                my_reactions: PostV1::my_reactions(context, [&post])?,
+                post,
+            }),
             "set_text" => {
                 let (text_hash,): (Option<Hash>,) = decode_arguments(args)?;
                 let forum = Forum::load(&ForumKey {})?;

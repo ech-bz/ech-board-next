@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
 use ech_board_entity::{entity, Bind, Dispatch, Entity, Record, TableVec};
@@ -41,6 +43,7 @@ pub struct BoardV1 {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct BoardPage {
+    pub my_reactions: BTreeMap<Hash, Hash>,
     pub threads: Vec<ThreadPreview>,
     pub next: Option<u64>,
 }
@@ -143,6 +146,10 @@ impl Dispatch<Context> for Board {
                         if numbers.len() == pinned.len() + PAGE_THREADS {
                             let threads = previews(&board, &numbers, pinned.len())?;
                             return encode(&BoardPage {
+                                my_reactions: PostV1::my_reactions(
+                                    context,
+                                    threads.iter().flat_map(|thread| thread.posts.values()),
+                                )?,
                                 threads,
                                 next: (cursor > 0).then_some(cursor),
                             });
@@ -151,6 +158,10 @@ impl Dispatch<Context> for Board {
                 }
                 let threads = previews(&board, &numbers, pinned.len())?;
                 encode(&BoardPage {
+                    my_reactions: PostV1::my_reactions(
+                        context,
+                        threads.iter().flat_map(|thread| thread.posts.values()),
+                    )?,
                     threads,
                     next: (cursor > 0).then_some(cursor),
                 })

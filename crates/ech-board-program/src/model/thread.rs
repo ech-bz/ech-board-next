@@ -43,6 +43,7 @@ pub struct ThreadV1 {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ThreadPage {
+    pub my_reactions: BTreeMap<Hash, Hash>,
     pub posts: BTreeMap<u64, Entity<Post>>,
     pub next: Option<u64>,
 }
@@ -180,7 +181,11 @@ impl Dispatch<Context> for Thread {
                     posts.insert(post.key.number, post);
                 }
                 let next = (end < thread.post_count).then_some(end);
-                encode(&ThreadPage { posts, next })
+                encode(&ThreadPage {
+                    my_reactions: PostV1::my_reactions(context, posts.values())?,
+                    posts,
+                    next,
+                })
             }
             "set_closed" => {
                 let (value,): (bool,) = decode_arguments(args)?;

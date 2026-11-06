@@ -5,7 +5,7 @@ pub mod thread;
 
 pub use board::{Board, BoardKey, BoardPage, BoardV1};
 pub use forum::{Forum, ForumKey, ForumPage, ForumV1};
-pub use post::{Post, PostKey, PostV1};
+pub use post::{Post, PostKey, PostPage, PostV1};
 pub use thread::{Thread, ThreadKey, ThreadMeta, ThreadPage, ThreadPreview, ThreadV1};
 
 use serde::{Deserialize, Serialize};
