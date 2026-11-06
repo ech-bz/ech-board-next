@@ -273,26 +273,57 @@ async fn submit_content(app: &App, form: &SubmitForm, signed: &Signed) -> Result
 }
 
 async fn query_handler(app: web::Data<App>, body: web::Bytes) -> Result<HttpResponse, ServerError> {
+    let started = Instant::now();
     let batch: Vec<Signed> = from_bytes(&body)?;
-    let results: Vec<Vec<u8>> = stream::iter(batch)
+    let results: Vec<(Vec<u8>, f64, f64)> = stream::iter(batch)
         .map(|signed| {
             let app = &app;
             async move {
                 let function = signed.user.call.function.clone();
-                let output = match app.forum.query(signed.user, signed.decryptions).await {
+                let query_started = Instant::now();
+                let output = app.forum.query(signed.user, signed.decryptions).await;
+                let db_ms = query_started.elapsed().as_secs_f64() * 1000.0;
+                let output = match output {
                     Ok(output) => output,
                     Err(error) => {
-                        tracing::warn!(%error, %function, "query rejected");
+                        tracing::warn!(%error, %function, db_ms, "query rejected");
                         return Err(error);
                     }
                 };
-                hydrate(app, &function, output.result).await
+                let resources_started = Instant::now();
+                let result = hydrate(app, &function, output.result).await;
+                let resources_ms = resources_started.elapsed().as_secs_f64() * 1000.0;
+                let total_ms = query_started.elapsed().as_secs_f64() * 1000.0;
+                let result = match result {
+                    Ok(result) => result,
+                    Err(error) => {
+                        tracing::warn!(%error, %function, db_ms, resources_ms, total_ms, "query resources failed");
+                        return Err(error);
+                    }
+                };
+                if total_ms >= 100.0 {
+                    tracing::info!(%function, db_ms, resources_ms, total_ms, "slow query");
+                }
+                Ok((result, db_ms, resources_ms))
             }
         })
         .buffered(QUERY_CONCURRENCY)
         .try_collect()
         .await?;
-    Ok(encoded(&to_bytes(&results)?))
+    let mut timing = match results.as_slice() {
+        [(_, db_ms, resources_ms)] => {
+            format!("db;dur={db_ms:.2}, resources;dur={resources_ms:.2}, ")
+        }
+        _ => String::new(),
+    };
+    let results: Vec<Vec<u8>> = results.into_iter().map(|(result, _, _)| result).collect();
+    let body = to_bytes(&results)?;
+    let total_ms = started.elapsed().as_secs_f64() * 1000.0;
+    timing.push_str(&format!("total;dur={total_ms:.2}"));
+    Ok(HttpResponse::Ok()
+        .content_type(CONTENT_TYPE)
+        .insert_header(("Server-Timing", timing))
+        .body(body))
 }
 
 async fn hydrate(app: &App, function: &str, result: Vec<u8>) -> Result<Vec<u8>, ServerError> {
