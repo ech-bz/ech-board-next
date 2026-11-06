@@ -24,6 +24,7 @@ use crate::error::ServerError;
 use crate::postpart;
 use crate::realtime::App;
 use crate::resources::{PageResources, WithResources};
+use crate::timing::{self, Timer};
 
 const CONTENT_TYPE: &str = "application/octet-stream";
 const FEED_LIMIT: u32 = 64;
@@ -39,7 +40,11 @@ pub fn routes(config: &mut web::ServiceConfig) {
         .route("/sse/thread/{id}", web::get().to(sse_thread))
         .route("/sse/board/{id}", web::get().to(sse_board))
         .route("/api/submit", web::post().to(submit_handler))
-        .route("/api/query", web::post().to(query_handler))
+        .service(
+            web::resource("/api/query")
+                .wrap(actix_web::middleware::from_fn(timing::middleware))
+                .route(web::post().to(query_handler)),
+        )
         .route("/api/feed/{id}", web::get().to(feed_page))
         .route(
             "/api/debug/entity/{namespace}/{id}",
@@ -282,14 +287,42 @@ async fn submit_content(app: &App, form: &SubmitForm, signed: &Signed) -> Result
 #[tracing::instrument(target = "latency", level = "debug", name = "query.batch", skip_all,
     fields(input_bytes = body.len(), queries = tracing::field::Empty))]
 async fn query_handler(app: web::Data<App>, body: web::Bytes) -> Result<HttpResponse, ServerError> {
+    let _handler = Timer::new("board_handler");
+    let started = Instant::now();
+    let decode = Timer::new("board_decode");
     let batch: Vec<Signed> = tracing::debug_span!(target: "latency", "query.decode_batch")
         .in_scope(|| from_bytes(&body))?;
+    drop(decode);
     tracing::Span::current().record("queries", batch.len());
-    let results: Vec<Vec<u8>> = stream::iter(batch)
-        .map(|signed| query_page(&app, signed))
+    let batch_wait = Timer::new("board_batch");
+    let results: Vec<Vec<u8>> = stream::iter(batch.into_iter().enumerate())
+        .map(|(index, signed)| {
+            let app = &app;
+            async move {
+                let offset = started.elapsed().as_secs_f64() * 1000.0;
+                let function: String = signed
+                    .user
+                    .call
+                    .function
+                    .chars()
+                    .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
+                    .take(64)
+                    .collect();
+                let (result, timings) = timing::collect(query_page(app, signed)).await;
+                timing::extra(format!(
+                    "q{index}_start;dur={offset:.3};desc=\"start offset: {function}\""
+                ));
+                for metric in timings.header().split(", ") {
+                    timing::extra(format!("q{index}_{metric}"));
+                }
+                result
+            }
+        })
         .buffered(QUERY_CONCURRENCY)
         .try_collect()
         .await?;
+    drop(batch_wait);
+    let _encode = Timer::new("board_encode");
     let body = tracing::debug_span!(target: "latency", "query.encode_batch")
         .in_scope(|| to_bytes(&results))?;
     Ok(HttpResponse::Ok().content_type(CONTENT_TYPE).body(body))
@@ -298,6 +331,7 @@ async fn query_handler(app: web::Data<App>, body: web::Bytes) -> Result<HttpResp
 #[tracing::instrument(target = "latency", level = "debug", name = "query.page", skip_all,
     fields(root = %app.forum.root(), function = %signed.user.call.function))]
 async fn query_page(app: &App, signed: Signed) -> Result<Vec<u8>, ServerError> {
+    let _page = Timer::new("page");
     let function = signed.user.call.function.clone();
     let output = app
         .forum
@@ -311,6 +345,7 @@ async fn query_page(app: &App, signed: Signed) -> Result<Vec<u8>, ServerError> {
 
 #[tracing::instrument(target = "latency", level = "debug", name = "query.hydrate", skip_all)]
 async fn hydrate(app: &App, function: &str, result: Vec<u8>) -> Result<Vec<u8>, ServerError> {
+    let _hydrate = Timer::new("hydrate");
     match function {
         "forum.meta" => view::<Entity<Forum>>(app, &result).await,
         "board.meta" => view::<Entity<Board>>(app, &result).await,
@@ -329,12 +364,17 @@ async fn view<T>(app: &App, result: &[u8]) -> Result<Vec<u8>, ServerError>
 where
     T: PageResources + serde::de::DeserializeOwned + Serialize,
 {
+    let decode = Timer::new("page_decode");
     let view: T =
         tracing::debug_span!(target: "latency", "query.decode_page", bytes = result.len())
             .in_scope(|| from_bytes(result))?;
+    drop(decode);
+    let load = Timer::new("resources");
     let resources = WithResources::load(&app.content, view)
         .instrument(tracing::debug_span!(target: "latency", "query.resources"))
         .await?;
+    drop(load);
+    let _encode = Timer::new("page_encode");
     Ok(tracing::debug_span!(target: "latency", "query.encode_page")
         .in_scope(|| to_bytes(&resources))?)
 }

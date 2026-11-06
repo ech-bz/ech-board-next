@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use bcs::{from_bytes, to_bytes};
 use reqwest::Client;
 use serde::de::DeserializeOwned;
@@ -6,6 +8,8 @@ use tracing::Instrument;
 use ech_db_protocol::error::Reject;
 use ech_db_protocol::id::{Root, Txid};
 use ech_db_protocol::value::{Outcome, Record, Request};
+
+use crate::timing::{self, Timer};
 
 #[derive(Debug, thiserror::Error)]
 pub enum DbError {
@@ -45,9 +49,14 @@ impl DbClient {
     }
 
     pub async fn query(&self, root: &Root, request: &Request) -> Result<Outcome, DbError> {
+        let encode = Timer::new("request_encode");
         let body = tracing::debug_span!(target: "latency", "query.encode_request")
             .in_scope(|| to_bytes(request))?;
         let size = body.len();
+        drop(encode);
+        let http_started = Instant::now();
+        let http = Timer::new("db_http");
+        let headers = Timer::new("db_wait");
         let response = self
             .http
             .post(format!("{}/{}/query", self.base, root))
@@ -58,7 +67,45 @@ impl DbClient {
                 tracing::debug_span!(target: "latency", "query.http_headers", request_bytes = size),
             )
             .await?;
-        Self::decode(response).await
+        drop(headers);
+        let mut db_ms = None;
+        for value in response.headers().get_all("server-timing") {
+            if let Ok(value) = value.to_str() {
+                if value.len() <= 4096 {
+                    for metric in value.split(',').map(str::trim) {
+                        if metric.starts_with("db;") {
+                            db_ms = metric.split(';').find_map(|parameter| {
+                                parameter
+                                    .trim()
+                                    .strip_prefix("dur=")?
+                                    .parse::<f64>()
+                                    .ok()
+                                    .filter(|duration| duration.is_finite() && *duration >= 0.0)
+                            });
+                        }
+                        if metric.starts_with("db;") || metric.starts_with("db_") {
+                            timing::extra(metric.to_string());
+                        }
+                    }
+                }
+            }
+        }
+        let status = response.status();
+        let bytes = timing::measure_async(
+            "db_receive",
+            response.bytes().instrument(
+                tracing::debug_span!(target: "latency", "db.http_body", status = status.as_u16()),
+            ),
+        )
+        .await?;
+        let http_ms = http_started.elapsed().as_secs_f64() * 1000.0;
+        drop(http);
+        if let Some(db_ms) = db_ms.filter(|duration| *duration <= http_ms) {
+            timing::extra(format!("db_outside;dur={:.3}", http_ms - db_ms));
+        } else {
+            timing::extra("db_timing_unavailable".to_string());
+        }
+        timing::measure("response_decode", || Self::decode_bytes(status, &bytes))
     }
 
     pub async fn history(
@@ -84,6 +131,13 @@ impl DbClient {
                 tracing::debug_span!(target: "latency", "db.http_body", status = status.as_u16()),
             )
             .await?;
+        Self::decode_bytes(status, &bytes)
+    }
+
+    fn decode_bytes<T: DeserializeOwned>(
+        status: reqwest::StatusCode,
+        bytes: &[u8],
+    ) -> Result<T, DbError> {
         tracing::debug_span!(target: "latency", "db.decode_response", bytes = bytes.len()).in_scope(
             || {
                 if status.is_success() {

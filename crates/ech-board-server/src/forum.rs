@@ -14,6 +14,7 @@ use ech_db_sdk::Domain;
 
 use crate::db::{DbClient, DbError};
 use crate::error::ServerError;
+use crate::timing::{self, Timer};
 
 pub struct Forum {
     db: DbClient,
@@ -149,19 +150,20 @@ impl Forum {
         user: UserPart,
         decryptions: Vec<Esid>,
     ) -> Result<Output, ServerError> {
+        let _database = Timer::new("database");
         if user.call.program != Program::Txid(self.program) {
             return Err(ServerError::BadRequest(format!(
                 "program mismatch: requested {:?}, current {}; reconnect to refresh the program",
                 user.call.program, self.program,
             )));
         }
-        let request = self.request(user, decryptions)?;
+        let request = timing::measure("prepare", || self.request(user, decryptions))?;
         if tracing::enabled!(target: "latency", tracing::Level::DEBUG) {
             let txid = request.tx.txid(&self.root())?;
             tracing::Span::current().record("txid", tracing::field::display(txid));
         }
         match self.db.query(&self.root(), &request).await {
-            Ok(outcome) => decode(&outcome.result),
+            Ok(outcome) => timing::measure("output_decode", || decode(&outcome.result)),
             Err(error) => Err(error.into()),
         }
     }

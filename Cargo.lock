@@ -878,7 +878,7 @@ dependencies = [
 [[package]]
 name = "ech-db-guest"
 version = "0.1.0"
-source = "git+https://github.com/ech-bz/ech-db.git?rev=83422c4fb209859c3b508323309239318f96269f#83422c4fb209859c3b508323309239318f96269f"
+source = "git+https://github.com/ech-bz/ech-db.git?rev=32559457f275a47e197cd297f29fc31c23de7afc#32559457f275a47e197cd297f29fc31c23de7afc"
 dependencies = [
  "bcs",
  "ech-db-protocol",
@@ -890,7 +890,7 @@ dependencies = [
 [[package]]
 name = "ech-db-protocol"
 version = "0.1.0"
-source = "git+https://github.com/ech-bz/ech-db.git?rev=83422c4fb209859c3b508323309239318f96269f#83422c4fb209859c3b508323309239318f96269f"
+source = "git+https://github.com/ech-bz/ech-db.git?rev=32559457f275a47e197cd297f29fc31c23de7afc#32559457f275a47e197cd297f29fc31c23de7afc"
 dependencies = [
  "bcs",
  "blake2b_simd",
@@ -905,7 +905,7 @@ dependencies = [
 [[package]]
 name = "ech-db-sdk"
 version = "0.1.0"
-source = "git+https://github.com/ech-bz/ech-db.git?rev=83422c4fb209859c3b508323309239318f96269f#83422c4fb209859c3b508323309239318f96269f"
+source = "git+https://github.com/ech-bz/ech-db.git?rev=32559457f275a47e197cd297f29fc31c23de7afc#32559457f275a47e197cd297f29fc31c23de7afc"
 dependencies = [
  "bcs",
  "blake2b_simd",
