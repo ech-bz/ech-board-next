@@ -2,7 +2,9 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use ech_board_entity::{entity, Bind, Dispatch, Entity, Record, Table};
+use ech_board_entity::{entity, Dispatch, Entity, Record};
+use ech_db_guest::Bind;
+use ech_db_guest::BigMap;
 
 use crate::context::{decode_arguments, encode, fail, Context};
 use crate::error::ForumError;
@@ -33,8 +35,8 @@ pub struct PostV1 {
     pub multi_vote: bool,
     pub votes: Vec<(Hash, u64)>,
     pub reactions: Vec<(Hash, u64)>,
-    pub voted: Table<Sid, Vec<Hash>>,
-    pub reacted: Table<Sid, Hash>,
+    pub voted: BigMap<Sid, Vec<Hash>>,
+    pub reacted: BigMap<Sid, Hash>,
     pub mod_note_hash: Option<Hash>,
     pub banned: Option<Esid>,
 }
@@ -59,7 +61,7 @@ impl PostV1 {
             .filter(|post| !post.reactions.is_empty())
             .collect();
         let entries: Vec<_> = posts.iter().map(|post| (&post.reacted, &sid)).collect();
-        let reactions = Table::get_batch(&entries)?;
+        let reactions = BigMap::get_batch(entries.as_slice())?;
         Ok(posts
             .into_iter()
             .zip(reactions)
@@ -98,8 +100,8 @@ impl PostV1 {
             multi_vote,
             votes: vote_keys.into_iter().map(|key| (key, 0)).collect(),
             reactions: Vec::new(),
-            voted: Table::new(),
-            reacted: Table::new(),
+            voted: BigMap::new(),
+            reacted: BigMap::new(),
             mod_note_hash: None,
             banned: None,
         }

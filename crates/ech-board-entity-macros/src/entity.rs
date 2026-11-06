@@ -83,7 +83,7 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
     });
     let attaches = versions.iter().map(|(ident, _, _)| {
         quote! {
-            Self::#ident(value) => ::ech_board_entity::Bind::bind(value, id, ""),
+            Self::#ident(value) => ::ech_board_entity::Bind::bind(value, id),
         }
     });
     let single = if versions.len() == 1 {

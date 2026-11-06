@@ -2,7 +2,8 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use ech_board_entity::{entity, Bind, Dispatch, Entity, Record, TableVec};
+use ech_board_entity::{entity, Dispatch, Entity, Record};
+use ech_db_guest::{BigLog, Bind};
 
 use crate::context::{decode_arguments, encode, fail, Context};
 use crate::error::ForumError;
@@ -37,7 +38,7 @@ pub struct BoardV1 {
     pub reactions: Vec<Hash>,
     pub moderators: Vec<Esid>,
     pub ignore_forum_bans: bool,
-    pub bumps: TableVec<u64>,
+    pub bumps: BigLog<u64>,
     pub bans: Bans,
 }
 

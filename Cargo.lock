@@ -878,23 +878,33 @@ dependencies = [
 [[package]]
 name = "ech-db-guest"
 version = "0.1.0"
-source = "git+https://github.com/ech-bz/ech-db.git?rev=32559457f275a47e197cd297f29fc31c23de7afc#32559457f275a47e197cd297f29fc31c23de7afc"
+source = "git+https://github.com/ech-bz/ech-db.git?rev=945ad1d63456e1735819063b4c8c152188ae11da#945ad1d63456e1735819063b4c8c152188ae11da"
 dependencies = [
  "bcs",
  "ech-db-protocol",
- "foundationdb-tuple",
  "serde",
  "serde_bytes",
 ]
 
 [[package]]
+name = "ech-db-macros"
+version = "0.1.0"
+source = "git+https://github.com/ech-bz/ech-db.git?rev=945ad1d63456e1735819063b4c8c152188ae11da#945ad1d63456e1735819063b4c8c152188ae11da"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "ech-db-protocol"
 version = "0.1.0"
-source = "git+https://github.com/ech-bz/ech-db.git?rev=32559457f275a47e197cd297f29fc31c23de7afc#32559457f275a47e197cd297f29fc31c23de7afc"
+source = "git+https://github.com/ech-bz/ech-db.git?rev=945ad1d63456e1735819063b4c8c152188ae11da#945ad1d63456e1735819063b4c8c152188ae11da"
 dependencies = [
  "bcs",
  "blake2b_simd",
  "curve25519-dalek",
+ "ech-db-macros",
  "foundationdb-tuple",
  "hex",
  "serde",
@@ -905,7 +915,7 @@ dependencies = [
 [[package]]
 name = "ech-db-sdk"
 version = "0.1.0"
-source = "git+https://github.com/ech-bz/ech-db.git?rev=32559457f275a47e197cd297f29fc31c23de7afc#32559457f275a47e197cd297f29fc31c23de7afc"
+source = "git+https://github.com/ech-bz/ech-db.git?rev=945ad1d63456e1735819063b4c8c152188ae11da#945ad1d63456e1735819063b4c8c152188ae11da"
 dependencies = [
  "bcs",
  "blake2b_simd",

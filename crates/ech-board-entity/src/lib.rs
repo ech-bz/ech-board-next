@@ -1,13 +1,15 @@
-pub use ech_board_entity_macros::{entity, Bind};
+pub use ech_board_entity_macros::entity;
+pub use ech_db_guest::Bind;
 
 mod write_batch;
 
 pub use write_batch::WriteBatch;
 
-use std::fmt;
-use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
+use ech_db_guest::{BigMap, Key};
+#[cfg(target_arch = "wasm32")]
+use ech_db_guest::BigSet;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -15,11 +17,6 @@ pub type Result<T> = std::result::Result<T, Vec<u8>>;
 
 pub fn entity_id<K: Serialize + ?Sized>(namespace: &str, key: &K) -> [u8; 32] {
     let bytes = bcs::to_bytes(&("ech/entity", namespace, key)).expect("entity id");
-    ech_db_protocol::hash::Blake2b256::hash(&[bytes.as_slice()])
-}
-
-pub fn field_id(field: &str) -> [u8; 32] {
-    let bytes = bcs::to_bytes(&("ech/table", field)).expect("table id");
     ech_db_protocol::hash::Blake2b256::hash(&[bytes.as_slice()])
 }
 
@@ -102,111 +99,28 @@ pub struct HistoryEntry {
     pub txid: [u8; 32],
 }
 
-pub fn entity_prefix(id: &[u8; 32]) -> Vec<u8> {
-    let mut key = b"entity/".to_vec();
-    key.extend_from_slice(id);
-    key.push(b'/');
-    key
+#[cfg(target_arch = "wasm32")]
+fn payloads() -> BigMap<[u8; 32], serde_bytes::ByteBuf> {
+    BigMap::open("entities/payloads")
 }
 
-pub fn payload_key(id: &[u8; 32]) -> Vec<u8> {
-    let mut key = entity_prefix(id);
-    key.extend_from_slice(b"payload");
-    key
+#[cfg(target_arch = "wasm32")]
+fn types(namespace: &str) -> BigSet<[u8; 32]> {
+    BigSet::open(&("entities/types", namespace))
 }
 
-pub fn table_prefix(owner: &[u8; 32], field: &str) -> Vec<u8> {
-    let mut key = entity_prefix(owner);
-    key.extend_from_slice(b"kv/");
-    key.extend_from_slice(&field_id(field));
-    key.push(b'/');
-    key
+#[cfg(target_arch = "wasm32")]
+fn history_counts() -> BigMap<[u8; 32], u64> {
+    BigMap::open("entities/history/counts")
 }
 
-pub fn type_prefix(namespace: &str) -> Vec<u8> {
-    let mut key = b"types/".to_vec();
-    key.extend_from_slice(namespace.as_bytes());
-    key.push(b'/');
-    key
-}
-
-pub fn type_key(namespace: &str, id: &[u8; 32]) -> Vec<u8> {
-    let mut key = type_prefix(namespace);
-    key.extend_from_slice(id);
-    key
-}
-
-pub fn history_count_key(id: &[u8; 32]) -> Vec<u8> {
-    let mut key = b"history/".to_vec();
-    key.extend_from_slice(id);
-    key.extend_from_slice(b"/seq");
-    key
-}
-
-pub fn history_data_key(id: &[u8; 32], sequence: u64) -> Vec<u8> {
-    let mut key = b"history/".to_vec();
-    key.extend_from_slice(id);
-    key.extend_from_slice(b"/data/");
-    key.extend_from_slice(&sequence.to_be_bytes());
-    key
+#[cfg(target_arch = "wasm32")]
+fn history(id: &[u8; 32]) -> BigMap<u64, [u8; 32]> {
+    BigMap::open(&("entities/history/entries", id))
 }
 
 pub fn unsupported_version(stored: u32, current: u32) -> Vec<u8> {
     format!("entity version {stored} is newer than {current}").into_bytes()
-}
-
-pub struct Transaction;
-
-impl Transaction {
-    pub fn tx(txid: &[u8; 32]) -> Result<ech_db_protocol::value::Tx> {
-        let root = ech_db_protocol::id::Root::new(root()?)
-            .map_err(|_| b"missing root context".to_vec())?;
-        let base = ech_db_protocol::keys::Keys::tx(&root).len();
-        let txid = ech_db_protocol::id::Txid::new(*txid);
-        let len = ech_db_protocol::keys::Keys::body_len(&root, &txid);
-        let count = Self::typed::<u64>(ech_db_protocol::keys::ReadKey::tx(len[base..].to_vec()))?
-            .ok_or_else(|| b"missing transaction body".to_vec())?;
-        let mut body = Vec::new();
-        for sequence in 0..count {
-            let key = ech_db_protocol::keys::Keys::body(&root, &txid, sequence);
-            body.extend_from_slice(
-                &Self::raw(ech_db_protocol::keys::ReadKey::tx(key[base..].to_vec()))?
-                    .ok_or_else(|| b"missing transaction chunk".to_vec())?,
-            );
-        }
-        bcs::from_bytes(&body).map_err(|error| format!("transaction body: {error}").into_bytes())
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    fn raw(key: ech_db_protocol::keys::ReadKey) -> Result<Option<Vec<u8>>> {
-        Ok(ech_db_guest::Host::get_raw(&[key]).pop().flatten())
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    fn typed<T: serde::de::DeserializeOwned>(
-        key: ech_db_protocol::keys::ReadKey,
-    ) -> Result<Option<T>> {
-        Ok(ech_db_guest::Host::get_raw(&[key])
-            .pop()
-            .flatten()
-            .map(|bytes| {
-                bcs::from_bytes(&bytes)
-                    .map_err(|error| format!("transaction value: {error}").into_bytes())
-            })
-            .transpose()?)
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn raw(_key: ech_db_protocol::keys::ReadKey) -> Result<Option<Vec<u8>>> {
-        unimplemented!("entity transactions require the wasm runtime")
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn typed<T: serde::de::DeserializeOwned>(
-        _key: ech_db_protocol::keys::ReadKey,
-    ) -> Result<Option<T>> {
-        unimplemented!("entity transactions require the wasm runtime")
-    }
 }
 
 thread_local! {
@@ -241,424 +155,6 @@ fn change(namespace: &str, id: [u8; 32], value: Vec<u8>) {
             value,
         });
     });
-}
-
-pub trait Key: Sized {
-    fn encode(&self) -> Vec<u8>;
-
-    fn decode(bytes: &[u8]) -> Option<Self>;
-}
-
-impl Key for u64 {
-    fn encode(&self) -> Vec<u8> {
-        self.to_be_bytes().to_vec()
-    }
-
-    fn decode(bytes: &[u8]) -> Option<Self> {
-        Some(u64::from_be_bytes(bytes.try_into().ok()?))
-    }
-}
-
-impl Key for [u8; 32] {
-    fn encode(&self) -> Vec<u8> {
-        self.to_vec()
-    }
-
-    fn decode(bytes: &[u8]) -> Option<Self> {
-        bytes.try_into().ok()
-    }
-}
-
-impl Key for String {
-    fn encode(&self) -> Vec<u8> {
-        self.as_bytes().to_vec()
-    }
-
-    fn decode(bytes: &[u8]) -> Option<Self> {
-        String::from_utf8(bytes.to_vec()).ok()
-    }
-}
-
-impl Key for ech_db_protocol::value::Esid {
-    fn encode(&self) -> Vec<u8> {
-        let mut bytes = Vec::with_capacity(96);
-        bytes.extend_from_slice(&self.tweak);
-        bytes.extend_from_slice(&self.c1);
-        bytes.extend_from_slice(&self.c2);
-        bytes
-    }
-
-    fn decode(bytes: &[u8]) -> Option<Self> {
-        let bytes: [u8; 96] = bytes.try_into().ok()?;
-        Some(ech_db_protocol::value::Esid {
-            tweak: bytes[0..32].try_into().ok()?,
-            c1: bytes[32..64].try_into().ok()?,
-            c2: bytes[64..96].try_into().ok()?,
-        })
-    }
-}
-
-#[derive(Serialize, serde::Deserialize)]
-pub struct Table<K, V> {
-    #[serde(skip)]
-    prefix: Option<Vec<u8>>,
-    #[serde(skip)]
-    marker: PhantomData<fn(K) -> V>,
-}
-
-impl<K, V> Table<K, V> {
-    pub fn new() -> Self {
-        Self {
-            prefix: None,
-            marker: PhantomData,
-        }
-    }
-
-    pub fn bind(&mut self, owner: &[u8; 32], field: &str) {
-        self.prefix = Some(table_prefix(owner, field));
-    }
-
-    fn prefix(&self) -> Result<&[u8]> {
-        self.prefix
-            .as_deref()
-            .ok_or_else(|| b"unbound table".to_vec())
-    }
-}
-
-impl<K, V> Default for Table<K, V> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<K, V> Clone for Table<K, V> {
-    fn clone(&self) -> Self {
-        Self {
-            prefix: self.prefix.clone(),
-            marker: PhantomData,
-        }
-    }
-}
-
-impl<K, V> PartialEq for Table<K, V> {
-    fn eq(&self, other: &Self) -> bool {
-        self.prefix == other.prefix
-    }
-}
-
-impl<K, V> Eq for Table<K, V> {}
-
-impl<K, V> fmt::Debug for Table<K, V> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Table")
-    }
-}
-
-impl<K: Key, V> Table<K, V> {
-    pub fn key(&self, key: &K) -> Result<Vec<u8>> {
-        let mut bytes = self.prefix()?.to_vec();
-        bytes.extend_from_slice(&key.encode());
-        Ok(bytes)
-    }
-}
-
-#[cfg(target_arch = "wasm32")]
-impl<K: Key + Clone, V: Serialize + DeserializeOwned> Table<K, V> {
-    pub fn get(&self, key: &K) -> Result<Option<V>> {
-        Ok(
-            ech_db_guest::Host::get::<V>(&[ech_db_guest::ReadKey::kv(self.key(key)?)])
-                .pop()
-                .flatten(),
-        )
-    }
-
-    pub fn get_many(&self, keys: &[K]) -> Result<Vec<Option<V>>> {
-        let mut reads = Vec::with_capacity(keys.len());
-        for key in keys {
-            reads.push(ech_db_guest::ReadKey::kv(self.key(key)?));
-        }
-        Ok(ech_db_guest::Host::get::<V>(&reads))
-    }
-
-    pub fn get_batch(entries: &[(&Self, &K)]) -> Result<Vec<Option<V>>> {
-        if entries.is_empty() {
-            return Ok(Vec::new());
-        }
-        let mut reads = Vec::with_capacity(entries.len());
-        for (table, key) in entries {
-            reads.push(ech_db_guest::ReadKey::kv(table.key(key)?));
-        }
-        Ok(ech_db_guest::Host::get::<V>(&reads))
-    }
-
-    pub fn insert(&self, key: &K, value: &V) -> Result<()> {
-        ech_db_guest::Host::put_value(&self.key(key)?, value);
-        Ok(())
-    }
-
-    pub fn remove(&self, key: &K) -> Result<()> {
-        ech_db_guest::Host::del(&self.key(key)?);
-        Ok(())
-    }
-
-    pub fn entries(&self, after: Option<&K>, limit: usize) -> Result<Vec<(K, V)>> {
-        let prefix = self.prefix()?.to_vec();
-        let start = match after {
-            Some(after) => self.key(after)?,
-            None => prefix.clone(),
-        };
-        let end = ech_db_guest::Prefix::successor(&prefix).unwrap_or_default();
-        let mut rows =
-            ech_db_guest::Host::range_raw(&ech_db_guest::Range::kv(start.clone(), Some(end)));
-        rows.retain(|(key, _)| key.as_slice() > start.as_slice());
-        let mut out = Vec::new();
-        for (key, value) in rows {
-            if key.len() <= prefix.len() {
-                continue;
-            }
-            let Some(key) = K::decode(&key[prefix.len()..]) else {
-                continue;
-            };
-            out.push((
-                key,
-                bcs::from_bytes(&value)
-                    .map_err(|error| format!("table row: {error}").into_bytes())?,
-            ));
-            if out.len() == limit {
-                break;
-            }
-        }
-        Ok(out)
-    }
-
-    pub fn range(&self, from: Option<&K>, to: Option<&K>, limit: usize) -> Result<Vec<(K, V)>> {
-        let prefix = self.prefix()?.to_vec();
-        let start = match from {
-            Some(from) => self.key(from)?,
-            None => prefix.clone(),
-        };
-        let end = match to {
-            Some(to) => self.key(to)?,
-            None => ech_db_guest::Prefix::successor(&prefix).unwrap_or_default(),
-        };
-        let mut rows =
-            ech_db_guest::Host::range_raw(&ech_db_guest::Range::kv(start.clone(), Some(end)));
-        rows.retain(|(key, _)| key.as_slice() > start.as_slice());
-        let mut out = Vec::new();
-        for (key, value) in rows {
-            if key.len() <= prefix.len() {
-                continue;
-            }
-            let Some(key) = K::decode(&key[prefix.len()..]) else {
-                continue;
-            };
-            out.push((
-                key,
-                bcs::from_bytes(&value)
-                    .map_err(|error| format!("table row: {error}").into_bytes())?,
-            ));
-            if out.len() == limit {
-                break;
-            }
-        }
-        Ok(out)
-    }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-impl<K: Key, V: Serialize + DeserializeOwned> Table<K, V> {
-    pub fn get(&self, _key: &K) -> Result<Option<V>> {
-        unimplemented!("entity tables require the wasm runtime")
-    }
-
-    pub fn get_many(&self, _keys: &[K]) -> Result<Vec<Option<V>>> {
-        unimplemented!("entity tables require the wasm runtime")
-    }
-
-    pub fn get_batch(_entries: &[(&Self, &K)]) -> Result<Vec<Option<V>>> {
-        unimplemented!("entity tables require the wasm runtime")
-    }
-
-    pub fn insert(&self, _key: &K, _value: &V) -> Result<()> {
-        unimplemented!("entity tables require the wasm runtime")
-    }
-
-    pub fn remove(&self, _key: &K) -> Result<()> {
-        unimplemented!("entity tables require the wasm runtime")
-    }
-
-    pub fn entries(&self, _after: Option<&K>, _limit: usize) -> Result<Vec<(K, V)>> {
-        unimplemented!("entity tables require the wasm runtime")
-    }
-
-    pub fn range(&self, _from: Option<&K>, _to: Option<&K>, _limit: usize) -> Result<Vec<(K, V)>> {
-        unimplemented!("entity tables require the wasm runtime")
-    }
-}
-
-#[derive(Serialize, serde::Deserialize)]
-#[serde(bound = "")]
-pub struct TableVec<V> {
-    #[serde(skip)]
-    rows: Table<u64, V>,
-    length: u64,
-}
-
-impl<V> TableVec<V> {
-    pub fn new() -> Self {
-        Self {
-            rows: Table::new(),
-            length: 0,
-        }
-    }
-
-    pub fn len(&self) -> u64 {
-        self.length
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.length == 0
-    }
-}
-
-impl<V> Default for TableVec<V> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<V> Clone for TableVec<V> {
-    fn clone(&self) -> Self {
-        Self {
-            rows: self.rows.clone(),
-            length: self.length,
-        }
-    }
-}
-
-impl<V> PartialEq for TableVec<V> {
-    fn eq(&self, other: &Self) -> bool {
-        self.rows == other.rows && self.length == other.length
-    }
-}
-
-impl<V> Eq for TableVec<V> {}
-
-impl<V> fmt::Debug for TableVec<V> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TableVec(len={})", self.length)
-    }
-}
-
-impl<V> Bind for TableVec<V> {
-    fn bind(&mut self, owner: &[u8; 32], field: &str) {
-        self.rows.bind(owner, field);
-    }
-}
-
-#[cfg(target_arch = "wasm32")]
-impl<V: Serialize + DeserializeOwned> TableVec<V> {
-    pub fn push(&mut self, value: &V) -> Result<u64> {
-        let index = self.length;
-        self.rows.insert(&index, value)?;
-        self.length = index + 1;
-        Ok(index)
-    }
-
-    pub fn get(&self, index: u64) -> Result<Option<V>> {
-        self.rows.get(&index)
-    }
-
-    pub fn tail(&self, before: Option<u64>, limit: usize) -> Result<Vec<(u64, V)>> {
-        let end = match before {
-            Some(value) => value.min(self.length),
-            None => self.length,
-        };
-        if end == 0 || limit == 0 {
-            return Ok(Vec::new());
-        }
-        let start = end.saturating_sub(limit as u64);
-        let from = start.checked_sub(1);
-        let mut rows = self.rows.range(from.as_ref(), Some(&end), limit)?;
-        rows.sort_by_key(|(index, _)| *index);
-        rows.reverse();
-        Ok(rows)
-    }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-impl<V: Serialize + DeserializeOwned> TableVec<V> {
-    pub fn push(&mut self, _value: &V) -> Result<u64> {
-        unimplemented!("entity tables require the wasm runtime")
-    }
-
-    pub fn get(&self, _index: u64) -> Result<Option<V>> {
-        unimplemented!("entity tables require the wasm runtime")
-    }
-
-    pub fn tail(&self, _before: Option<u64>, _limit: usize) -> Result<Vec<(u64, V)>> {
-        unimplemented!("entity tables require the wasm runtime")
-    }
-}
-
-pub trait Bind {
-    fn bind(&mut self, owner: &[u8; 32], field: &str);
-}
-
-macro_rules! bind_noop {
-    ($($ty:ty),* $(,)?) => {
-        $(impl Bind for $ty {
-            fn bind(&mut self, _owner: &[u8; 32], _field: &str) {}
-        })*
-    };
-}
-
-bind_noop!(
-    u8,
-    u16,
-    u32,
-    u64,
-    u128,
-    i8,
-    i16,
-    i32,
-    i64,
-    bool,
-    String,
-    ech_db_protocol::value::Esid
-);
-
-impl<const N: usize> Bind for [u8; N] {
-    fn bind(&mut self, _owner: &[u8; 32], _field: &str) {}
-}
-
-impl<T: Bind> Bind for Option<T> {
-    fn bind(&mut self, owner: &[u8; 32], field: &str) {
-        if let Some(value) = self {
-            value.bind(owner, field);
-        }
-    }
-}
-
-impl<T: Bind> Bind for Vec<T> {
-    fn bind(&mut self, owner: &[u8; 32], field: &str) {
-        for value in self {
-            value.bind(owner, field);
-        }
-    }
-}
-
-impl<A: Bind, B: Bind> Bind for (A, B) {
-    fn bind(&mut self, owner: &[u8; 32], field: &str) {
-        self.0.bind(owner, field);
-        self.1.bind(owner, field);
-    }
-}
-
-impl<K, V> Bind for Table<K, V> {
-    fn bind(&mut self, owner: &[u8; 32], field: &str) {
-        self.prefix = Some(table_prefix(owner, field));
-    }
 }
 
 #[derive(Serialize, serde::Deserialize)]
@@ -743,43 +239,29 @@ fn touch<T: Record>(id: [u8; 32]) {
         return;
     };
     let sequence = next_sequence(&id);
-    record_history(&id, sequence, &write.txid);
+    record_history(&id, sequence, &write.txid).expect("entity history");
 }
 
 #[cfg(target_arch = "wasm32")]
 fn next_sequence(id: &[u8; 32]) -> u64 {
-    let count_key = history_count_key(id);
-    let count = ech_db_guest::Host::get::<u64>(&[ech_db_guest::ReadKey::kv(count_key.clone())])
-        .pop()
-        .flatten()
-        .unwrap_or(0);
-    let sequence = count + 1;
-    ech_db_guest::Host::put_value(&count_key, &sequence);
+    let counts = history_counts();
+    let count = counts.get(id).expect("entity history count").unwrap_or(0);
+    let sequence = count.checked_add(1).expect("entity history overflow");
+    counts.insert(id, &sequence).expect("entity history count");
     sequence
 }
 
 #[cfg(target_arch = "wasm32")]
-fn record_history(id: &[u8; 32], sequence: u64, txid: &[u8; 32]) {
-    ech_db_guest::Host::put(&history_data_key(id, sequence), txid);
+fn record_history(id: &[u8; 32], sequence: u64, txid: &[u8; 32]) -> Result<()> {
+    history(id).insert(&sequence, txid)
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 fn touch<T: Record>(_id: [u8; 32]) {}
 
 #[cfg(target_arch = "wasm32")]
-pub fn read_raw(key: &[u8]) -> Result<Option<Vec<u8>>> {
-    let mut values = ech_db_guest::Host::get_raw(&[ech_db_guest::ReadKey::kv(key.to_vec())]);
-    Ok(values.pop().flatten())
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-pub fn read_raw(_key: &[u8]) -> Result<Option<Vec<u8>>> {
-    unimplemented!("entity objects require the wasm runtime")
-}
-
-#[cfg(target_arch = "wasm32")]
 pub fn load<T: Record>(id: &[u8; 32]) -> Result<Option<Entity<T>>> {
-    decode_entity(id, read_raw(&payload_key(id))?)
+    decode_entity(id, payloads().get(id)?.map(serde_bytes::ByteBuf::into_vec))
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -809,14 +291,10 @@ pub fn load_many<T: Record>(ids: &[[u8; 32]]) -> Result<Vec<Option<Entity<T>>>> 
     if ids.is_empty() {
         return Ok(Vec::new());
     }
-    let keys: Vec<ech_db_guest::ReadKey> = ids
-        .iter()
-        .map(|id| ech_db_guest::ReadKey::kv(payload_key(id)))
-        .collect();
-    let values = ech_db_guest::Host::get_raw(&keys);
+    let values = payloads().get_many(ids)?;
     ids.iter()
         .zip(values)
-        .map(|(id, raw)| decode_entity(id, raw))
+        .map(|(id, raw)| decode_entity(id, raw.map(serde_bytes::ByteBuf::into_vec)))
         .collect()
 }
 
@@ -830,13 +308,17 @@ pub fn load_pair<A: Record, B: Record>(
     a: &[u8; 32],
     b: &[u8; 32],
 ) -> Result<(Entity<A>, Entity<B>)> {
-    let keys = [
-        ech_db_guest::ReadKey::kv(payload_key(a)),
-        ech_db_guest::ReadKey::kv(payload_key(b)),
-    ];
-    let mut values = ech_db_guest::Host::get_raw(&keys).into_iter();
-    let a = decode_entity::<A>(a, values.next().flatten())?.ok_or_else(A::missing)?;
-    let b = decode_entity::<B>(b, values.next().flatten())?.ok_or_else(B::missing)?;
+    let mut values = payloads().get_many(&[*a, *b])?.into_iter();
+    let a = decode_entity::<A>(
+        a,
+        values.next().flatten().map(serde_bytes::ByteBuf::into_vec),
+    )?
+    .ok_or_else(A::missing)?;
+    let b = decode_entity::<B>(
+        b,
+        values.next().flatten().map(serde_bytes::ByteBuf::into_vec),
+    )?
+    .ok_or_else(B::missing)?;
     Ok((a, b))
 }
 
@@ -851,32 +333,18 @@ pub fn load_pair<A: Record, B: Record>(
 #[cfg(target_arch = "wasm32")]
 pub fn load_with_entries<T: Record, K: Key, V: DeserializeOwned>(
     id: &[u8; 32],
-    entries: &[(&Table<K, V>, &K)],
+    entries: &[(&BigMap<K, V>, &K)],
 ) -> Result<(Entity<T>, Vec<Option<V>>)> {
-    let mut keys = Vec::with_capacity(entries.len() + 1);
-    keys.push(ech_db_guest::ReadKey::kv(payload_key(id)));
-    for (table, key) in entries {
-        keys.push(ech_db_guest::ReadKey::kv(table.key(key)?));
-    }
-    let mut values = ech_db_guest::Host::get_raw(&keys).into_iter();
-    let entity = decode_entity::<T>(id, values.next().flatten())?.ok_or_else(T::missing)?;
-    let entries = values
-        .map(|value| {
-            value
-                .map(|bytes| {
-                    bcs::from_bytes(&bytes)
-                        .map_err(|error| format!("table row: {error}").into_bytes())
-                })
-                .transpose()
-        })
-        .collect::<Result<_>>()?;
+    let (raw, entries) = BigMap::get_batch(((&payloads(), id), entries))?;
+    let entity =
+        decode_entity::<T>(id, raw.map(serde_bytes::ByteBuf::into_vec))?.ok_or_else(T::missing)?;
     Ok((entity, entries))
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn load_with_entries<T: Record, K: Key, V: DeserializeOwned>(
     _id: &[u8; 32],
-    _entries: &[(&Table<K, V>, &K)],
+    _entries: &[(&BigMap<K, V>, &K)],
 ) -> Result<(Entity<T>, Vec<Option<V>>)> {
     unimplemented!("entity objects require the wasm runtime")
 }
@@ -893,21 +361,7 @@ pub fn insert<T: Record>(_key: T::Key, _value: T, _id: &[u8; 32]) -> Result<Enti
 
 #[cfg(target_arch = "wasm32")]
 pub fn scan<T: Record>() -> Result<Vec<Entity<T>>> {
-    let prefix = type_prefix(T::NAMESPACE);
-    let Some(end) = ech_db_guest::Prefix::successor(&prefix) else {
-        return Ok(Vec::new());
-    };
-    let rows = ech_db_guest::Host::range_raw(&ech_db_guest::Range::kv(prefix.clone(), Some(end)));
-    let mut ids = Vec::new();
-    for (key, _) in rows {
-        if key.len() != prefix.len() + 32 {
-            continue;
-        }
-        let Ok(id) = <[u8; 32]>::try_from(&key[prefix.len()..]) else {
-            continue;
-        };
-        ids.push(id);
-    }
+    let ids = types(T::NAMESPACE).entries(None, u32::MAX as usize)?;
     Ok(load_many::<T>(&ids)?.into_iter().flatten().collect())
 }
 
@@ -918,31 +372,21 @@ pub fn scan<T: Record>() -> Result<Vec<Entity<T>>> {
 
 #[cfg(target_arch = "wasm32")]
 pub fn load_history(id: &[u8; 32], before: Option<u64>, limit: u32) -> Result<Vec<HistoryEntry>> {
-    let count = ech_db_guest::Host::get::<u64>(&[ech_db_guest::ReadKey::kv(history_count_key(id))])
-        .pop()
-        .flatten()
-        .unwrap_or(0);
-    let end = match before {
-        Some(before) => before.saturating_sub(1).min(count),
-        None => count,
-    };
-    let start = end.saturating_sub(limit as u64);
-    let mut entries = Vec::new();
-    let mut sequence = end;
-    while sequence > start {
-        let txid = ech_db_guest::Host::get_raw(&[ech_db_guest::ReadKey::kv(history_data_key(
-            id, sequence,
-        ))])
-        .pop()
-        .flatten();
-        if let Some(txid) = txid {
-            let txid = <[u8; 32]>::try_from(txid.as_slice())
-                .map_err(|_| format!("history txid length: {}", txid.len()).into_bytes())?;
-            entries.push(HistoryEntry { sequence, txid });
-        }
-        sequence -= 1;
+    if limit == 0 {
+        return Ok(Vec::new());
     }
-    Ok(entries)
+    let count = history_counts().get(id)?.unwrap_or(0);
+    let end = before
+        .map(|before| before.saturating_sub(1).min(count))
+        .unwrap_or(count);
+    let start = end.saturating_sub(limit as u64);
+    let sequences: Vec<_> = (start + 1..=end).rev().collect();
+    let values = history(id).get_many(&sequences)?;
+    Ok(sequences
+        .into_iter()
+        .zip(values)
+        .filter_map(|(sequence, txid)| txid.map(|txid| HistoryEntry { sequence, txid }))
+        .collect())
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -956,10 +400,10 @@ pub fn load_history(
 
 #[cfg(target_arch = "wasm32")]
 pub fn load_record(namespace: &str, id: &[u8; 32]) -> Result<Option<Vec<u8>>> {
-    if read_raw(&type_key(namespace, id))?.is_none() {
+    if !types(namespace).contains(id)? {
         return Ok(None);
     }
-    read_raw(&payload_key(id))
+    Ok(payloads().get(id)?.map(serde_bytes::ByteBuf::into_vec))
 }
 
 #[cfg(not(target_arch = "wasm32"))]

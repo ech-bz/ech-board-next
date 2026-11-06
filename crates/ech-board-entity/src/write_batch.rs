@@ -14,11 +14,7 @@ impl WriteBatch {
         let mut ids = ids.to_vec();
         ids.sort_unstable();
         ids.dedup();
-        let keys: Vec<_> = ids
-            .iter()
-            .map(|id| ech_db_guest::ReadKey::kv(crate::history_count_key(id)))
-            .collect();
-        let counts = ech_db_guest::Host::get::<u64>(&keys);
+        let counts = crate::history_counts().get_many(&ids)?;
         let sequences = ids
             .into_iter()
             .zip(counts)
@@ -43,7 +39,7 @@ impl WriteBatch {
             seq: self.sequence(&id)?,
         };
         self.store(&id, &entity)?;
-        ech_db_guest::Host::put(&crate::type_key(T::NAMESPACE, &id), &[]);
+        crate::types(T::NAMESPACE).insert(&id)?;
         Ok(entity)
     }
 
@@ -63,12 +59,13 @@ impl WriteBatch {
     }
 
     fn store<T: Record>(&self, id: &[u8; 32], entity: &Entity<T>) -> Result<()> {
-        let raw =
-            bcs::to_bytes(entity).map_err(|error| format!("save entity: {error}").into_bytes())?;
-        ech_db_guest::Host::put(&crate::payload_key(id), &raw);
-        ech_db_guest::Host::put_value(&crate::history_count_key(id), &entity.seq);
-        crate::record_history(id, entity.seq, &self.write.txid);
-        crate::change(T::NAMESPACE, *id, raw);
+        let raw = serde_bytes::ByteBuf::from(
+            bcs::to_bytes(entity).map_err(|error| format!("save entity: {error}").into_bytes())?,
+        );
+        crate::payloads().insert(id, &raw)?;
+        crate::history_counts().insert(id, &entity.seq)?;
+        crate::record_history(id, entity.seq, &self.write.txid)?;
+        crate::change(T::NAMESPACE, *id, raw.into_vec());
         Ok(())
     }
 }

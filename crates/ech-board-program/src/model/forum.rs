@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
 
-use ech_board_entity::{entity, Bind, Dispatch, Entity, Record};
+use ech_board_entity::{entity, Dispatch, Entity, Record};
+use ech_db_guest::{BigLog, Bind};
 
 use crate::context::{decode_arguments, encode, fail, Context};
 use crate::error::ForumError;
-use ech_board_entity::TableVec;
 
 use crate::model::{BanValue, Bans, Board, BoardKey, BoardV1, Esid, Hash};
 
@@ -103,7 +103,7 @@ impl Dispatch<Context> for Forum {
                         reactions: Vec::new(),
                         moderators: Vec::new(),
                         ignore_forum_bans: false,
-                        bumps: TableVec::new(),
+                        bumps: BigLog::new(),
                         bans: Bans::new(),
                     }),
                 )?;

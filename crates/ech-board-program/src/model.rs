@@ -23,17 +23,17 @@ pub struct BanValue {
     pub expires: u64,
 }
 
-#[derive(ech_board_entity::Bind, Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
+#[derive(ech_db_guest::Bind, Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub struct Bans {
-    pub public: ech_board_entity::Table<Esid, BanValue>,
-    pub private: ech_board_entity::Table<Sid, Esid>,
+    pub public: ech_db_guest::BigMap<Esid, BanValue>,
+    pub private: ech_db_guest::BigMap<Sid, Esid>,
 }
 
 impl Default for Bans {
     fn default() -> Self {
         Self {
-            public: ech_board_entity::Table::new(),
-            private: ech_board_entity::Table::new(),
+            public: ech_db_guest::BigMap::new(),
+            private: ech_db_guest::BigMap::new(),
         }
     }
 }
@@ -63,7 +63,7 @@ impl Bans {
 
     pub fn any_banned(bans: &[&Self], sid: &Sid, now: u64) -> Result<bool, Vec<u8>> {
         let private: Vec<_> = bans.iter().map(|bans| (&bans.private, sid)).collect();
-        let authors = ech_board_entity::Table::get_batch(&private)?;
+        let authors = ech_db_guest::BigMap::get_batch(private.as_slice())?;
         Self::any_active(bans, &authors, now)
     }
 
@@ -73,7 +73,7 @@ impl Bans {
             .zip(authors)
             .filter_map(|(bans, author)| author.as_ref().map(|author| (&bans.public, author)))
             .collect();
-        let values = ech_board_entity::Table::get_batch(&public)?;
+        let values = ech_db_guest::BigMap::get_batch(public.as_slice())?;
         Ok(values
             .into_iter()
             .flatten()
