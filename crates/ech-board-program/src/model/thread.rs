@@ -105,24 +105,33 @@ impl ThreadV1 {
             && context.time - created <= EDIT_WINDOW_MS)
     }
 
-    pub(crate) fn preview_of(thread: Entity<Thread>) -> Result<ThreadPreview, Vec<u8>> {
-        let thread_number = thread.key.number;
-        let mut numbers: Vec<u64> = Vec::with_capacity(1 + thread.last_posts.len());
-        numbers.push(thread_number);
-        numbers.extend(thread.last_posts.iter().copied());
-        let keys: Vec<PostKey> = numbers
+    pub(crate) fn previews(threads: Vec<Entity<Thread>>) -> Result<Vec<ThreadPreview>, Vec<u8>> {
+        let keys: Vec<PostKey> = threads
             .iter()
-            .map(|number| PostKey {
-                board: thread.key.board.clone(),
-                number: *number,
+            .flat_map(|thread| {
+                std::iter::once(thread.key.number)
+                    .chain(thread.last_posts.iter().copied())
+                    .map(|number| PostKey {
+                        board: thread.key.board.clone(),
+                        number,
+                    })
             })
             .collect();
-        let mut posts = BTreeMap::new();
-        for post in Post::load_many(&keys)? {
-            let post = post.ok_or_else(|| fail(ForumError::NotFound))?;
-            posts.insert(post.key.number, post);
-        }
-        Ok(ThreadPreview { thread, posts })
+        let mut loaded = Post::load_many(&keys)?.into_iter();
+        threads
+            .into_iter()
+            .map(|thread| {
+                let mut posts = BTreeMap::new();
+                for _ in 0..=thread.last_posts.len() {
+                    let post = loaded
+                        .next()
+                        .flatten()
+                        .ok_or_else(|| fail(ForumError::NotFound))?;
+                    posts.insert(post.key.number, post);
+                }
+                Ok(ThreadPreview { thread, posts })
+            })
+            .collect()
     }
 }
 

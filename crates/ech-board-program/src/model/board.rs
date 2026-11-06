@@ -10,7 +10,7 @@ use crate::model::{
 };
 
 static PAGE_THREADS: usize = 10;
-static PAGE_BUMP: usize = 32;
+static PAGE_BUMP: usize = 128;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub struct BoardKey {
@@ -389,10 +389,10 @@ fn previews(
             continue;
         };
         if index < pinned || !thread.pinned {
-            threads.push(ThreadV1::preview_of(thread)?);
+            threads.push(thread);
         }
     }
-    Ok(threads)
+    ThreadV1::previews(threads)
 }
 
 fn create_post(
