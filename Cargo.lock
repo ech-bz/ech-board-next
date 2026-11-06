@@ -878,18 +878,19 @@ dependencies = [
 [[package]]
 name = "ech-db-guest"
 version = "0.1.0"
-source = "git+https://github.com/ech-bz/ech-db.git?rev=a58d56f20f035fc24ba03f660439d2e285a48be8#a58d56f20f035fc24ba03f660439d2e285a48be8"
+source = "git+https://github.com/ech-bz/ech-db.git?rev=83422c4fb209859c3b508323309239318f96269f#83422c4fb209859c3b508323309239318f96269f"
 dependencies = [
  "bcs",
  "ech-db-protocol",
  "foundationdb-tuple",
  "serde",
+ "serde_bytes",
 ]
 
 [[package]]
 name = "ech-db-protocol"
 version = "0.1.0"
-source = "git+https://github.com/ech-bz/ech-db.git?rev=a58d56f20f035fc24ba03f660439d2e285a48be8#a58d56f20f035fc24ba03f660439d2e285a48be8"
+source = "git+https://github.com/ech-bz/ech-db.git?rev=83422c4fb209859c3b508323309239318f96269f#83422c4fb209859c3b508323309239318f96269f"
 dependencies = [
  "bcs",
  "blake2b_simd",
@@ -897,13 +898,14 @@ dependencies = [
  "foundationdb-tuple",
  "hex",
  "serde",
+ "serde_bytes",
  "thiserror",
 ]
 
 [[package]]
 name = "ech-db-sdk"
 version = "0.1.0"
-source = "git+https://github.com/ech-bz/ech-db.git?rev=a58d56f20f035fc24ba03f660439d2e285a48be8#a58d56f20f035fc24ba03f660439d2e285a48be8"
+source = "git+https://github.com/ech-bz/ech-db.git?rev=83422c4fb209859c3b508323309239318f96269f#83422c4fb209859c3b508323309239318f96269f"
 dependencies = [
  "bcs",
  "blake2b_simd",

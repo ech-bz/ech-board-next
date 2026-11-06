@@ -85,11 +85,13 @@ pub struct Write {
 pub struct Changed {
     pub namespace: String,
     pub id: [u8; 32],
+    #[serde(with = "serde_bytes")]
     pub value: Vec<u8>,
 }
 
 #[derive(Clone, Debug, Serialize, serde::Deserialize)]
 pub struct Output {
+    #[serde(with = "serde_bytes")]
     pub result: Vec<u8>,
     pub entities: Vec<Changed>,
 }
