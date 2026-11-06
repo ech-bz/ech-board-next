@@ -3,6 +3,7 @@ import { bcs } from '@mysten/bcs'
 import type { SessionState } from '../../../model/state/session'
 import { Identity, randomTweak } from '../crypto/identity'
 import type { BoardPageEntity, PostPageEntity, ThreadPageEntity } from './protocol/entities'
+import type { BoardCursor } from '../../../model/entities/board'
 import { EntityId } from './protocol/entityId'
 import { EsidSchema, type Esid, type Media, type Resources } from './protocol/transactions'
 import * as relay from './relay'
@@ -402,7 +403,7 @@ export class ForumApi {
     return relay.readMetadata(this.relay, this.identity, {}, board, thread)
   }
 
-  async board(slug: string, before = 0): Promise<Resources<BoardPageEntity>> {
+  async board(slug: string, before: BoardCursor | null = null): Promise<Resources<BoardPageEntity>> {
     const page = await relay.readBoard(
       this.relay,
       this.identity,

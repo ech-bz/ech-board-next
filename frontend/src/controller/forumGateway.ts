@@ -1,4 +1,5 @@
 import type { ForumState } from '../model/state/forum'
+import type { BoardCursor } from '../model/entities/board'
 import type { Commit } from './commit'
 import { postValue, threadValue } from './convert/versions'
 import { ForumApi } from './io/ech/forumApi'
@@ -32,7 +33,7 @@ export interface ThreadViewData extends PostCtx {
 export interface BoardViewData extends PostCtx {
   boardId: string
   threads: ThreadPreviewEntity[]
-  next: number | null
+  next: BoardCursor | null
 }
 
 export interface PostViewData extends PostCtx {
@@ -104,7 +105,7 @@ export function createForumGateway(model: ForumState, commit: Commit) {
     }
   }
 
-  async function readBoard(relayUrl: string, slug: string, cursor = 0): Promise<BoardViewData> {
+  async function readBoard(relayUrl: string, slug: string, cursor: BoardCursor | null = null): Promise<BoardViewData> {
     const { api, data, context } = await metadata(relayUrl, slug)
     const response = await api.board(slug, cursor)
     const content = resources([response])
@@ -114,7 +115,7 @@ export function createForumGateway(model: ForumState, commit: Commit) {
       boardId: EntityId.board(slug),
       threads: response.view.threads,
       myReactions: response.view.my_reactions,
-      next: response.view.next === null ? null : Number(response.view.next),
+      next: response.view.next,
       contentMap: new Map([...context.contentMap, ...content.contentMap]),
       mediaMeta: new Map([...context.mediaMeta, ...content.mediaMeta]),
     }

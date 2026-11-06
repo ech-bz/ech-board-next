@@ -1,5 +1,5 @@
 import type { PostPart } from '../content/postPart'
-import type { Board } from '../entities/board'
+import type { Board, BoardCursor } from '../entities/board'
 import type { Forum } from '../entities/forum'
 import type { Media } from '../entities/media'
 import type { Post } from '../entities/post'
@@ -51,7 +51,7 @@ export interface ForumScope {
   permissionHead: string | null
   permissionTail: string | null
   authors: Record<string, { mine: boolean; tweak: Uint8Array }>
-  boardPages: Record<string, { threadIds: string[]; next: number | null }>
+  boardPages: Record<string, { threadIds: string[]; next: BoardCursor | null }>
   loadedThreads: Record<string, boolean>
   myReactions: Record<string, ReactionSelection>
   pendingReactions: Record<string, PendingReaction>

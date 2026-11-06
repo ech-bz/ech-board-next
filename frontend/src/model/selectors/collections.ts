@@ -16,11 +16,7 @@ export function createCollections(model: ForumState) {
     const scope = currentScope(model)
     const board = currentBoard(model)
     if (!scope || !board) return []
-    return [...scope.boardPages[board.id]?.threadIds ?? []].filter((id) => scope.entities.threads[id]).sort((left, right) => {
-      const a = scope.entities.threads[left], b = scope.entities.threads[right]
-      const pinned = Number(board.pinned.includes(b.number) || b.pinned) - Number(board.pinned.includes(a.number) || a.pinned)
-      return pinned || (a.bump === b.bump ? b.number - a.number : a.bump < b.bump ? 1 : -1)
-    })
+    return (scope.boardPages[board.id]?.threadIds ?? []).filter((id) => scope.entities.threads[id])
   })
   const visibleRowIds = createMemo(() => {
     const scope = currentScope(model)

@@ -99,7 +99,7 @@ export function encodeText(value: string): Uint8Array {
   return text.encode(value)
 }
 
-export function emptyTable(): number[] {
+export function emptyBigMap(): number[] {
   return []
 }
 

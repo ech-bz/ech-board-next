@@ -5,7 +5,9 @@ export { toHex as hex, fromHex as unhex } from '@mysten/bcs'
 
 import { SERVER_URL } from '../browser/relays'
 import { Identity } from '../crypto/identity'
+import type { BoardCursor } from '../../../model/entities/board'
 import {
+  BoardCursorSchema,
   BoardEntitySchema,
   BoardPageSchema,
   ForumEntitySchema,
@@ -189,7 +191,7 @@ export function readBoard(
   relay: Relay,
   identity: Identity,
   id: string,
-  before: number,
+  before: BoardCursor | null,
   access: Access,
 ): Promise<Resources<BoardPageEntity>> {
   const args = boardPageArgs(id, before)
@@ -230,8 +232,8 @@ export function readPost(
   )
 }
 
-function boardPageArgs(id: string, before: number): Uint8Array {
-  return new Uint8Array([...unhex(id), ...u64(before)])
+function boardPageArgs(id: string, before: BoardCursor | null): Uint8Array {
+  return new Uint8Array([...unhex(id), ...bcs.option(BoardCursorSchema).serialize(before).toBytes()])
 }
 
 function threadPageArgs(id: string, after: number): Uint8Array {

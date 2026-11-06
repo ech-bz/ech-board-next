@@ -1,4 +1,5 @@
 import type { Media } from '../../model/entities/media'
+import type { BoardCursor } from '../../model/entities/board'
 import type { PostPreview, ReactionSelection } from '../../model/state/forum'
 import type { PostRetention } from '../../model/state/retention'
 import type { BoardEntity, ForumEntity, PostEntity, ThreadEntity } from '../io/ech/protocol/entities'
@@ -13,7 +14,7 @@ export interface EntityUpdate {
   forums?: readonly ForumEntity[]
   contents?: Iterable<readonly [string, Uint8Array]>
   attachments?: Iterable<readonly [string, Media]>
-  feed?: { boardId: string; threadIds: string[]; next: number | null; append?: boolean }
+  feed?: { boardId: string; threadIds: string[]; next: BoardCursor | null; append?: boolean }
   loadedThread?: string
   preview?: PostPreview
   retention?: PostRetention

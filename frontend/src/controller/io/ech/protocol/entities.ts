@@ -13,7 +13,7 @@ function enumeration<T extends Record<string, BcsType<any, any, any> | null>>(na
 import { EsidSchema, ProofSchema, UserPartSchema } from './transactions';
 
 const Hash = bcs.bytes(32)
-const table = (name: string) => struct(name, {})
+const bigMap = (name: string) => struct(name, {})
 
 const ServerPartSchema = struct('ServerPart', {
   ctx: bcs.byteVector(),
@@ -34,8 +34,8 @@ export const BanEntriesSchema = bcs.vector(bcs.tuple([EsidSchema, BanValueSchema
 export type BanEntry = typeof BanEntriesSchema.$inferType[number]
 
 const BansSchema = struct('Bans', {
-  public: table('Table<Esid, BanValue>'),
-  private: table('Table<Sid, Esid>'),
+  public: bigMap('BigMap<Esid, BanValue>'),
+  private: bigMap('BigMap<Sid, Esid>'),
 })
 
 const PostKeySchema = struct('PostKey', {
@@ -55,8 +55,8 @@ const PostV1Schema = struct('PostV1', {
   multi_vote: bcs.bool(),
   votes: bcs.vector(bcs.tuple([Hash, bcs.u64()])),
   reactions: bcs.vector(bcs.tuple([Hash, bcs.u64()])),
-  voted: table('Table<Sid, Vec<Hash>>'),
-  reacted: table('Table<Sid, Hash>'),
+  voted: bigMap('BigMap<Sid, Vec<Hash>>'),
+  reacted: bigMap('BigMap<Sid, Hash>'),
   mod_note_hash: bcs.option(Hash),
   banned: bcs.option(EsidSchema),
 })
@@ -76,7 +76,7 @@ const ThreadV1Schema = struct('ThreadV1', {
   last_posts: bcs.vector(bcs.u64()),
   admin: bcs.option(EsidSchema),
   moderators: bcs.vector(EsidSchema),
-  posts: table('Table<u64, u64>'),
+  posts: bigMap('BigMap<u64, u64>'),
   bans: BansSchema,
 })
 
@@ -95,7 +95,7 @@ const BoardV1Schema = struct('BoardV1', {
   reactions: bcs.vector(Hash),
   moderators: bcs.vector(EsidSchema),
   ignore_forum_bans: bcs.bool(),
-  bumps: struct('TableVec<u64>', { length: bcs.u64() }),
+  order: struct('BoardIndex', { root: bcs.u64(), next_node: bcs.u64() }),
   bans: BansSchema,
 })
 
@@ -140,7 +140,7 @@ function describeEntity(kind: EntityKind, value: unknown): unknown {
 }
 
 function describe(schema: Schema | undefined, value: unknown): unknown {
-  if (schema?.name?.startsWith('Table<')) return schema.name
+  if (schema?.name?.startsWith('BigMap<')) return schema.name
   if (value === null || typeof value !== 'object' || value instanceof Uint8Array) return value
   if (Array.isArray(value)) return value.map((item) => describe(schema, item))
   const out: Record<string, unknown> = {}
@@ -175,10 +175,19 @@ export const ThreadPreviewSchema = struct('ThreadPreview', {
   posts: bcs.map(bcs.u64(), PostEntitySchema),
 })
 
+export const BoardCursorSchema = struct('BoardCursor', {
+  root: bcs.u64(),
+  before: struct('BoardOrderKey', {
+    bump: bcs.u64(),
+    thread: bcs.u64(),
+  }),
+  pinned: bcs.vector(bcs.u64()),
+})
+
 export const BoardPageSchema = struct('BoardPage', {
   my_reactions: bcs.map(Hash, Hash),
   threads: bcs.vector(ThreadPreviewSchema),
-  next: bcs.option(bcs.u64()),
+  next: bcs.option(BoardCursorSchema),
 })
 
 export const ForumPageSchema = struct('ForumPage', {

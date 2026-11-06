@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 
@@ -101,7 +101,6 @@ impl BoardV1 {
         }
         if !self.pinned.contains(&number) {
             self.pinned.push(number);
-            self.pinned.sort_unstable_by(|a, b| b.cmp(a));
         }
         Ok(())
     }
@@ -324,8 +323,8 @@ impl Dispatch<Context> for Board {
                 if !board.is_moderator(context, forum.inner()) {
                     return Err(fail(ForumError::NotAuthorized));
                 }
-                values.sort_unstable_by(|a, b| b.cmp(a));
-                values.dedup();
+                let mut seen = BTreeSet::new();
+                values.retain(|number| seen.insert(*number));
                 if values.len() > PINNED_LIMIT {
                     return Err(fail(ForumError::PinnedThreadLimit));
                 }
