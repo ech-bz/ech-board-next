@@ -878,7 +878,7 @@ dependencies = [
 [[package]]
 name = "ech-db-guest"
 version = "0.1.0"
-source = "git+https://github.com/ech-bz/ech-db.git?rev=86bf7da6c49ab196d71b2fe5b9596dcd271f6a1e#86bf7da6c49ab196d71b2fe5b9596dcd271f6a1e"
+source = "git+https://github.com/ech-bz/ech-db.git?rev=fd6ab55893c344c988e03cce24d1fc18cb0ebb42#fd6ab55893c344c988e03cce24d1fc18cb0ebb42"
 dependencies = [
  "bcs",
  "ech-db-protocol",
@@ -889,7 +889,7 @@ dependencies = [
 [[package]]
 name = "ech-db-macros"
 version = "0.1.0"
-source = "git+https://github.com/ech-bz/ech-db.git?rev=86bf7da6c49ab196d71b2fe5b9596dcd271f6a1e#86bf7da6c49ab196d71b2fe5b9596dcd271f6a1e"
+source = "git+https://github.com/ech-bz/ech-db.git?rev=fd6ab55893c344c988e03cce24d1fc18cb0ebb42#fd6ab55893c344c988e03cce24d1fc18cb0ebb42"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -899,7 +899,7 @@ dependencies = [
 [[package]]
 name = "ech-db-protocol"
 version = "0.1.0"
-source = "git+https://github.com/ech-bz/ech-db.git?rev=86bf7da6c49ab196d71b2fe5b9596dcd271f6a1e#86bf7da6c49ab196d71b2fe5b9596dcd271f6a1e"
+source = "git+https://github.com/ech-bz/ech-db.git?rev=fd6ab55893c344c988e03cce24d1fc18cb0ebb42#fd6ab55893c344c988e03cce24d1fc18cb0ebb42"
 dependencies = [
  "bcs",
  "blake2b_simd",
@@ -915,7 +915,7 @@ dependencies = [
 [[package]]
 name = "ech-db-sdk"
 version = "0.1.0"
-source = "git+https://github.com/ech-bz/ech-db.git?rev=86bf7da6c49ab196d71b2fe5b9596dcd271f6a1e#86bf7da6c49ab196d71b2fe5b9596dcd271f6a1e"
+source = "git+https://github.com/ech-bz/ech-db.git?rev=fd6ab55893c344c988e03cce24d1fc18cb0ebb42#fd6ab55893c344c988e03cce24d1fc18cb0ebb42"
 dependencies = [
  "bcs",
  "blake2b_simd",

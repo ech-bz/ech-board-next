@@ -34,9 +34,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 ech-board-entity = { path = "crates/ech-board-entity" }
 ech-board-entity-macros = { path = "crates/ech-board-entity-macros" }
-ech-db-protocol = { git = "https://github.com/ech-bz/ech-db.git", rev = "86bf7da6c49ab196d71b2fe5b9596dcd271f6a1e" }
-ech-db-guest = { git = "https://github.com/ech-bz/ech-db.git", rev = "86bf7da6c49ab196d71b2fe5b9596dcd271f6a1e" }
-ech-db-sdk = { git = "https://github.com/ech-bz/ech-db.git", rev = "86bf7da6c49ab196d71b2fe5b9596dcd271f6a1e" }
+ech-db-protocol = { git = "https://github.com/ech-bz/ech-db.git", rev = "fd6ab55893c344c988e03cce24d1fc18cb0ebb42" }
+ech-db-guest = { git = "https://github.com/ech-bz/ech-db.git", rev = "fd6ab55893c344c988e03cce24d1fc18cb0ebb42" }
+ech-db-sdk = { git = "https://github.com/ech-bz/ech-db.git", rev = "fd6ab55893c344c988e03cce24d1fc18cb0ebb42" }
 
 [profile.release]
 lto = "thin"

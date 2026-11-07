@@ -65,9 +65,11 @@ pub fn handle(root: Root, request: Request) -> Result<Vec<u8>, Vec<u8>> {
         "debug" => debug::call(function, &call.args),
         _ => Err(ech_board_entity::unknown_function(namespace, function)),
     }?;
-    context::encode(&ech_board_entity::Output {
-        result,
-        entities: ech_board_entity::take_changes(),
+    ech_board_entity::profile::measure("output_encode", || {
+        context::encode(&ech_board_entity::Output {
+            result,
+            entities: ech_board_entity::take_changes(),
+        })
     })
 }
 

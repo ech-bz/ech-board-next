@@ -183,17 +183,24 @@ impl Dispatch<Context> for Thread {
                         number,
                     });
                 }
-                let mut posts = BTreeMap::new();
-                for post in Post::load_many(&keys)? {
-                    let post = post.ok_or_else(|| fail(ForumError::NotFound))?;
-                    posts.insert(post.key.number, post);
-                }
+                let loaded = Post::load_many(&keys)?;
+                let posts = ech_board_entity::profile::measure("page_assemble", || {
+                    let mut posts = BTreeMap::new();
+                    for post in loaded {
+                        let post = post.ok_or_else(|| fail(ForumError::NotFound))?;
+                        posts.insert(post.key.number, post);
+                    }
+                    Ok::<_, Vec<u8>>(posts)
+                })?;
                 let next = (end < thread.post_count).then_some(end);
-                encode(&ThreadPage {
+                let page = ThreadPage {
                     my_reactions: PostV1::my_reactions(context, posts.values())?,
                     posts,
                     next,
-                })
+                };
+                let result = ech_board_entity::profile::measure("page_encode", || encode(&page));
+                ech_board_entity::profile::measure("page_drop", || drop(page));
+                result
             }
             "set_closed" => {
                 let (value,): (bool,) = decode_arguments(args)?;

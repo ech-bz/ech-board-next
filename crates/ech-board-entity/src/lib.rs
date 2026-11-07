@@ -1,6 +1,8 @@
 pub use ech_board_entity_macros::entity;
 pub use ech_db_guest::Bind;
 
+pub mod profile;
+
 mod write_batch;
 
 pub use write_batch::WriteBatch;
@@ -45,7 +47,9 @@ pub trait Record: Serialize + DeserializeOwned + Clone + Sized {
     }
 
     fn load_many(keys: &[Self::Key]) -> Result<Vec<Option<Entity<Self>>>> {
-        let ids: Vec<[u8; 32]> = keys.iter().map(|key| Self::id(key)).collect();
+        let ids: Vec<[u8; 32]> = profile::measure("entity_ids", || {
+            keys.iter().map(|key| Self::id(key)).collect()
+        });
         load_many::<Self>(&ids)
     }
 
@@ -269,15 +273,15 @@ fn decode_entity<T: Record>(id: &[u8; 32], raw: Option<Vec<u8>>) -> Result<Optio
     let Some(raw) = raw else {
         return Ok(None);
     };
-    let mut entity: Entity<T> =
-        bcs::from_bytes(&raw).map_err(|error| format!("load entity: {error}").into_bytes())?;
+    let mut entity: Entity<T> = profile::measure("entity_decode", || bcs::from_bytes(&raw))
+        .map_err(|error| format!("load entity: {error}").into_bytes())?;
     if entity.value.version() > T::CURRENT {
         return Err(unsupported_version(entity.value.version(), T::CURRENT));
     }
-    if T::id(&entity.key) != *id {
+    if profile::measure("entity_check_id", || T::id(&entity.key)) != *id {
         return Err(b"entity key changed".to_vec());
     }
-    entity.value.attach(id);
+    profile::measure("entity_bind", || entity.value.attach(id));
     Ok(Some(entity))
 }
 
