@@ -10,7 +10,7 @@ FROM chef AS build
 COPY --from=planner /src/recipe.json recipe.json
 RUN cargo chef cook --locked --release --recipe-path recipe.json -p ech-board-server
 COPY . .
-RUN cargo build --locked -p ech-board-program --target wasm32-unknown-unknown --profile guest
+RUN RUSTFLAGS="-C target-feature=+simd128" cargo build --locked -p ech-board-program --target wasm32-unknown-unknown --profile guest
 RUN cargo build --locked --release -p ech-board-server
 
 FROM docker.io/library/debian:bookworm-slim
