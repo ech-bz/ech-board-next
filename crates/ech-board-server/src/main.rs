@@ -30,7 +30,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = Config::load(&args.config)?;
     let domain = Domain::new(config.key()?).ok_or("domain key must not be zero")?;
     let wasm = std::fs::read(&config.program)?;
-    let forum = Arc::new(Forum::new(DbClient::new(config.db.clone()), domain, &wasm)?);
+    let forum = Arc::new(Forum::new(
+        DbClient::new(config.db.clone())?,
+        domain,
+        &wasm,
+    )?);
     forum.deploy().await?;
     forum.ensure().await?;
     let hub = Arc::new(Hub::new());
@@ -66,7 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .wrap(Cors::permissive())
             .configure(http::routes)
     })
-    .bind(listen)?
+    .bind_auto_h2c(listen)?
     .run();
     tokio::try_join!(admin_server, server)?;
     Ok(())

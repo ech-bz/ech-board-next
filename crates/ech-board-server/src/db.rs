@@ -29,11 +29,11 @@ pub struct DbClient {
 }
 
 impl DbClient {
-    pub fn new(base: String) -> Self {
-        Self {
-            http: Client::new(),
+    pub fn new(base: String) -> Result<Self, DbError> {
+        Ok(Self {
+            http: Client::builder().http2_prior_knowledge().build()?,
             base: base.trim_end_matches('/').to_string(),
-        }
+        })
     }
 
     pub async fn append(&self, root: &Root, request: &Request) -> Result<Outcome, DbError> {
@@ -68,6 +68,7 @@ impl DbClient {
             )
             .await?;
         drop(headers);
+        timing::extra(format!("db_protocol;desc=\"{:?}\"", response.version()));
         let mut db_ms = None;
         for value in response.headers().get_all("server-timing") {
             if let Ok(value) = value.to_str() {

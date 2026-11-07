@@ -10,7 +10,7 @@ use futures_util::stream::{self, BoxStream, StreamExt};
 use moka::future::Cache;
 use object_store::aws::AmazonS3Builder;
 use object_store::local::LocalFileSystem;
-use object_store::{GetOptions, GetRange, ObjectStore};
+use object_store::{ClientOptions, GetOptions, GetRange, ObjectStore};
 use tokio::sync::Semaphore;
 
 use crate::config::{ContentConfig, StorageConfig};
@@ -41,6 +41,7 @@ impl Store {
                 secret_access_key,
             } => Arc::new(
                 AmazonS3Builder::new()
+                    .with_client_options(ClientOptions::new().with_http2_only())
                     .with_endpoint(endpoint)
                     .with_region(region)
                     .with_bucket_name(bucket)

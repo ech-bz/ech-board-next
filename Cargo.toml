@@ -23,7 +23,7 @@ actix-web = "4.9"
 actix-cors = "0.7"
 actix-multipart = "0.7"
 futures-util = "0.3"
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "http2"] }
 clap = { version = "4.6", features = ["derive"] }
 bytes = "1"
 moka = { version = "0.12.16", features = ["future"] }
@@ -34,9 +34,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 ech-board-entity = { path = "crates/ech-board-entity" }
 ech-board-entity-macros = { path = "crates/ech-board-entity-macros" }
-ech-db-protocol = { git = "https://github.com/ech-bz/ech-db.git", rev = "945ad1d63456e1735819063b4c8c152188ae11da" }
-ech-db-guest = { git = "https://github.com/ech-bz/ech-db.git", rev = "945ad1d63456e1735819063b4c8c152188ae11da" }
-ech-db-sdk = { git = "https://github.com/ech-bz/ech-db.git", rev = "945ad1d63456e1735819063b4c8c152188ae11da" }
+ech-db-protocol = { git = "https://github.com/ech-bz/ech-db.git", rev = "86bf7da6c49ab196d71b2fe5b9596dcd271f6a1e" }
+ech-db-guest = { git = "https://github.com/ech-bz/ech-db.git", rev = "86bf7da6c49ab196d71b2fe5b9596dcd271f6a1e" }
+ech-db-sdk = { git = "https://github.com/ech-bz/ech-db.git", rev = "86bf7da6c49ab196d71b2fe5b9596dcd271f6a1e" }
 
 [profile.release]
 lto = "thin"
