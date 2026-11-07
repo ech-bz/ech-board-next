@@ -167,10 +167,17 @@ impl Dispatch<Context> for Thread {
             "page" => {
                 let (after,): (u64,) = decode_arguments(args)?;
                 let end = thread.post_count.min(after.saturating_add(PAGE_POSTS));
-                let sequences: Vec<u64> = (after.saturating_add(1)..=end).collect();
-                let mut keys = Vec::with_capacity(sequences.len());
-                for number in thread.posts.get_many(&sequences)? {
-                    let number = number.ok_or_else(|| fail(ForumError::MissingPostIndex))?;
+                let count = end.saturating_sub(after) as usize;
+                let before = end.checked_add(1);
+                let entries = thread.posts.range(Some(&after), before.as_ref(), count)?;
+                if entries.len() != count {
+                    return Err(fail(ForumError::MissingPostIndex));
+                }
+                let mut keys = Vec::with_capacity(count);
+                for (offset, (sequence, number)) in entries.into_iter().enumerate() {
+                    if sequence != after + offset as u64 + 1 {
+                        return Err(fail(ForumError::MissingPostIndex));
+                    }
                     keys.push(PostKey {
                         board: thread.key.board.clone(),
                         number,
