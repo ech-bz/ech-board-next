@@ -11,7 +11,8 @@ import { numberKey, referenceKey, scopeModerators } from '../selectors/forum'
 import type { ForumState } from '../state/forum'
 
 export function postFields(model: ForumState, root: string, id: string) {
-  const scope = () => model.scopes[root]
+  const localScope = model.scopes[root]
+  const scope = () => localScope
   const post = () => scope().entities.posts[id]
   const thread = () => scope().entities.threads[post().threadId]
   const boardId = () => scope().boardIds[post().board]
