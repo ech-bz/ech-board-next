@@ -1,4 +1,4 @@
-import { A } from '@solidjs/router'
+import { useLocation } from '@solidjs/router'
 import { cva } from 'class-variance-authority'
 import { createMemo, createSignal, For, Show } from 'solid-js'
 import { postLineCount } from '../../model/content/posts'
@@ -61,24 +61,6 @@ const postTextVariants = cva('post-text whitespace-pre-wrap break-words', {
   defaultVariants: { state: 'expanded' },
 })
 
-const headerVariants = cva('mb-1.5 flex items-center gap-1.5 text-sm text-secondary')
-const headerMetaVariants = cva('flex min-w-0 flex-1 flex-wrap items-center gap-1.5')
-const headerItemVariants = cva('whitespace-nowrap')
-const tripcodeVariants = cva('whitespace-nowrap text-success')
-const flagVariants = cva('h-3.5 w-auto flex-none rounded-xs')
-const checkboxWrapVariants = cva('relative flex flex-none cursor-pointer items-center')
-const checkboxVariants = cva('relative size-4 cursor-pointer appearance-none rounded-sm border border-separator bg-panel2 checked:border-accent checked:bg-accent')
-const numVariants = cva('post-num bg-transparent p-0 cursor-pointer whitespace-nowrap text-accent [font:inherit]')
-const numTextVariants = cva('whitespace-nowrap text-accent')
-const relNumVariants = cva('text-quote')
-const deletedVariants = cva('text-xs font-semibold uppercase tracking-wide text-danger')
-const bannedNoteVariants = cva('mt-5 text-warn italic')
-const lockIconVariants = cva('inline-flex size-4 flex-none align-middle text-danger')
-const pinIconVariants = cva('inline-flex size-4 flex-none align-middle text-success')
-const broomIconVariants = cva('inline-flex size-4 flex-none align-middle text-[#ff6600]')
-const expandRowVariants = cva('mt-2 text-center')
-const expandBtnVariants = cva('inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-chip px-2.5 py-1.5 text-sm text-fg')
-const reactionsRowVariants = cva('mt-2 flex flex-wrap items-center gap-1.5')
 const reactionVariants = cva('inline-flex cursor-pointer items-center justify-center rounded-full border-0 px-2 py-1 gap-1 text-sm text-fg text-bold leading-none hover:bg-hover', {
   variants: {
     active: {
@@ -88,9 +70,6 @@ const reactionVariants = cva('inline-flex cursor-pointer items-center justify-ce
   },
   defaultVariants: { active: false },
 })
-const reactionImgVariants = cva('size-4')
-const refsRowVariants = cva('mt-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-secondary')
-const refVariants = cva('cursor-pointer text-accent')
 
 export function PostBody(props: {
   post: Post
@@ -106,6 +85,12 @@ export function PostBody(props: {
   menu?: boolean
 }) {
   const { threadPath } = useRoutes()
+  const location = useLocation()
+  const linkState = (href: string) => {
+    const target = href.split(/[?#]/, 1)[0].replace(/\/+$/, '').toLowerCase()
+    const current = decodeURI(location.pathname).replace(/\/+$/, '').toLowerCase()
+    return { active: current === target || current.startsWith(`${target}/`), exact: current === target }
+  }
   const store = useForumController()
   const model = useForumModel()
   const read = useForumQueries()
@@ -170,24 +155,24 @@ export function PostBody(props: {
         tooltip: !!props.tooltip,
       })}
     >
-      <div class={headerVariants()}>
+      <div class={'mb-1.5 flex items-center gap-1.5 text-sm text-secondary'}>
         <Show when={selectable()}>
           <span
             role="checkbox"
             aria-checked={selected()}
-            class={checkboxWrapVariants()}
+            class={'relative flex flex-none cursor-pointer items-center'}
             onClick={(e) => {
               e.stopPropagation()
               selection?.toggle(props.post.id, e.shiftKey)
             }}
           >
-            <input type="checkbox" class={checkboxVariants()} checked={selected()} readOnly />
+            <input type="checkbox" class={'relative size-4 cursor-pointer appearance-none rounded-sm border border-separator bg-panel2 checked:border-accent checked:bg-accent'} checked={selected()} readOnly />
           </span>
         </Show>
-        <div class={headerMetaVariants()}>
+        <div class={'flex min-w-0 flex-1 flex-wrap items-center gap-1.5'}>
           <Show when={props.post.role}>
             {(role) => (
-              <span class={headerItemVariants()} style={{ color: ROLE_STYLE[role()!].color, 'font-weight': ROLE_STYLE[role()!].bold ? 700 : 400 }}>
+              <span class={'whitespace-nowrap'} style={{ color: ROLE_STYLE[role()!].color, 'font-weight': ROLE_STYLE[role()!].bold ? 700 : 400 }}>
                 {ROLE_STYLE[role()!].text}
               </span>
             )}
@@ -196,50 +181,50 @@ export function PostBody(props: {
             {props.post.name ?? t('post.anon')}
             <Show when={props.post.tripText}>
               {(trip) => (
-                <span class={tripcodeVariants()}>
+                <span class={'whitespace-nowrap text-success'}>
                   {props.post.tripSecured ? '!!' : '!'}
                   {trip()}
                 </span>
               )}
             </Show>
           </span>
-          <Show when={props.post.flagUrl}>{(url) => <img class={flagVariants()} src={url()} alt="" />}</Show>
-          <span class={headerItemVariants()}>{fullTime()}</span>
-          <Show when={link(props.post.number)} fallback={<span class={numTextVariants()}>№{props.post.number}</span>}>
+          <Show when={props.post.flagUrl}>{(url) => <img class={'h-3.5 w-auto flex-none rounded-xs'} src={url()} alt="" />}</Show>
+          <span class={'whitespace-nowrap'}>{fullTime()}</span>
+          <Show when={link(props.post.number)} fallback={<span class={'whitespace-nowrap text-accent'}>№{props.post.number}</span>}>
             {(href) => (
               <Show
                 when={props.boardPage}
                 fallback={
-                  <span class={numTextVariants()}>
-                    <A class={numVariants()} href={href()} noScroll onClick={(e) => gotoPost(e, props.post.number)}>
+                  <span class={'whitespace-nowrap text-accent'}>
+                    <a class={'post-num bg-transparent p-0 cursor-pointer whitespace-nowrap text-accent [font:inherit]'} href={href()} ref={(element) => { element.setAttribute("noscroll", "true"); element.setAttribute("link", "") }} classList={{ active: linkState(href()).active, inactive: !linkState(href()).active }} aria-current={linkState(href()).exact ? "page" : undefined} onClick={(e) => gotoPost(e, props.post.number)}>
                       №
-                    </A>
-                    <button type="button" class={numVariants()} onClick={insertNo}>
+                    </a>
+                    <button type="button" class={'post-num bg-transparent p-0 cursor-pointer whitespace-nowrap text-accent [font:inherit]'} onClick={insertNo}>
                       {props.post.number}
                     </button>
                   </span>
                 }
               >
-                <A class={numVariants()} href={href()} noScroll onClick={(e) => gotoPost(e, props.post.number)}>
+                <a class={'post-num bg-transparent p-0 cursor-pointer whitespace-nowrap text-accent [font:inherit]'} href={href()} ref={(element) => { element.setAttribute("noscroll", "true"); element.setAttribute("link", "") }} classList={{ active: linkState(href()).active, inactive: !linkState(href()).active }} aria-current={linkState(href()).exact ? "page" : undefined} onClick={(e) => gotoPost(e, props.post.number)}>
                   №{props.post.number}
-                </A>
+                </a>
               </Show>
             )}
           </Show>
           <Show when={!props.post.hidden && props.post.relNum !== null}>
-            <span class={relNumVariants()}>{props.post.relNum}</span>
+            <span class={'text-quote'}>{props.post.relNum}</span>
           </Show>
           <Show when={props.post.hidden}>
-            <span class={deletedVariants()}>{t('post.deleted')}</span>
+            <span class={'text-xs font-semibold uppercase tracking-wide text-danger'}>{t('post.deleted')}</span>
           </Show>
           <Show when={props.post.op && props.threadBroom}>
-            <BroomIcon width={16} height={16} class={broomIconVariants()} />
+            <BroomIcon width={16} height={16} class={'inline-flex size-4 flex-none align-middle text-[#ff6600]'} />
           </Show>
           <Show when={props.post.op && props.threadClosed}>
-            <LockIcon width={16} height={16} class={lockIconVariants()} />
+            <LockIcon width={16} height={16} class={'inline-flex size-4 flex-none align-middle text-danger'} />
           </Show>
           <Show when={props.pinned}>
-            <PinIcon width={16} height={16} class={pinIconVariants()} />
+            <PinIcon width={16} height={16} class={'inline-flex size-4 flex-none align-middle text-success'} />
           </Show>
         </div>
         <Show when={props.menu !== false}>
@@ -271,17 +256,17 @@ export function PostBody(props: {
         </Show>
       </div>
       <Show when={long()}>
-        <div class={expandRowVariants()}>
-          <button type="button" class={expandBtnVariants()} onClick={() => setExpanded(!expanded())}>
+        <div class={'mt-2 text-center'}>
+          <button type="button" class={'inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-chip px-2.5 py-1.5 text-sm text-fg'} onClick={() => setExpanded(!expanded())}>
             {expanded() ? t('post.collapse') : t('post.expand', { n: lineCount() })}
           </button>
         </div>
       </Show>
       <Show when={props.post.banned}>
-        <div class={bannedNoteVariants()}>{t('post.authorBanned')}</div>
+        <div class={'mt-5 text-warn italic'}>{t('post.authorBanned')}</div>
       </Show>
       <Show when={props.post.reactions.length > 0}>
-        <div class={reactionsRowVariants()}>
+        <div class={'mt-2 flex flex-wrap items-center gap-1.5'}>
           <For each={props.post.reactions}>
             {(item) => (
               <button
@@ -290,7 +275,7 @@ export function PostBody(props: {
                 onClick={() => void react(item.hex)}
                 class={reactionVariants({ active: item.hex === props.post.myReaction })}
               >
-                <img src={item.url} alt="" class={reactionImgVariants()} />
+                <img src={item.url} alt="" class={'size-4'} />
                 {item.count}
               </button>
             )}
@@ -310,13 +295,13 @@ export function PostBody(props: {
         )}
       </Show>
       <Show when={props.post.refs.length > 0}>
-        <div class={refsRowVariants()}>
+        <div class={'mt-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-secondary'}>
           <IncrementalList each={props.post.refs} revision={props.post.refsRevision} key={(ref) => referenceKey(ref.forumId ?? props.ctx.forumId, ref.postId)}>
             {(ref) => (
-              <Show when={ref().board && ref().threadNumber !== undefined ? threadPath(ref().forumId ?? props.ctx.forumId, ref().board!, ref().threadNumber!, ref().number) : link(ref().number)} fallback={<span class={refVariants()}>{`>>${ref().number}`}</span>}>
+              <Show when={ref().board && ref().threadNumber !== undefined ? threadPath(ref().forumId ?? props.ctx.forumId, ref().board!, ref().threadNumber!, ref().number) : link(ref().number)} fallback={<span class={'cursor-pointer text-accent'}>{`>>${ref().number}`}</span>}>
                 {(href) => (
                   <PostRefLink
-                    class={refVariants()}
+                    class={'cursor-pointer text-accent'}
                     href={href()}
                     label={`>>${ref().number}`}
                     target={{ postId: ref().postId, number: ref().number, forumId: ref().forumId ?? props.ctx.forumId }}

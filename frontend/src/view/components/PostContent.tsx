@@ -12,14 +12,6 @@ import { Fold } from './Fold'
 import { PostRefLink } from './preview/PostRefLink'
 import { SecretSpan } from './SecretSpan'
 
-const quoteVariants = cva('text-quote')
-const codeBlockVariants = cva('my-1.5 block overflow-x-auto whitespace-pre-wrap break-words rounded-sm bg-panel2 p-2.5 font-mono')
-const overlineVariants = cva('overline')
-const spoilerVariants = cva('post-spoiler')
-const linkCardVariants = cva('link-card inline-flex h-linkcard w-linkcard cursor-pointer items-center justify-center overflow-hidden break-words rounded-sm bg-panel2 p-1.5 text-center font-semibold text-accent hover:bg-hover')
-const linkRowVariants = cva('inline-flex flex-wrap gap-1.5')
-const refLinkVariants = cva('cursor-pointer text-accent')
-
 const URL_RE = /https?:\/\/[^\s<>"')\]}]+/g
 const URL_TRAIL = /[.,;:!?]+$/
 
@@ -107,7 +99,7 @@ function renderPart(p: PostPartInput, opts: RenderOpts, renderNested: RenderNest
       <span>
         {lines.map((line, li) => (
           <>
-            {line.startsWith('>') && !isReplyRefLine(line) ? <span class={quoteVariants()}>{renderTextWithLinks(line)}</span> : renderTextWithLinks(line)}
+            {line.startsWith('>') && !isReplyRefLine(line) ? <span class={'text-quote'}>{renderTextWithLinks(line)}</span> : renderTextWithLinks(line)}
             {li < lines.length - 1 ? '\n' : null}
           </>
         ))}
@@ -116,10 +108,10 @@ function renderPart(p: PostPartInput, opts: RenderOpts, renderNested: RenderNest
   }
   if ('Bold' in p) return <b>{renderParts(p.Bold, opts, renderNested)}</b>
   if ('Italic' in p) return <i>{renderParts(p.Italic, opts, renderNested)}</i>
-  if ('Code' in p) return <pre class={codeBlockVariants()}>{extractCodeText(p.Code)}</pre>
+  if ('Code' in p) return <pre class={'my-1.5 block overflow-x-auto whitespace-pre-wrap break-words rounded-sm bg-panel2 p-2.5 font-mono'}>{extractCodeText(p.Code)}</pre>
   if ('Underline' in p) return <u>{renderParts(p.Underline, opts, renderNested)}</u>
-  if ('Overline' in p) return <span class={overlineVariants()}>{renderParts(p.Overline, opts, renderNested)}</span>
-  if ('Spoiler' in p) return <span class={spoilerVariants()}>{renderParts(p.Spoiler, opts, renderNested)}</span>
+  if ('Overline' in p) return <span class={'overline'}>{renderParts(p.Overline, opts, renderNested)}</span>
+  if ('Spoiler' in p) return <span class={'post-spoiler'}>{renderParts(p.Spoiler, opts, renderNested)}</span>
   if ('Strike' in p) return <s>{renderParts(p.Strike, opts, renderNested)}</s>
   if ('Sup' in p) return <sup>{renderParts(p.Sup, opts, renderNested)}</sup>
   if ('Sub' in p) return <sub>{renderParts(p.Sub, opts, renderNested)}</sub>
@@ -139,7 +131,7 @@ function renderPart(p: PostPartInput, opts: RenderOpts, renderNested: RenderNest
       const localHref = opts.slug && opts.threadNum != null ? opts.threadPath(opts.forumIdHex, opts.slug, opts.threadNum, num) : `#post-${num}`
       return (
         <PostRefLink
-          class={refLinkVariants()}
+          class={'cursor-pointer text-accent'}
           href={localHref}
           label={label}
           target={target}
@@ -153,7 +145,7 @@ function renderPart(p: PostPartInput, opts: RenderOpts, renderNested: RenderNest
     }
     return (
       <PostRefLink
-        class={refLinkVariants()}
+        class={'cursor-pointer text-accent'}
         label={label}
         target={target}
         onClick={(e) => {
@@ -189,7 +181,7 @@ function renderPart(p: PostPartInput, opts: RenderOpts, renderNested: RenderNest
 
 function renderLink(p: Extract<PostPartInput, { Link: unknown }>, opts: RenderOpts, renderNested: RenderNested): JSX.Element {
   return (
-    <a class={linkCardVariants()} href={p.Link.url} {...(isExternal(p.Link.url) ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
+    <a class={'link-card inline-flex h-linkcard w-linkcard cursor-pointer items-center justify-center overflow-hidden break-words rounded-sm bg-panel2 p-1.5 text-center font-semibold text-accent hover:bg-hover'} href={p.Link.url} {...(isExternal(p.Link.url) ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
       {renderParts(p.Link.children, opts, renderNested)}
     </a>
   )
@@ -213,7 +205,7 @@ function renderParts(parts: PostPartInput[], opts: RenderOpts, renderNested: Ren
       const breakAfter = j < parts.length && !(next && 'Plain' in next && /^[\r\n]+/.test(next.Plain))
       if (breakBefore) out.push('\n')
       out.push(
-        <span class={linkRowVariants()}>
+        <span class={'inline-flex flex-wrap gap-1.5'}>
           {parts
             .slice(i, j)
             .filter((l): l is Extract<PostPartInput, { Link: unknown }> => 'Link' in l)

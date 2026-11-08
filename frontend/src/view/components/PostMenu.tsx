@@ -50,6 +50,8 @@ export function PostMenu(props: { post: Post; closed: boolean; threadObject?: Th
   return (
     <DropdownMenu
       items={items()}
+      postTrigger
+      hasItems
       triggerSize="xs"
       iconSize={14}
       triggerShape="rounded"
