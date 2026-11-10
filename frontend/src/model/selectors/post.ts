@@ -32,8 +32,6 @@ export function postFields(model: ForumState, root: string, id: string) {
       const bytes = hash ? scope().contents[toHex(hash)] : null
       return bytes ? new TextDecoder().decode(bytes) || null : null
     },
-    tripText: () => null,
-    tripSecured: () => false,
     flagUrl: () => post().country ? `/static/flags/${String(post().country).padStart(3, '0')}.svg` : null,
     hasText: () => post().textHash !== null,
     parts: () => {

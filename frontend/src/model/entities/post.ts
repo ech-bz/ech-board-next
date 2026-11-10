@@ -15,7 +15,7 @@ export interface Post extends Entity {
   readonly textHash: Uint8Array | null
   readonly mediaHashes: Uint8Array[]
   readonly nameHash: Uint8Array | null
-  readonly country: number
+  readonly country: number | null
   readonly deleted: boolean
   readonly bannedMedia: Uint8Array[]
   readonly edited: boolean

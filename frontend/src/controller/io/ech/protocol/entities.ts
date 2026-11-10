@@ -48,7 +48,6 @@ const PostV1Schema = struct('PostV1', {
   text_hash: bcs.option(Hash),
   media_hashes: bcs.vector(Hash),
   name_hash: bcs.option(Hash),
-  country: bcs.u32(),
   deleted: bcs.bool(),
   banned_media: bcs.vector(Hash),
   edited: bcs.bool(),
@@ -150,9 +149,38 @@ function describe(schema: Schema | undefined, value: unknown): unknown {
   return out
 }
 
-export const ServerContextSchema = struct('ServerContext', {
-  time: bcs.u64(),
+export const TripcodeSchema = struct('Tripcode', {
+  secured: bcs.bool(),
+  value: bcs.string(),
 })
+
+export const UserRequestsSchema = struct('UserRequests', {
+  geo: bcs.bool(),
+  trip: bcs.bool(),
+})
+
+export type UserRequests = typeof UserRequestsSchema.$inferType
+
+const ServerContextSchema = struct('ServerContext', {
+  time: bcs.u64(),
+  country: bcs.option(bcs.u32()),
+  trip: bcs.option(TripcodeSchema),
+})
+
+export type ServerContextView = {
+  time: number
+  country: number | null
+  trip: { secured: boolean; value: string } | null
+}
+
+export function parseServerContext(bytes: Uint8Array): ServerContextView {
+  const context = ServerContextSchema.parse(bytes)
+  return {
+    time: Number(context.time),
+    country: context.country,
+    trip: context.trip,
+  }
+}
 
 export const ThreadMetaSchema = struct('ThreadMeta', {
   thread: ThreadEntitySchema,

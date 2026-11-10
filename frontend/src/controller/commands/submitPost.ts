@@ -63,12 +63,18 @@ function textBlob(value: string): { hash: string; blob: Uint8Array } | null {
   return { hash: relayApi.hex(blake2b(bytes, { dkLen: 32 })), blob: bytes }
 }
 
+function splitName(value: string): { name: string; trip: string | null } {
+  const index = value.indexOf('#')
+  if (index < 0) return { name: value, trip: null }
+  return { name: value.slice(0, index), trip: value.slice(index) }
+}
+
 async function prepare(
   ctx: PostSubmitCtx,
   form: PostFormState,
   onProgress: Progress,
   tweak: Uint8Array,
-): Promise<{ textHash: string | null; media: string[]; nameHash: string | null; blobs: Uint8Array[] }> {
+): Promise<{ textHash: string | null; media: string[]; nameHash: string | null; trip: string | null; blobs: Uint8Array[] }> {
   const api = await ctx.gateway.connect(ctx.relayUrl)
   const parsed = await parseBbCode(
     form.text,
@@ -93,9 +99,10 @@ async function prepare(
   }
   const media = await uploadAll(form.files, onProgress)
   blobs.push(...media.blobs)
-  const name = textBlob(form.name)
-  if (name) blobs.push(name.blob)
-  return { textHash: hash, media: media.hashes, nameHash: name ? name.hash : null, blobs }
+  const name = splitName(form.name)
+  const blob = textBlob(name.name)
+  if (blob) blobs.push(blob.blob)
+  return { textHash: hash, media: media.hashes, nameHash: blob ? blob.hash : null, trip: name.trip, blobs }
 }
 
 function serialize(parts: unknown): Uint8Array {
@@ -116,7 +123,7 @@ export async function submitNewThread(
   _signal?: AbortSignal,
 ): Promise<{ thread: number } | null> {
   const tweak = postTweak(ctx.role)
-  const { textHash: hash, media, nameHash, blobs } = await prepare(ctx, form, onProgress, tweak)
+  const { textHash: hash, media, nameHash, trip, blobs } = await prepare(ctx, form, onProgress, tweak)
   const api = await ctx.gateway.connect(ctx.relayUrl)
   const topic = textBlob(subject)
   if (topic) blobs.push(topic.blob)
@@ -124,6 +131,9 @@ export async function submitNewThread(
     Calls.board.create_thread(ctx.boardId, topic ? topic.hash : null, hash, media, nameHash, [], false, !!form.selfAdmin),
     blobs.map((bytes) => ({ hash: '', bytes })),
     tweak,
+    undefined,
+    { geo: form.withFlag, trip: trip !== null },
+    trip,
   )
   return { thread: u64(result.result) }
 }
@@ -135,12 +145,15 @@ export async function submitReply(
   _signal?: AbortSignal,
 ): Promise<{ post: number } | null> {
   const tweak = postTweak(ctx.role)
-  const { textHash: hash, media, nameHash, blobs } = await prepare(ctx, form, onProgress, tweak)
+  const { textHash: hash, media, nameHash, trip, blobs } = await prepare(ctx, form, onProgress, tweak)
   const api = await ctx.gateway.connect(ctx.relayUrl)
   const result = await api.append(
     Calls.board.create_post(ctx.boardId, ctx.threadNumber, hash, media, nameHash, [], false),
     blobs.map((bytes) => ({ hash: '', bytes })),
     tweak,
+    undefined,
+    { geo: form.withFlag, trip: trip !== null },
+    trip,
   )
   return { post: u64(result.result) }
 }

@@ -15,10 +15,12 @@ import {
   PostPageSchema,
   ThreadMetaSchema,
   ThreadPageSchema,
+  UserRequestsSchema,
   type BoardPageEntity,
   type ForumPageEntity,
   type PostPageEntity,
   type ThreadPageEntity,
+  type UserRequests,
 } from './protocol/entities'
 import { EntityId } from './protocol/entityId'
 import {
@@ -33,6 +35,7 @@ import {
 } from './protocol/transactions'
 
 const CONTENT_TYPE = 'application/octet-stream'
+export const NO_REQUESTS: UserRequests = { geo: false, trip: false }
 const BASE = `${SERVER_URL}/api`
 
 export type Relay = {
@@ -77,14 +80,17 @@ export async function submit(
   identity: Identity,
   request: Call,
   access: Access,
+  requests: UserRequests,
+  trip: string | null,
   blobs: Uint8Array[] = [],
   onPrepared?: (txid: string) => void,
 ): Promise<{ txid: string; result: Uint8Array }> {
-  const user = identity.sign(relay.root, new Uint8Array(), request, access.tweak)
+  const user = identity.sign(relay.root, UserRequestsSchema.serialize(requests).toBytes(), request, access.tweak)
   const txid = hex(blake2b(bcs.tuple([bcs.bytes(32), UserPartSchema]).serialize([relay.root, user]).toBytes(), { dkLen: 32 }))
   const payload = SignedSchema.serialize({ user, decryptions: access.decrypt ?? [] }).toBytes()
   const form = new FormData()
   form.append('signed', new Blob([payload.slice().buffer as ArrayBuffer], { type: CONTENT_TYPE }))
+  if (trip !== null) form.append('trip', trip)
   for (const blob of blobs) {
     form.append('blob', new Blob([blob.slice().buffer as ArrayBuffer], { type: CONTENT_TYPE }))
   }
@@ -157,7 +163,7 @@ export async function queryBatch(
   access: Access,
 ): Promise<Uint8Array[]> {
   const body = requests.map((request) => ({
-    user: identity.sign(relay.root, new Uint8Array(), request, access.tweak),
+    user: identity.sign(relay.root, UserRequestsSchema.serialize(NO_REQUESTS).toBytes(), request, access.tweak),
     decryptions: access.decrypt ?? [],
   }))
   const payload = bcs.vector(SignedSchema).serialize(body).toBytes()

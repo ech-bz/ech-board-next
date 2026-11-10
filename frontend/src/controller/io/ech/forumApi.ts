@@ -2,7 +2,7 @@ import { bcs } from '@mysten/bcs'
 
 import type { SessionState } from '../../../model/state/session'
 import { Identity, randomTweak } from '../crypto/identity'
-import type { BoardPageEntity, PostPageEntity, ThreadPageEntity } from './protocol/entities'
+import type { BoardPageEntity, PostPageEntity, ThreadPageEntity, UserRequests } from './protocol/entities'
 import type { BoardCursor } from '../../../model/entities/board'
 import { EntityId } from './protocol/entityId'
 import { EsidSchema, type Esid, type Media, type Resources } from './protocol/transactions'
@@ -360,6 +360,8 @@ export class ForumApi {
     blobs: { hash: string; bytes: Uint8Array }[] = [],
     tweak: Uint8Array = randomTweak(),
     onPrepared?: (txid: string) => void,
+    requests: UserRequests = relay.NO_REQUESTS,
+    trip: string | null = null,
   ): Promise<{ txid: string; result: Uint8Array }> {
     const identity = this.identity
     return relay.submit(
@@ -370,6 +372,8 @@ export class ForumApi {
         tweak,
         decrypt: [identity.esid(this.relay.root, tweak), ...operation.decryptions],
       },
+      requests,
+      trip,
       blobs.map((blob) => blob.bytes),
       onPrepared,
     )
