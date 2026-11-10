@@ -387,7 +387,11 @@ impl Dispatch<Context> for Board {
                 if text_hash.is_none() && media_hashes.is_empty() {
                     return Err(fail(ForumError::EmptyPost));
                 }
-                let esid = context.esid()?;
+                let admin = if self_admin {
+                    Some(context.esid()?)
+                } else {
+                    None
+                };
                 board.post_count = board
                     .post_count
                     .checked_add(1)
@@ -398,11 +402,7 @@ impl Dispatch<Context> for Board {
                         board: board.key.slug.clone(),
                         number,
                     },
-                    Thread::V1(ThreadV1::new(
-                        number,
-                        topic_hash,
-                        if self_admin { Some(esid) } else { None },
-                    )),
+                    Thread::V1(ThreadV1::new(number, topic_hash, admin)),
                 )?;
                 thread.posts.insert(&1, &number)?;
                 Post::insert(

@@ -69,10 +69,10 @@ impl PostV1 {
             .collect())
     }
 
-    pub(crate) fn genesis(tx: &ech_db_protocol::value::Tx) -> Result<(Esid, u64), Vec<u8>> {
+    pub(crate) fn genesis(tx: &ech_db_protocol::value::Tx) -> Result<(Option<Esid>, u64), Vec<u8>> {
         let author = match &tx.user.author {
-            ech_db_guest::Author::User { esid, .. } => *esid,
-            ech_db_guest::Author::Server => return Err(fail(ForumError::NotAuthorized)),
+            ech_db_guest::Author::User { esid, .. } => Some(*esid),
+            ech_db_guest::Author::Server => None,
         };
         let time = bcs::from_bytes::<crate::context::ServerContext>(&tx.server.ctx)
             .map_err(|_| fail(ForumError::NotAuthorized))?

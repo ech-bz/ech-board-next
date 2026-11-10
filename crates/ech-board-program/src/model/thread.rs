@@ -102,6 +102,9 @@ impl ThreadV1 {
         post: &Entity<Post>,
     ) -> Result<bool, Vec<u8>> {
         let (author, created) = PostV1::genesis(&post.genesis)?;
+        let Some(author) = author else {
+            return Ok(false);
+        };
         Ok(context.is_author(&author)
             && context.time >= created
             && context.time - created <= EDIT_WINDOW_MS)
