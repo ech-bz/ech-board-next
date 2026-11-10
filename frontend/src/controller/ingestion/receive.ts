@@ -26,7 +26,10 @@ export function createReceiver(model: ForumState, commit: Commit, isDisposed: ()
       if (existing?.authors[key] !== undefined || authors[key] !== undefined) return
       authors[key] = { mine: identity.owns(rootBytes, author), tweak: author.tweak.slice() }
     }
-    for (const entity of changes.posts ?? []) rememberOwner(entityAuthor(entity))
+    for (const entity of changes.posts ?? []) {
+      const author = entityAuthor(entity)
+      if (author !== null) rememberOwner(author)
+    }
     for (const entity of changes.forums ?? []) for (const author of forumValue(entity).moderators) rememberOwner(author)
     for (const entity of changes.boards ?? []) for (const author of boardValue(entity).moderators) rememberOwner(author)
     for (const entity of changes.threads ?? []) {

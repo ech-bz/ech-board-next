@@ -9,7 +9,7 @@ export function rolesFor(scope: ForumScope, boardId: string, threadId?: string |
   const op = opId ? scope.entities.posts[opId] : null
   const moderators = scopeModerators(scope, boardId, threadId)
   const candidates = new Set([...moderators.forum_mods, ...moderators.board_mods, ...moderators.thread_mods, ...moderators.thread_admin ? [moderators.thread_admin] : []].map(identityKey))
-  if (op) candidates.add(op.author)
+  if (op && op.author !== null) candidates.add(op.author)
   const mine = [...candidates].flatMap((esidHex) => {
     const author = scope.authors[esidHex]
     return author?.mine ? [{ esidHex, tweak: author.tweak }] : []
@@ -17,7 +17,7 @@ export function rolesFor(scope: ForumScope, boardId: string, threadId?: string |
   return detectRoles({
     mine,
     moderators,
-    op: op ? mine.find((identity) => identity.esidHex === op.author) : null,
+    op: op !== null && op.author !== null ? mine.find((identity) => identity.esidHex === op.author) ?? null : null,
   })
 }
 

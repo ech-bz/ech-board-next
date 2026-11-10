@@ -21,7 +21,11 @@ export function refreshPermissions(model: ForumState, write: SetStoreFunction<Fo
     const id = scope.postIds[numberKey(key.board, key.number)]
     const post = scope.entities.posts[id]
     if (!post) continue
-    const at = selfModerationDeadline(post.createdAt, scope.authors[post.author]?.mine ?? false, update.at)
+    const at = selfModerationDeadline(
+      post.createdAt,
+      post.author !== null && (scope.authors[post.author]?.mine ?? false),
+      update.at,
+    )
     if (scope.permissionDeadlines[id]?.at === at) continue
     removePermissionDeadline(model, write, root, id)
     if (at === null) continue

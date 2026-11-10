@@ -23,7 +23,6 @@ import type { RoleOption } from '../../model/rules/roles'
 import { roleTweak, signable } from '../../model/rules/roles'
 import { finalizeParts, parseBbCode } from '../content/bbcode'
 import { makePostResolver } from '../content/postResolver'
-import { esidFromHex, esidHex } from '../io/crypto/esid'
 
 import type { ForumGateway } from '../forumGateway'
 import { Calls, type Call } from '../io/ech/forumApi'
@@ -53,7 +52,8 @@ function hashOf(value: string): Uint8Array {
 }
 
 function senderEsid(post: Post): string {
-  return esidHex(esidFromHex(post.author))
+  if (post.author === null) throw new Error('post has no identity')
+  return post.author
 }
 
 function postNumber(post: Post): number {
@@ -267,8 +267,8 @@ export function createModActions(getEnv: () => ModEnv, model: ForumState, commit
     const role = roleForBan(scope, env.roles)
     const seen = new Set<string>()
     const targets = posts.filter((post) => {
-      const target = senderEsid(post)
-      if (seen.has(target)) return false
+      const target = post.author
+      if (target === null || seen.has(target)) return false
       seen.add(target)
       return true
     })

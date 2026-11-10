@@ -60,7 +60,7 @@ export function makePostResolver(ctx: {
       board: fromHex(targetBoardId),
       post: fromHex(post.id),
       hint: `${clean(targetForumId)}/${targetSlug}/${ref.postNum}`,
-      author: EsidBytes(esidFromHex(post.author)),
+      ...(post.author === null ? {} : { author: EsidBytes(esidFromHex(post.author)) }),
     }
   }
 }

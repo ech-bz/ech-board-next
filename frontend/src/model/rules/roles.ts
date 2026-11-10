@@ -97,7 +97,8 @@ export function withThreadRoles(viewRoles: RoleOption[], threadRoles: RoleOption
 
 export type PostRole = 'op' | 'mop' | 'thread_mod' | 'thread_admin' | 'board_mod' | 'forum_mod' | null
 
-export function postRole(addr: string, mods: Moderators, opEsid: string | null): PostRole {
+export function postRole(addr: string | null, mods: Moderators, opEsid: string | null): PostRole {
+  if (addr === null) return null
   if (opEsid !== null && clean(addr) === clean(opEsid)) {
     return mods.thread_admin && clean(identityKey(mods.thread_admin)) === clean(addr) ? 'mop' : 'op'
   }

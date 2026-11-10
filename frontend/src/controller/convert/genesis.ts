@@ -2,14 +2,14 @@ import { identityKey } from '../../model/rules/identity'
 import { ServerContextSchema, type PostEntity } from '../io/ech/protocol/entities'
 import type { Esid } from '../io/ech/protocol/transactions'
 
-export function entityAuthor(entity: Pick<PostEntity, 'genesis'>): Esid {
+export function entityAuthor(entity: Pick<PostEntity, 'genesis'>): Esid | null {
   const author = entity.genesis.user.author
-  if (author.$kind !== 'User') throw new Error('entity has no user author')
-  return author.User.esid
+  return author.$kind === 'User' ? author.User.esid : null
 }
 
-export function entitySender(entity: Pick<PostEntity, 'genesis'>): string {
-  return identityKey(entityAuthor(entity))
+export function entitySender(entity: Pick<PostEntity, 'genesis'>): string | null {
+  const author = entityAuthor(entity)
+  return author === null ? null : identityKey(author)
 }
 
 export function entityTime(entity: Pick<PostEntity, 'genesis'>): number {

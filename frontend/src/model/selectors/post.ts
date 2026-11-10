@@ -76,7 +76,10 @@ export function postFields(model: ForumState, root: string, id: string) {
     hidden: () => post().deleted || post().op && (thread()?.deleted ?? false),
     banned: () => post().bannedBy !== null,
     bannedLevel: () => optionalIdentityKey(post().bannedBy),
-    mine: () => scope().authors[post().author]?.mine ?? false,
+    mine: () => {
+      const author = post().author
+      return author !== null && (scope().authors[author]?.mine ?? false)
+    },
     role: () => {
       const current = thread()
       const op = current?.opId ? scope().entities.posts[current.opId] : null

@@ -10,7 +10,7 @@ export interface Post extends Entity {
   readonly number: number
   readonly board: string
   readonly threadNumber: number
-  readonly author: string
+  readonly author: string | null
   readonly createdAt: number
   readonly textHash: Uint8Array | null
   readonly mediaHashes: Uint8Array[]

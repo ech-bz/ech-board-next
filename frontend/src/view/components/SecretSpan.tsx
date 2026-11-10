@@ -11,14 +11,15 @@ const secretSpanVariants = cva('cursor-pointer font-mono text-accent')
 export function SecretSpan(props: {
   secret: SecretContent
   forumId: string
-  author: string
+  author: string | null
   renderNested: (parts: PostPart[]) => JSX.Element
 }) {
   const { t } = useI18n()
   const controller = useForumController()
   const model = useForumModel()
-  const state = () => model.resources.secrets[secretKey(props.forumId, props.author, props.secret)]
+  const state = () => props.author === null ? undefined : model.resources.secrets[secretKey(props.forumId, props.author, props.secret)]
   const reveal = async () => {
+    if (props.author === null) return
     await controller.revealSecret(props.forumId, props.author, props.secret)
     if (state()?.error) reportError(t('post.secretDecryptFailed'))
   }

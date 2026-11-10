@@ -80,7 +80,7 @@ interface RenderOpts {
   resolvePost: ReturnType<typeof useForumController>['resolvePost']
   threadPath: ReturnType<typeof useRoutes>['threadPath']
   resolveRelayUrl: (root: string) => string | null
-  author: string
+  author: string | null
   hasPost: (id: string) => boolean
   relayUrl: string
   navigate: (route: Route) => void
@@ -224,7 +224,7 @@ function renderParts(parts: PostPartInput[], opts: RenderOpts, renderNested: Ren
 
 export function PostContent(props: {
   parts: PostPartInput[]
-  author: string
+  author: string | null
   hasPost: (id: string) => boolean
   relayUrl: string
   forumId: string
