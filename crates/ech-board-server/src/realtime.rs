@@ -12,12 +12,16 @@ use ech_db_protocol::value::{Author, UserPart};
 use crate::content::Store;
 use crate::error::ServerError;
 use crate::forum::Forum as ForumApi;
+use crate::geo::Geo;
 use crate::resources::{PageResources, Resources};
+use crate::tripcode::Trips;
 
 pub struct App {
     pub forum: Arc<ForumApi>,
     pub hub: Arc<Hub>,
     pub content: Arc<Store>,
+    pub geo: Arc<Geo>,
+    pub trips: Arc<Trips>,
 }
 
 #[derive(Clone, Serialize)]

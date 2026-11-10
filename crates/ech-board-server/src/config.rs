@@ -25,6 +25,20 @@ pub struct Config {
     pub key: String,
     pub program: PathBuf,
     pub content: ContentConfig,
+    pub geo: GeoConfig,
+    pub tripcode: TripcodeConfig,
+}
+
+#[derive(Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct GeoConfig {
+    pub object: String,
+}
+
+#[derive(Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TripcodeConfig {
+    pub secret: String,
 }
 
 #[derive(Clone, Deserialize)]

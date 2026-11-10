@@ -195,6 +195,21 @@ impl Store {
         }
     }
 
+    pub async fn read(&self, path: &str) -> Result<Bytes, ServerError> {
+        let _permit = self
+            .requests
+            .acquire()
+            .await
+            .map_err(|error| ServerError::Store(error.to_string()))?;
+        self.backend
+            .get(&object_store::path::Path::from(path))
+            .await
+            .map_err(storage_error)?
+            .bytes()
+            .await
+            .map_err(storage_error)
+    }
+
     pub async fn stream(
         &self,
         key: Key,

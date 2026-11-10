@@ -9,9 +9,9 @@ pub use write_batch::WriteBatch;
 
 use std::ops::{Deref, DerefMut};
 
-use ech_db_guest::{BigMap, Key};
 #[cfg(target_arch = "wasm32")]
 use ech_db_guest::BigSet;
+use ech_db_guest::{BigMap, Key};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 

@@ -8,9 +8,44 @@ use ech_db_guest::{Author, Call, Esid, Request};
 
 use crate::error::ForumError;
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
+pub struct Tripcode {
+    pub secured: bool,
+    pub value: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub struct ServerContext {
     pub time: u64,
+    pub country: Option<u32>,
+    pub trip: Option<Tripcode>,
+}
+
+impl ServerContext {
+    pub fn decode(bytes: &[u8]) -> Result<Self, Vec<u8>> {
+        from_bytes(bytes).map_err(|_| fail(ForumError::NotAuthorized))
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
+pub struct UserRequests {
+    pub geo: bool,
+    pub trip: bool,
+}
+
+impl UserRequests {
+    pub const NONE: Self = Self {
+        geo: false,
+        trip: false,
+    };
+
+    pub fn decode(bytes: &[u8]) -> Result<Self, Vec<u8>> {
+        from_bytes(bytes).map_err(|_| fail(ForumError::NotAuthorized))
+    }
+
+    pub fn encode(&self) -> Vec<u8> {
+        to_bytes(self).expect("user requests encode")
+    }
 }
 
 thread_local! {
@@ -53,8 +88,11 @@ pub struct Context {
 impl Context {
     pub fn new() -> Result<Self, Vec<u8>> {
         with_request(|request| {
-            let server: ServerContext =
-                from_bytes(&request.tx.server.ctx).map_err(|_| fail(ForumError::NotAuthorized))?;
+            let requests = UserRequests::decode(&request.tx.user.ctx)?;
+            let server = ServerContext::decode(&request.tx.server.ctx)?;
+            if requests.geo != server.country.is_some() || requests.trip != server.trip.is_some() {
+                return Err(fail(ForumError::NotAuthorized));
+            }
             Ok(Self {
                 author: request.tx.user.author.clone(),
                 time: server.time,

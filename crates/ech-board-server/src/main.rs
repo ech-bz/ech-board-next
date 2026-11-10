@@ -10,8 +10,10 @@ use ech_board_server::config::Config;
 use ech_board_server::content::Store;
 use ech_board_server::db::DbClient;
 use ech_board_server::forum::Forum;
+use ech_board_server::geo::Geo;
 use ech_board_server::http;
 use ech_board_server::realtime::{App, Hub};
+use ech_board_server::tripcode::Trips;
 use ech_db_sdk::Domain;
 
 #[derive(Parser)]
@@ -39,11 +41,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     forum.ensure().await?;
     let hub = Arc::new(Hub::new());
     let content = Arc::new(Store::new(&config.content)?);
+    let geo = Arc::new(Geo::load(&content, &config.geo.object).await?);
+    let trips = Arc::new(Trips::new(config.tripcode.secret.clone()));
     hub.spawn(forum.clone(), content.clone());
     let app = Arc::new(App {
         forum,
         hub,
         content,
+        geo,
+        trips,
     });
     tracing::info!(
         root = %app.forum.root(),

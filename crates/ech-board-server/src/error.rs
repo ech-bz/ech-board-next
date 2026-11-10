@@ -15,6 +15,8 @@ pub enum ServerError {
     BadRequest(String),
     #[error("program: {0}")]
     Program(String),
+    #[error("internal: {0}")]
+    Internal(String),
     #[error("codec: {0}")]
     Codec(#[from] bcs::Error),
     #[error("protocol: {0}")]
@@ -35,7 +37,7 @@ impl ServerError {
             Self::Db(DbError::Reject(Reject::Duplicate)) => StatusCode::CONFLICT,
             Self::Db(DbError::Reject(Reject::BadSignature)) => StatusCode::FORBIDDEN,
             Self::Db(_) => StatusCode::BAD_GATEWAY,
-            Self::Domain(_) | Self::Program(_) | Self::Store(_) => {
+            Self::Domain(_) | Self::Program(_) | Self::Internal(_) | Self::Store(_) => {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
         }

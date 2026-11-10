@@ -3,8 +3,8 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use ech_board_entity::{entity, Dispatch, Entity, Record};
-use ech_db_guest::Bind;
 use ech_db_guest::BigMap;
+use ech_db_guest::Bind;
 
 use crate::context::{decode_arguments, encode, fail, Context};
 use crate::error::ForumError;

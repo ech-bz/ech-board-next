@@ -1,9 +1,11 @@
+use std::net::IpAddr;
 use std::time::Instant;
 
 use actix_multipart::form::bytes::Bytes as MultipartBytes;
+use actix_multipart::form::text::Text;
 use actix_multipart::form::MultipartForm;
 use actix_web::http::header;
-use actix_web::{web, HttpResponse};
+use actix_web::{web, HttpRequest, HttpResponse};
 use bcs::{from_bytes, to_bytes};
 use futures_util::stream::{self, StreamExt as _, TryStreamExt as _};
 use serde::{Deserialize, Serialize};
@@ -12,6 +14,7 @@ use tracing::Instrument;
 
 use ech_board_entity::{Entity, HistoryEntry};
 use ech_board_program::context::ServerContext;
+use ech_board_program::context::UserRequests;
 use ech_board_program::model::{
     Board, BoardKey, BoardPage, Esid, Forum, ForumPage, Hash, PostPage, Thread, ThreadMeta,
     ThreadPage,
@@ -75,6 +78,7 @@ struct SubmitForm {
     signed: MultipartBytes,
     #[multipart(limit = "64mb")]
     blob: Vec<MultipartBytes>,
+    trip: Option<Text<String>>,
 }
 
 #[derive(Deserialize)]
@@ -209,12 +213,6 @@ fn visible(subscription: &Subscription, event: &crate::realtime::Event) -> bool 
     }
 }
 
-#[derive(Clone, Copy)]
-enum Source {
-    User,
-    Admin,
-}
-
 fn require_user(signed: &Signed) -> Result<(), ServerError> {
     match signed.user.author {
         Author::User { .. } => Ok(()),
@@ -226,56 +224,74 @@ fn require_user(signed: &Signed) -> Result<(), ServerError> {
 
 async fn submit_user(
     app: web::Data<App>,
+    req: HttpRequest,
     form: MultipartForm<SubmitForm>,
 ) -> Result<HttpResponse, ServerError> {
     let signed: Signed = from_bytes(&form.signed.data)?;
     require_user(&signed)?;
-    submit_core(app, form, signed, Source::User).await
+    submit_core(app, req, form, signed).await
 }
 
 async fn submit_admin(
     app: web::Data<App>,
+    req: HttpRequest,
     form: MultipartForm<SubmitForm>,
 ) -> Result<HttpResponse, ServerError> {
     let signed: Signed = from_bytes(&form.signed.data)?;
-    submit_core(app, form, signed, Source::Admin).await
+    submit_core(app, req, form, signed).await
 }
 
 async fn submit_core(
     app: web::Data<App>,
+    req: HttpRequest,
     form: MultipartForm<SubmitForm>,
     signed: Signed,
-    source: Source,
 ) -> Result<HttpResponse, ServerError> {
     let started = Instant::now();
     let function = signed.user.call.function.clone();
-    let admin = matches!(source, Source::Admin);
+    let requests = UserRequests::decode(&signed.user.ctx)
+        .map_err(|_| ServerError::BadRequest("invalid user requests".to_string()))?;
+    let country = requests.geo.then_some(
+        client_ip(&req)
+            .and_then(|ip| app.geo.country(ip))
+            .unwrap_or(0),
+    );
+    let trip = match (&form.trip, requests.trip) {
+        (Some(raw), true) => Some(app.trips.compute(&raw.0)?),
+        (None, false) => None,
+        (Some(_), false) => {
+            return Err(ServerError::BadRequest(
+                "tripcode password without a tripcode request".to_string(),
+            ))
+        }
+        (None, true) => {
+            return Err(ServerError::BadRequest(
+                "tripcode requested without a password".to_string(),
+            ))
+        }
+    };
     let content = submit_content(&app, &form, &signed).await;
     let content_ms = started.elapsed().as_secs_f64() * 1000.0;
     if let Err(error) = content {
-        tracing::warn!(%error, %function, content_ms, admin, "submit content rejected");
+        tracing::warn!(%error, %function, content_ms, "submit content rejected");
         return Err(error);
     }
     let transaction_started = Instant::now();
-    let output = match source {
-        Source::User => app.forum.submit(signed.user, signed.decryptions).await,
-        Source::Admin => {
-            app.forum
-                .submit_admin(signed.user, signed.decryptions)
-                .await
-        }
-    };
+    let output = app
+        .forum
+        .submit(signed.user, signed.decryptions, country, trip)
+        .await;
     let transaction_ms = transaction_started.elapsed().as_secs_f64() * 1000.0;
     let output = match output {
         Ok(output) => output,
         Err(error) => {
-            tracing::warn!(%error, %function, content_ms, transaction_ms, admin, "submit rejected");
+            tracing::warn!(%error, %function, content_ms, transaction_ms, "submit rejected");
             return Err(error);
         }
     };
     let total_ms = started.elapsed().as_secs_f64() * 1000.0;
     if total_ms >= 500.0 {
-        tracing::info!(%function, content_ms, transaction_ms, total_ms, admin, "slow submit");
+        tracing::info!(%function, content_ms, transaction_ms, total_ms, "slow submit");
     }
     Ok(HttpResponse::Ok()
         .content_type(CONTENT_TYPE)
@@ -330,21 +346,17 @@ async fn query_user(app: web::Data<App>, body: web::Bytes) -> Result<HttpRespons
     for signed in &batch {
         require_user(signed)?;
     }
-    query_core(app, batch, Source::User).await
+    query_core(app, batch).await
 }
 
 async fn query_admin(app: web::Data<App>, body: web::Bytes) -> Result<HttpResponse, ServerError> {
     let batch: Vec<Signed> = from_bytes(&body)?;
-    query_core(app, batch, Source::Admin).await
+    query_core(app, batch).await
 }
 
 #[tracing::instrument(target = "latency", level = "debug", name = "query.batch", skip_all,
     fields(queries = tracing::field::Empty))]
-async fn query_core(
-    app: web::Data<App>,
-    batch: Vec<Signed>,
-    source: Source,
-) -> Result<HttpResponse, ServerError> {
+async fn query_core(app: web::Data<App>, batch: Vec<Signed>) -> Result<HttpResponse, ServerError> {
     let _handler = Timer::new("board_handler");
     let started = Instant::now();
     tracing::Span::current().record("queries", batch.len());
@@ -362,7 +374,7 @@ async fn query_core(
                     .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
                     .take(64)
                     .collect();
-                let (result, timings) = timing::collect(query_page(app, signed, source)).await;
+                let (result, timings) = timing::collect(query_page(app, signed)).await;
                 timing::extra(format!(
                     "q{index}_start;dur={offset:.3};desc=\"start offset: {function}\""
                 ));
@@ -384,14 +396,14 @@ async fn query_core(
 
 #[tracing::instrument(target = "latency", level = "debug", name = "query.page", skip_all,
     fields(root = %app.forum.root(), function = %signed.user.call.function))]
-async fn query_page(app: &App, signed: Signed, source: Source) -> Result<Vec<u8>, ServerError> {
+async fn query_page(app: &App, signed: Signed) -> Result<Vec<u8>, ServerError> {
     let _page = Timer::new("page");
     let function = signed.user.call.function.clone();
-    let output = match source {
-        Source::User => app.forum.query(signed.user, signed.decryptions).await,
-        Source::Admin => app.forum.query_admin(signed.user, signed.decryptions).await,
-    }
-    .inspect_err(|error| tracing::warn!(%error, %function, "query rejected"))?;
+    let output = app
+        .forum
+        .query(signed.user, signed.decryptions)
+        .await
+        .inspect_err(|error| tracing::warn!(%error, %function, "query rejected"))?;
     hydrate(app, &function, output.result)
         .await
         .inspect_err(|error| tracing::warn!(%error, %function, "query resources failed"))
@@ -456,10 +468,12 @@ async fn feed_page(
     let mut entries = Vec::with_capacity(history.len());
     for entry in &history {
         let record = app.forum.record(Txid::new(entry.txid)).await?;
-        let context: ServerContext = from_bytes(&record.tx.server.ctx)?;
+        let time = ServerContext::decode(&record.tx.server.ctx)
+            .map_err(|_| ServerError::Internal("server context".to_string()))?
+            .time;
         entries.push(serde_json::json!({
             "txid": hex_of(&entry.txid),
-            "timestamp_ms": context.time,
+            "timestamp_ms": time,
             "sender": sender(&record.tx.user.author),
             "function": record.tx.user.call.function,
             "args": hex_of(&record.tx.user.call.args),
@@ -508,6 +522,12 @@ async fn debug_history(
         .call("debug.history", to_bytes(&(id, query.before, query.limit))?)
         .await?;
     Ok(encoded(&result))
+}
+
+fn client_ip(req: &HttpRequest) -> Option<IpAddr> {
+    req.connection_info()
+        .realip_remote_addr()
+        .and_then(|value| value.parse().ok())
 }
 
 fn parse_public(text: &str) -> Result<[u8; 32], ServerError> {

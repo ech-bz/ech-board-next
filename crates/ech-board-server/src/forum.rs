@@ -4,7 +4,7 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use bcs::to_bytes;
 
 use ech_board_entity::{Entity, Output};
-use ech_board_program::context::ServerContext;
+use ech_board_program::context::{ServerContext, Tripcode, UserRequests};
 use ech_board_program::error::ForumError;
 use ech_board_program::model::Forum as ForumEntity;
 use ech_db_protocol::error::Reject;
@@ -38,7 +38,7 @@ impl Forum {
             author: Author::Server,
         };
         let program = domain
-            .sign(upload.clone(), Self::context())?
+            .sign(upload.clone(), Self::context(None, None))?
             .txid(&domain.root())?;
         Ok(Self {
             db,
@@ -71,7 +71,7 @@ impl Forum {
     }
 
     pub async fn deploy(&self) -> Result<(), ServerError> {
-        let request = self.request(self.upload.clone(), Vec::new())?;
+        let request = self.request(self.upload.clone(), Vec::new(), None, None)?;
         match self.db.append(&self.root(), &request).await {
             Ok(_) => Ok(()),
             Err(DbError::Reject(Reject::Duplicate)) => Ok(()),
@@ -132,10 +132,12 @@ impl Forum {
         &self,
         user: UserPart,
         decryptions: Vec<Esid>,
+        country: Option<u32>,
+        trip: Option<Tripcode>,
     ) -> Result<Output, ServerError> {
         self.check_program(&user)?;
         let started = Instant::now();
-        let request = self.request(user, decryptions)?;
+        let request = self.request(user, decryptions, country, trip)?;
         let txid = request.tx.txid(&self.root())?;
         let prepare_ms = started.elapsed().as_secs_f64() * 1000.0;
         let append_started = Instant::now();
@@ -167,7 +169,7 @@ impl Forum {
     ) -> Result<Output, ServerError> {
         let _database = Timer::new("database");
         self.check_program(&user)?;
-        let request = timing::measure("prepare", || self.request(user, decryptions))?;
+        let request = timing::measure("prepare", || self.request(user, decryptions, None, None))?;
         if tracing::enabled!(target: "latency", tracing::Level::DEBUG) {
             let txid = request.tx.txid(&self.root())?;
             tracing::Span::current().record("txid", tracing::field::display(txid));
@@ -185,27 +187,9 @@ impl Forum {
             .result)
     }
 
-    pub async fn submit_admin(
-        &self,
-        mut user: UserPart,
-        decryptions: Vec<Esid>,
-    ) -> Result<Output, ServerError> {
-        user.call.program = self.current_program();
-        self.submit(user, decryptions).await
-    }
-
-    pub async fn query_admin(
-        &self,
-        mut user: UserPart,
-        decryptions: Vec<Esid>,
-    ) -> Result<Output, ServerError> {
-        user.call.program = self.current_program();
-        self.query(user, decryptions).await
-    }
-
     pub async fn execute(&self, function: &str, args: Vec<u8>) -> Result<Vec<u8>, ServerError> {
         Ok(self
-            .submit(self.server_part(function, args), Vec::new())
+            .submit(self.server_part(function, args), Vec::new(), None, None)
             .await?
             .result)
     }
@@ -248,8 +232,14 @@ impl Forum {
         name = "query.prepare_request",
         skip_all
     )]
-    fn request(&self, user: UserPart, decryptions: Vec<Esid>) -> Result<Request, ServerError> {
-        let tx = self.domain.sign(user, Self::context())?;
+    fn request(
+        &self,
+        user: UserPart,
+        decryptions: Vec<Esid>,
+        country: Option<u32>,
+        trip: Option<Tripcode>,
+    ) -> Result<Request, ServerError> {
+        let tx = self.domain.sign(user, Self::context(country, trip))?;
         let mut resolved = BTreeMap::new();
         for esid in decryptions {
             resolved.insert(esid, self.domain.decrypt(&esid)?);
@@ -262,7 +252,7 @@ impl Forum {
 
     fn server_part(&self, function: &str, args: Vec<u8>) -> UserPart {
         UserPart {
-            ctx: Vec::new(),
+            ctx: UserRequests::NONE.encode(),
             call: Call {
                 program: Program::Txid(self.program),
                 function: function.to_string(),
@@ -272,8 +262,13 @@ impl Forum {
         }
     }
 
-    fn context() -> Vec<u8> {
-        to_bytes(&ServerContext { time: now() }).expect("server context encodes")
+    fn context(country: Option<u32>, trip: Option<Tripcode>) -> Vec<u8> {
+        to_bytes(&ServerContext {
+            time: now(),
+            country,
+            trip,
+        })
+        .expect("server context encodes")
     }
 }
 

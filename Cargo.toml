@@ -10,9 +10,15 @@ rust-version = "1.94.1"
 
 [workspace.dependencies]
 anyhow = "1"
+base64 = "0.22"
 bcs = "0.2.1"
+encoding_rs = "0.8"
+iso3166 = "1"
+maxminddb = "0.30"
+pwhash = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha1 = "0.10"
 thiserror = "2.0"
 hex = "0.4"
 ed25519-dalek = "3.0.0"

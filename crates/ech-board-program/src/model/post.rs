@@ -3,8 +3,8 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use ech_board_entity::{entity, Dispatch, Entity, Record};
-use ech_db_guest::Bind;
 use ech_db_guest::BigMap;
+use ech_db_guest::Bind;
 
 use crate::context::{decode_arguments, encode, fail, Context};
 use crate::error::ForumError;
@@ -28,7 +28,6 @@ pub struct PostV1 {
     pub text_hash: Option<Hash>,
     pub media_hashes: Vec<Hash>,
     pub name_hash: Option<Hash>,
-    pub country: u32,
     pub deleted: bool,
     pub banned_media: Vec<Hash>,
     pub edited: bool,
@@ -74,9 +73,7 @@ impl PostV1 {
             ech_db_guest::Author::User { esid, .. } => Some(*esid),
             ech_db_guest::Author::Server => None,
         };
-        let time = bcs::from_bytes::<crate::context::ServerContext>(&tx.server.ctx)
-            .map_err(|_| fail(ForumError::NotAuthorized))?
-            .time;
+        let time = crate::context::ServerContext::decode(&tx.server.ctx)?.time;
         Ok((author, time))
     }
 
@@ -93,7 +90,6 @@ impl PostV1 {
             text_hash,
             media_hashes,
             name_hash,
-            country: 0,
             deleted: false,
             banned_media: Vec::new(),
             edited: false,
