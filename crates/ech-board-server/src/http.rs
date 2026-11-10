@@ -39,11 +39,11 @@ pub fn routes(config: &mut web::ServiceConfig) {
         .route("/sse/forum/{id}", web::get().to(sse_forum))
         .route("/sse/thread/{id}", web::get().to(sse_thread))
         .route("/sse/board/{id}", web::get().to(sse_board))
-        .route("/api/submit", web::post().to(submit_handler))
+        .route("/api/submit", web::post().to(submit_user))
         .service(
             web::resource("/api/query")
                 .wrap(actix_web::middleware::from_fn(timing::middleware))
-                .route(web::post().to(query_handler)),
+                .route(web::post().to(query_user)),
         )
         .route("/api/feed/{id}", web::get().to(feed_page))
         .route(
@@ -209,32 +209,73 @@ fn visible(subscription: &Subscription, event: &crate::realtime::Event) -> bool 
     }
 }
 
-async fn submit_handler(
+#[derive(Clone, Copy)]
+enum Source {
+    User,
+    Admin,
+}
+
+fn require_user(signed: &Signed) -> Result<(), ServerError> {
+    match signed.user.author {
+        Author::User { .. } => Ok(()),
+        Author::Server => Err(ServerError::BadRequest(
+            "server author is only accepted on the admin port".to_string(),
+        )),
+    }
+}
+
+async fn submit_user(
     app: web::Data<App>,
     form: MultipartForm<SubmitForm>,
 ) -> Result<HttpResponse, ServerError> {
-    let started = Instant::now();
     let signed: Signed = from_bytes(&form.signed.data)?;
+    require_user(&signed)?;
+    submit_core(app, form, signed, Source::User).await
+}
+
+async fn submit_admin(
+    app: web::Data<App>,
+    form: MultipartForm<SubmitForm>,
+) -> Result<HttpResponse, ServerError> {
+    let signed: Signed = from_bytes(&form.signed.data)?;
+    submit_core(app, form, signed, Source::Admin).await
+}
+
+async fn submit_core(
+    app: web::Data<App>,
+    form: MultipartForm<SubmitForm>,
+    signed: Signed,
+    source: Source,
+) -> Result<HttpResponse, ServerError> {
+    let started = Instant::now();
     let function = signed.user.call.function.clone();
+    let admin = matches!(source, Source::Admin);
     let content = submit_content(&app, &form, &signed).await;
     let content_ms = started.elapsed().as_secs_f64() * 1000.0;
     if let Err(error) = content {
-        tracing::warn!(%error, %function, content_ms, "submit content rejected");
+        tracing::warn!(%error, %function, content_ms, admin, "submit content rejected");
         return Err(error);
     }
     let transaction_started = Instant::now();
-    let output = app.forum.submit(signed.user, signed.decryptions).await;
+    let output = match source {
+        Source::User => app.forum.submit(signed.user, signed.decryptions).await,
+        Source::Admin => {
+            app.forum
+                .submit_admin(signed.user, signed.decryptions)
+                .await
+        }
+    };
     let transaction_ms = transaction_started.elapsed().as_secs_f64() * 1000.0;
     let output = match output {
         Ok(output) => output,
         Err(error) => {
-            tracing::warn!(%error, %function, content_ms, transaction_ms, "submit rejected");
+            tracing::warn!(%error, %function, content_ms, transaction_ms, admin, "submit rejected");
             return Err(error);
         }
     };
     let total_ms = started.elapsed().as_secs_f64() * 1000.0;
     if total_ms >= 500.0 {
-        tracing::info!(%function, content_ms, transaction_ms, total_ms, "slow submit");
+        tracing::info!(%function, content_ms, transaction_ms, total_ms, admin, "slow submit");
     }
     Ok(HttpResponse::Ok()
         .content_type(CONTENT_TYPE)
@@ -284,15 +325,28 @@ async fn submit_content(app: &App, form: &SubmitForm, signed: &Signed) -> Result
     Ok(())
 }
 
+async fn query_user(app: web::Data<App>, body: web::Bytes) -> Result<HttpResponse, ServerError> {
+    let batch: Vec<Signed> = from_bytes(&body)?;
+    for signed in &batch {
+        require_user(signed)?;
+    }
+    query_core(app, batch, Source::User).await
+}
+
+async fn query_admin(app: web::Data<App>, body: web::Bytes) -> Result<HttpResponse, ServerError> {
+    let batch: Vec<Signed> = from_bytes(&body)?;
+    query_core(app, batch, Source::Admin).await
+}
+
 #[tracing::instrument(target = "latency", level = "debug", name = "query.batch", skip_all,
-    fields(input_bytes = body.len(), queries = tracing::field::Empty))]
-async fn query_handler(app: web::Data<App>, body: web::Bytes) -> Result<HttpResponse, ServerError> {
+    fields(queries = tracing::field::Empty))]
+async fn query_core(
+    app: web::Data<App>,
+    batch: Vec<Signed>,
+    source: Source,
+) -> Result<HttpResponse, ServerError> {
     let _handler = Timer::new("board_handler");
     let started = Instant::now();
-    let decode = Timer::new("board_decode");
-    let batch: Vec<Signed> = tracing::debug_span!(target: "latency", "query.decode_batch")
-        .in_scope(|| from_bytes(&body))?;
-    drop(decode);
     tracing::Span::current().record("queries", batch.len());
     let batch_wait = Timer::new("board_batch");
     let results: Vec<Vec<u8>> = stream::iter(batch.into_iter().enumerate())
@@ -308,7 +362,7 @@ async fn query_handler(app: web::Data<App>, body: web::Bytes) -> Result<HttpResp
                     .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
                     .take(64)
                     .collect();
-                let (result, timings) = timing::collect(query_page(app, signed)).await;
+                let (result, timings) = timing::collect(query_page(app, signed, source)).await;
                 timing::extra(format!(
                     "q{index}_start;dur={offset:.3};desc=\"start offset: {function}\""
                 ));
@@ -330,14 +384,14 @@ async fn query_handler(app: web::Data<App>, body: web::Bytes) -> Result<HttpResp
 
 #[tracing::instrument(target = "latency", level = "debug", name = "query.page", skip_all,
     fields(root = %app.forum.root(), function = %signed.user.call.function))]
-async fn query_page(app: &App, signed: Signed) -> Result<Vec<u8>, ServerError> {
+async fn query_page(app: &App, signed: Signed, source: Source) -> Result<Vec<u8>, ServerError> {
     let _page = Timer::new("page");
     let function = signed.user.call.function.clone();
-    let output = app
-        .forum
-        .query(signed.user, signed.decryptions)
-        .await
-        .inspect_err(|error| tracing::warn!(%error, %function, "query rejected"))?;
+    let output = match source {
+        Source::User => app.forum.query(signed.user, signed.decryptions).await,
+        Source::Admin => app.forum.query_admin(signed.user, signed.decryptions).await,
+    }
+    .inspect_err(|error| tracing::warn!(%error, %function, "query rejected"))?;
     hydrate(app, &function, output.result)
         .await
         .inspect_err(|error| tracing::warn!(%error, %function, "query resources failed"))
@@ -476,6 +530,9 @@ fn encoded(bytes: &[u8]) -> HttpResponse {
 
 pub fn admin_routes(config: &mut web::ServiceConfig) {
     config
+        .app_data(web::PayloadConfig::new(BODY_LIMIT))
+        .route("/api/submit", web::post().to(submit_admin))
+        .route("/api/query", web::post().to(query_admin))
         .route("/moderators", web::get().to(admin_moderators))
         .route("/moderators", web::post().to(admin_add_moderator))
         .route("/boards", web::post().to(admin_create_board))

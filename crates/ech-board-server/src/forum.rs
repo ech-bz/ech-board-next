@@ -56,6 +56,20 @@ impl Forum {
         self.program
     }
 
+    fn current_program(&self) -> Program {
+        Program::Txid(self.program)
+    }
+
+    fn check_program(&self, user: &UserPart) -> Result<(), ServerError> {
+        if user.call.program != self.current_program() {
+            return Err(ServerError::BadRequest(format!(
+                "program mismatch: requested {:?}, current {}; reconnect to refresh the program",
+                user.call.program, self.program,
+            )));
+        }
+        Ok(())
+    }
+
     pub async fn deploy(&self) -> Result<(), ServerError> {
         let request = self.request(self.upload.clone(), Vec::new())?;
         match self.db.append(&self.root(), &request).await {
@@ -119,6 +133,7 @@ impl Forum {
         user: UserPart,
         decryptions: Vec<Esid>,
     ) -> Result<Output, ServerError> {
+        self.check_program(&user)?;
         let started = Instant::now();
         let request = self.request(user, decryptions)?;
         let txid = request.tx.txid(&self.root())?;
@@ -151,12 +166,7 @@ impl Forum {
         decryptions: Vec<Esid>,
     ) -> Result<Output, ServerError> {
         let _database = Timer::new("database");
-        if user.call.program != Program::Txid(self.program) {
-            return Err(ServerError::BadRequest(format!(
-                "program mismatch: requested {:?}, current {}; reconnect to refresh the program",
-                user.call.program, self.program,
-            )));
-        }
+        self.check_program(&user)?;
         let request = timing::measure("prepare", || self.request(user, decryptions))?;
         if tracing::enabled!(target: "latency", tracing::Level::DEBUG) {
             let txid = request.tx.txid(&self.root())?;
@@ -173,6 +183,24 @@ impl Forum {
             .query(self.server_part(function, args), Vec::new())
             .await?
             .result)
+    }
+
+    pub async fn submit_admin(
+        &self,
+        mut user: UserPart,
+        decryptions: Vec<Esid>,
+    ) -> Result<Output, ServerError> {
+        user.call.program = self.current_program();
+        self.submit(user, decryptions).await
+    }
+
+    pub async fn query_admin(
+        &self,
+        mut user: UserPart,
+        decryptions: Vec<Esid>,
+    ) -> Result<Output, ServerError> {
+        user.call.program = self.current_program();
+        self.query(user, decryptions).await
     }
 
     pub async fn execute(&self, function: &str, args: Vec<u8>) -> Result<Vec<u8>, ServerError> {

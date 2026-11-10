@@ -58,7 +58,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let admin_server = actix_web::HttpServer::new(move || {
         actix_web::App::new()
             .app_data(admin_data.clone())
-            .wrap(Cors::permissive())
             .configure(http::admin_routes)
     })
     .bind(admin)?
