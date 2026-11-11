@@ -378,6 +378,9 @@ impl Dispatch<Context> for Board {
                 if media_hashes.len() > board.max_media as usize {
                     return Err(fail(ForumError::TooManyAttachments));
                 }
+                if board.max_media != 0 && media_hashes.is_empty() {
+                    return Err(fail(ForumError::PostRequiresMedia));
+                }
                 if !vote_keys.is_empty() && !(2..=16).contains(&vote_keys.len()) {
                     return Err(fail(ForumError::InvalidPollSize));
                 }
