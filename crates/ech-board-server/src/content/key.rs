@@ -1,4 +1,4 @@
-use ech_board_program::model::Hash;
+use ech_board_program::types::Hash;
 use object_store::path::Path;
 use serde::Deserialize;
 

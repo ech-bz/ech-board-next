@@ -14,3 +14,4 @@ ech-db-guest.workspace = true
 ech-db-protocol.workspace = true
 serde.workspace = true
 bcs.workspace = true
+thiserror.workspace = true

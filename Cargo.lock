@@ -886,6 +886,7 @@ dependencies = [
  "ech-db-protocol",
  "serde",
  "serde_bytes",
+ "thiserror",
 ]
 
 [[package]]
@@ -907,6 +908,7 @@ dependencies = [
  "ech-db-guest",
  "ech-db-protocol",
  "serde",
+ "thiserror",
 ]
 
 [[package]]
@@ -947,18 +949,20 @@ dependencies = [
 [[package]]
 name = "ech-db-guest"
 version = "0.1.0"
-source = "git+https://github.com/ech-bz/ech-db.git?rev=fd6ab55893c344c988e03cce24d1fc18cb0ebb42#fd6ab55893c344c988e03cce24d1fc18cb0ebb42"
+source = "git+https://github.com/ech-bz/ech-db.git?rev=487e377495543fda113a3decb5d988edd6ad4bde#487e377495543fda113a3decb5d988edd6ad4bde"
 dependencies = [
  "bcs",
+ "ech-db-macros",
  "ech-db-protocol",
  "serde",
  "serde_bytes",
+ "thiserror",
 ]
 
 [[package]]
 name = "ech-db-macros"
 version = "0.1.0"
-source = "git+https://github.com/ech-bz/ech-db.git?rev=fd6ab55893c344c988e03cce24d1fc18cb0ebb42#fd6ab55893c344c988e03cce24d1fc18cb0ebb42"
+source = "git+https://github.com/ech-bz/ech-db.git?rev=487e377495543fda113a3decb5d988edd6ad4bde#487e377495543fda113a3decb5d988edd6ad4bde"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -968,12 +972,11 @@ dependencies = [
 [[package]]
 name = "ech-db-protocol"
 version = "0.1.0"
-source = "git+https://github.com/ech-bz/ech-db.git?rev=fd6ab55893c344c988e03cce24d1fc18cb0ebb42#fd6ab55893c344c988e03cce24d1fc18cb0ebb42"
+source = "git+https://github.com/ech-bz/ech-db.git?rev=487e377495543fda113a3decb5d988edd6ad4bde#487e377495543fda113a3decb5d988edd6ad4bde"
 dependencies = [
  "bcs",
  "blake2b_simd",
  "curve25519-dalek",
- "ech-db-macros",
  "foundationdb-tuple",
  "hex",
  "serde",
@@ -984,7 +987,7 @@ dependencies = [
 [[package]]
 name = "ech-db-sdk"
 version = "0.1.0"
-source = "git+https://github.com/ech-bz/ech-db.git?rev=fd6ab55893c344c988e03cce24d1fc18cb0ebb42#fd6ab55893c344c988e03cce24d1fc18cb0ebb42"
+source = "git+https://github.com/ech-bz/ech-db.git?rev=487e377495543fda113a3decb5d988edd6ad4bde#487e377495543fda113a3decb5d988edd6ad4bde"
 dependencies = [
  "bcs",
  "blake2b_simd",

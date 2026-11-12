@@ -1,21 +1,21 @@
 use std::net::IpAddr;
 
 use crate::content::Store;
-use crate::error::ServerError;
+use crate::error::DomainError;
 
 pub struct Geo {
     reader: maxminddb::Reader<Vec<u8>>,
 }
 
 impl Geo {
-    pub async fn load(store: &Store, object: &str) -> Result<Self, ServerError> {
+    pub async fn load(store: &Store, object: &str) -> Result<Self, DomainError> {
         Self::from_bytes(store.read(object).await?.to_vec())
     }
 
-    fn from_bytes(bytes: Vec<u8>) -> Result<Self, ServerError> {
+    fn from_bytes(bytes: Vec<u8>) -> Result<Self, DomainError> {
         Ok(Self {
             reader: maxminddb::Reader::from_source(bytes)
-                .map_err(|error| ServerError::Internal(format!("geo database: {error}")))?,
+                .map_err(|error| DomainError::Internal(format!("geo database: {error}")))?,
         })
     }
 

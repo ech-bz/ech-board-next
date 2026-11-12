@@ -1,19 +1,17 @@
 use std::collections::BTreeMap;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-use bcs::to_bytes;
-
 use ech_board_entity::{Entity, Output};
 use ech_board_program::context::{ServerContext, Tripcode, UserRequests};
+use ech_board_program::entity::Forum as ForumEntity;
 use ech_board_program::error::ForumError;
-use ech_board_program::model::Forum as ForumEntity;
 use ech_db_protocol::error::Reject;
 use ech_db_protocol::id::{Root, Txid};
 use ech_db_protocol::value::{Author, Call, Esid, Program, Record, Request, UserPart};
 use ech_db_sdk::Domain;
 
 use crate::db::{DbClient, DbError};
-use crate::error::ServerError;
+use crate::error::DomainError;
 use crate::timing::{self, Timer};
 
 pub struct Forum {
@@ -27,7 +25,7 @@ impl Forum {
     pub const UPLOAD: &'static str = "upload_program";
     pub const PAGE: u64 = 64;
 
-    pub fn new(db: DbClient, domain: Domain, wasm: &[u8]) -> Result<Self, ServerError> {
+    pub fn new(db: DbClient, domain: Domain, wasm: &[u8]) -> Result<Self, DomainError> {
         let upload = UserPart {
             ctx: Vec::new(),
             call: Call {
@@ -60,9 +58,9 @@ impl Forum {
         Program::Txid(self.program)
     }
 
-    fn check_program(&self, user: &UserPart) -> Result<(), ServerError> {
+    fn check_program(&self, user: &UserPart) -> Result<(), DomainError> {
         if user.call.program != self.current_program() {
-            return Err(ServerError::BadRequest(format!(
+            return Err(DomainError::BadRequest(format!(
                 "program mismatch: requested {:?}, current {}; reconnect to refresh the program",
                 user.call.program, self.program,
             )));
@@ -70,7 +68,7 @@ impl Forum {
         Ok(())
     }
 
-    pub async fn deploy(&self) -> Result<(), ServerError> {
+    pub async fn deploy(&self) -> Result<(), DomainError> {
         let request = self.request(self.upload.clone(), Vec::new(), None, None)?;
         match self.db.append(&self.root(), &request).await {
             Ok(_) => Ok(()),
@@ -79,17 +77,17 @@ impl Forum {
         }
     }
 
-    pub async fn forum_id(&self) -> Result<[u8; 32], ServerError> {
+    pub async fn forum_id(&self) -> Result<[u8; 32], DomainError> {
         let bytes = self.call("debug.forum", Vec::new()).await?;
         bytes
             .try_into()
-            .map_err(|_| ServerError::BadRequest("forum id".to_string()))
+            .map_err(|_| DomainError::BadRequest("forum id".to_string()))
     }
 
-    pub async fn ensure(&self) -> Result<(), ServerError> {
+    pub async fn ensure(&self) -> Result<(), DomainError> {
         match self.execute("forum.create", Vec::new()).await {
             Ok(_) => Ok(()),
-            Err(ServerError::Db(DbError::Reject(Reject::Application { bytes })))
+            Err(DomainError::Db(DbError::Reject(Reject::Application { bytes })))
                 if matches!(
                     bcs::from_bytes::<ForumError>(&bytes),
                     Ok(ForumError::ForumExists)
@@ -101,7 +99,7 @@ impl Forum {
         }
     }
 
-    pub async fn moderators(&self) -> Result<Vec<Esid>, ServerError> {
+    pub async fn moderators(&self) -> Result<Vec<Esid>, DomainError> {
         let forum: Entity<ForumEntity> = bcs::from_bytes(
             &self
                 .call("forum.meta", self.forum_id().await?.to_vec())
@@ -110,19 +108,19 @@ impl Forum {
         Ok(forum.moderators.clone())
     }
 
-    pub async fn add_moderator(&self, member: Esid) -> Result<Vec<Esid>, ServerError> {
+    pub async fn add_moderator(&self, member: Esid) -> Result<Vec<Esid>, DomainError> {
         self.execute(
             "forum.add_moderator",
-            to_bytes(&(self.forum_id().await?, member))?,
+            bcs::to_bytes(&(self.forum_id().await?, member))?,
         )
         .await?;
         self.moderators().await
     }
 
-    pub async fn remove_moderator(&self, member: Esid) -> Result<Vec<Esid>, ServerError> {
+    pub async fn remove_moderator(&self, member: Esid) -> Result<Vec<Esid>, DomainError> {
         self.execute(
             "forum.remove_moderator",
-            to_bytes(&(self.forum_id().await?, member))?,
+            bcs::to_bytes(&(self.forum_id().await?, member))?,
         )
         .await?;
         self.moderators().await
@@ -134,7 +132,7 @@ impl Forum {
         decryptions: Vec<Esid>,
         country: Option<u32>,
         trip: Option<Tripcode>,
-    ) -> Result<Output, ServerError> {
+    ) -> Result<Output, DomainError> {
         self.check_program(&user)?;
         let started = Instant::now();
         let request = self.request(user, decryptions, country, trip)?;
@@ -166,7 +164,7 @@ impl Forum {
         &self,
         user: UserPart,
         decryptions: Vec<Esid>,
-    ) -> Result<Output, ServerError> {
+    ) -> Result<Output, DomainError> {
         let _database = Timer::new("database");
         self.check_program(&user)?;
         let request = timing::measure("prepare", || self.request(user, decryptions, None, None))?;
@@ -180,28 +178,28 @@ impl Forum {
         }
     }
 
-    pub async fn call(&self, function: &str, args: Vec<u8>) -> Result<Vec<u8>, ServerError> {
+    pub async fn call(&self, function: &str, args: Vec<u8>) -> Result<Vec<u8>, DomainError> {
         Ok(self
             .query(self.server_part(function, args), Vec::new())
             .await?
             .result)
     }
 
-    pub async fn execute(&self, function: &str, args: Vec<u8>) -> Result<Vec<u8>, ServerError> {
+    pub async fn execute(&self, function: &str, args: Vec<u8>) -> Result<Vec<u8>, DomainError> {
         Ok(self
             .submit(self.server_part(function, args), Vec::new(), None, None)
             .await?
             .result)
     }
 
-    pub async fn history(&self, from: Option<Txid>) -> Result<Vec<Record>, ServerError> {
+    pub async fn history(&self, from: Option<Txid>) -> Result<Vec<Record>, DomainError> {
         Ok(self
             .db
             .history(&self.root(), "forward", from, Self::PAGE)
             .await?)
     }
 
-    pub async fn last(&self) -> Result<Option<Record>, ServerError> {
+    pub async fn last(&self) -> Result<Option<Record>, DomainError> {
         Ok(self
             .db
             .history(&self.root(), "backward", None, 1)
@@ -210,16 +208,16 @@ impl Forum {
             .next())
     }
 
-    pub async fn record(&self, txid: Txid) -> Result<Record, ServerError> {
+    pub async fn record(&self, txid: Txid) -> Result<Record, DomainError> {
         let mut records = self
             .db
             .history(&self.root(), "forward", Some(txid), 1)
             .await?;
         let record = records
             .first_mut()
-            .ok_or_else(|| ServerError::BadRequest(format!("transaction {txid} not found")))?;
+            .ok_or_else(|| DomainError::BadRequest(format!("transaction {txid} not found")))?;
         if record.tx.txid(&self.root())? != txid {
-            return Err(ServerError::BadRequest(format!(
+            return Err(DomainError::BadRequest(format!(
                 "transaction {txid} not found"
             )));
         }
@@ -238,7 +236,7 @@ impl Forum {
         decryptions: Vec<Esid>,
         country: Option<u32>,
         trip: Option<Tripcode>,
-    ) -> Result<Request, ServerError> {
+    ) -> Result<Request, DomainError> {
         let tx = self.domain.sign(user, Self::context(country, trip))?;
         let mut resolved = BTreeMap::new();
         for esid in decryptions {
@@ -252,7 +250,7 @@ impl Forum {
 
     fn server_part(&self, function: &str, args: Vec<u8>) -> UserPart {
         UserPart {
-            ctx: UserRequests::NONE.encode(),
+            ctx: UserRequests::default().encode(),
             call: Call {
                 program: Program::Txid(self.program),
                 function: function.to_string(),
@@ -263,12 +261,12 @@ impl Forum {
     }
 
     fn context(country: Option<u32>, trip: Option<Tripcode>) -> Vec<u8> {
-        to_bytes(&ServerContext {
+        ServerContext {
             time: now(),
             country,
             trip,
-        })
-        .expect("server context encodes")
+        }
+        .encode()
     }
 }
 
@@ -281,6 +279,6 @@ fn now() -> u64 {
 
 #[tracing::instrument(target = "latency", level = "debug", name = "query.decode_output", skip_all,
     fields(bytes = bytes.len()))]
-fn decode(bytes: &[u8]) -> Result<Output, ServerError> {
+fn decode(bytes: &[u8]) -> Result<Output, DomainError> {
     bcs::from_bytes(bytes).map_err(Into::into)
 }

@@ -8,6 +8,7 @@ license.workspace = true
 serde_bytes = "0.11"
 bcs.workspace = true
 serde.workspace = true
+thiserror.workspace = true
 ech-db-guest.workspace = true
 ech-db-protocol.workspace = true
 ech-board-entity-macros.workspace = true

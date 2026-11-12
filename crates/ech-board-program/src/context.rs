@@ -1,12 +1,13 @@
 use std::cell::RefCell;
 
 use bcs::{from_bytes, to_bytes};
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
+#[cfg(target_arch = "wasm32")]
+use ech_db_guest::Host;
 use ech_db_guest::{Author, Call, Esid, Request};
 
-use crate::error::ForumError;
+use crate::error::{ForumError, Result};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub struct Tripcode {
@@ -22,25 +23,24 @@ pub struct ServerContext {
 }
 
 impl ServerContext {
-    pub fn decode(bytes: &[u8]) -> Result<Self, Vec<u8>> {
-        from_bytes(bytes).map_err(|_| fail(ForumError::NotAuthorized))
+    pub fn decode(bytes: &[u8]) -> Result<Self> {
+        from_bytes(bytes).map_err(|_| ForumError::NotAuthorized)
+    }
+
+    pub fn encode(&self) -> Vec<u8> {
+        to_bytes(self).expect("server context encodes")
     }
 }
 
-#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub struct UserRequests {
     pub geo: bool,
     pub trip: bool,
 }
 
 impl UserRequests {
-    pub const NONE: Self = Self {
-        geo: false,
-        trip: false,
-    };
-
-    pub fn decode(bytes: &[u8]) -> Result<Self, Vec<u8>> {
-        from_bytes(bytes).map_err(|_| fail(ForumError::NotAuthorized))
+    pub fn decode(bytes: &[u8]) -> Result<Self> {
+        from_bytes(bytes).map_err(|_| ForumError::NotAuthorized)
     }
 
     pub fn encode(&self) -> Vec<u8> {
@@ -48,104 +48,103 @@ impl UserRequests {
     }
 }
 
+struct State {
+    request: Request,
+    context: Context,
+}
+
 thread_local! {
-    static REQUEST: RefCell<Option<Request>> = const { RefCell::new(None) };
-}
-
-pub fn begin_request(request: Request) {
-    REQUEST.with(|slot| *slot.borrow_mut() = Some(request));
-}
-
-fn with_request<T>(f: impl FnOnce(&Request) -> Result<T, Vec<u8>>) -> Result<T, Vec<u8>> {
-    REQUEST.with(|slot| {
-        let slot = slot.borrow();
-        let request = slot
-            .as_ref()
-            .ok_or_else(|| fail(ForumError::NotAuthorized))?;
-        f(request)
-    })
-}
-
-pub fn call() -> Result<Call, Vec<u8>> {
-    with_request(|request| Ok(request.tx.user.call.clone()))
-}
-
-#[cfg(target_arch = "wasm32")]
-pub fn read_only() -> bool {
-    ech_db_guest::Host::read_only()
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-pub fn read_only() -> bool {
-    unimplemented!("program requires the wasm runtime")
+    static STATE: RefCell<Option<State>> = const { RefCell::new(None) };
 }
 
 pub struct Context {
     author: Author,
-    pub time: u64,
+    time: u64,
 }
 
 impl Context {
-    pub fn new() -> Result<Self, Vec<u8>> {
-        with_request(|request| {
-            let requests = UserRequests::decode(&request.tx.user.ctx)?;
-            let server = ServerContext::decode(&request.tx.server.ctx)?;
-            if requests.geo != server.country.is_some() || requests.trip != server.trip.is_some() {
-                return Err(fail(ForumError::NotAuthorized));
-            }
-            Ok(Self {
-                author: request.tx.user.author.clone(),
-                time: server.time,
-            })
+    fn new(request: &Request) -> Result<Self> {
+        let requests = UserRequests::decode(&request.tx.user.ctx)?;
+        let server = ServerContext::decode(&request.tx.server.ctx)?;
+        if [
+            (requests.geo, server.country.is_some()),
+            (requests.trip, server.trip.is_some()),
+        ]
+        .into_iter()
+        .any(|(requested, provided)| requested != provided)
+        {
+            return Err(ForumError::NotAuthorized);
+        }
+        Ok(Self {
+            author: request.tx.user.author.clone(),
+            time: server.time,
         })
     }
 
-    pub fn esid(&self) -> Result<Esid, Vec<u8>> {
-        match self.author {
-            Author::User { esid, .. } => Ok(esid),
-            Author::Server => Err(fail(ForumError::NotAuthorized)),
-        }
+    pub fn begin(request: Request) -> Result<()> {
+        let context = Self::new(&request)?;
+        STATE.with(|slot| *slot.borrow_mut() = Some(State { request, context }));
+        Ok(())
     }
 
-    pub fn sid(&self, esid: &Esid) -> Result<[u8; 32], Vec<u8>> {
-        with_request(|request| {
-            request
+    #[cfg(target_arch = "wasm32")]
+    pub fn read_only() -> bool {
+        Host::read_only()
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn read_only() -> bool {
+        unimplemented!("program requires the wasm runtime")
+    }
+
+    pub fn call() -> Result<Call> {
+        Self::state(|state| state.request.tx.user.call.clone())
+    }
+
+    pub fn time() -> Result<u64> {
+        Self::state(|state| state.context.time)
+    }
+
+    pub fn esid() -> Result<Esid> {
+        Self::state(|state| match state.context.author {
+            Author::User { esid, .. } => Some(esid),
+            Author::Server => None,
+        })?
+        .ok_or(ForumError::NotAuthorized)
+    }
+
+    pub fn sid(esid: &Esid) -> Result<[u8; 32]> {
+        Self::state(|state| {
+            state
+                .request
                 .decryptions
                 .get(esid)
                 .map(|decryption| decryption.sid)
-                .ok_or_else(|| fail(ForumError::NotAuthorized))
+        })?
+        .ok_or(ForumError::NotAuthorized)
+    }
+
+    pub fn author_sid() -> Result<[u8; 32]> {
+        let esid = Self::esid()?;
+        Self::sid(&esid)
+    }
+
+    pub fn is_server() -> Result<bool> {
+        Self::state(|state| matches!(state.context.author, Author::Server))
+    }
+
+    pub fn is_author(author: &Esid) -> Result<bool> {
+        Self::state(|state| match state.context.author {
+            Author::User { esid, .. } => esid == *author,
+            Author::Server => false,
         })
     }
 
-    pub fn author_sid(&self) -> Result<[u8; 32], Vec<u8>> {
-        let esid = self.esid()?;
-        self.sid(&esid)
+    fn state<T>(f: impl FnOnce(&State) -> T) -> Result<T> {
+        STATE.with(|slot| {
+            let slot = slot.borrow();
+            let state = slot.as_ref().ok_or(ForumError::NotAuthorized)?;
+            Ok(f(state))
+        })
     }
-
-    pub fn is_server(&self) -> bool {
-        matches!(self.author, Author::Server)
-    }
-
-    pub fn is_author(&self, author: &Esid) -> bool {
-        match self.author {
-            Author::User { esid, .. } => esid == *author,
-            Author::Server => false,
-        }
-    }
-}
-
-pub fn decode<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, Vec<u8>> {
-    from_bytes(bytes).map_err(|_| fail(ForumError::NotAuthorized))
-}
-
-pub fn decode_arguments<T: DeserializeOwned>(args: &[u8]) -> Result<T, Vec<u8>> {
-    from_bytes(args).map_err(|_| ech_board_entity::invalid_arguments())
-}
-
-pub fn encode<T: Serialize>(value: &T) -> Result<Vec<u8>, Vec<u8>> {
-    to_bytes(value).map_err(|_| fail(ForumError::CounterOverflow))
-}
-
-pub fn fail(error: ForumError) -> Vec<u8> {
-    to_bytes(&error).expect("forum error encodes")
 }

@@ -6,7 +6,7 @@ use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use tokio::process::Command;
 
-use crate::error::ServerError;
+use crate::error::DomainError;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MediaMeta {
@@ -42,10 +42,10 @@ struct ProbeFormat {
     duration: Option<String>,
 }
 
-pub async fn prepare(bytes: &[u8], reaction: bool) -> Result<PreparedMedia, ServerError> {
+pub async fn prepare(bytes: &[u8], reaction: bool) -> Result<PreparedMedia, DomainError> {
     let mime = mime(bytes);
     if mime == "application/octet-stream" || reaction && !mime.starts_with("image/") {
-        return Err(ServerError::BadRequest("unsupported media format".into()));
+        return Err(DomainError::BadRequest("unsupported media format".into()));
     }
     let mut meta = MediaMeta {
         mime: mime.into(),
@@ -61,11 +61,11 @@ pub async fn prepare(bytes: &[u8], reaction: bool) -> Result<PreparedMedia, Serv
             thumbnail: None,
         });
     }
-    let directory = tempfile::tempdir().map_err(|error| ServerError::Store(error.to_string()))?;
+    let directory = tempfile::tempdir().map_err(|error| DomainError::Store(error.to_string()))?;
     let path = directory.path().join("media");
     tokio::fs::write(&path, bytes)
         .await
-        .map_err(|error| ServerError::Store(error.to_string()))?;
+        .map_err(|error| DomainError::Store(error.to_string()))?;
     let probe = probe(&path).await?;
     let visual = probe
         .streams
@@ -92,7 +92,7 @@ pub async fn prepare(bytes: &[u8], reaction: bool) -> Result<PreparedMedia, Serv
     }
     let thumbnail = if mime.starts_with("image/") || mime.starts_with("video/") {
         if meta.width == 0 || meta.height == 0 {
-            return Err(ServerError::BadRequest(
+            return Err(DomainError::BadRequest(
                 "media dimensions are missing".into(),
             ));
         }
@@ -104,7 +104,7 @@ pub async fn prepare(bytes: &[u8], reaction: bool) -> Result<PreparedMedia, Serv
     Ok(PreparedMedia { meta, thumbnail })
 }
 
-async fn probe(path: &Path) -> Result<Probe, ServerError> {
+async fn probe(path: &Path) -> Result<Probe, DomainError> {
     let output = run(Command::new("ffprobe")
         .args([
             "-v",
@@ -117,10 +117,10 @@ async fn probe(path: &Path) -> Result<Probe, ServerError> {
         .arg(path))
     .await?;
     serde_json::from_slice(&output.stdout)
-        .map_err(|error| ServerError::BadRequest(format!("media metadata: {error}")))
+        .map_err(|error| DomainError::BadRequest(format!("media metadata: {error}")))
 }
 
-async fn thumbnail(path: &Path) -> Result<Bytes, ServerError> {
+async fn thumbnail(path: &Path) -> Result<Bytes, DomainError> {
     let output = run(Command::new("ffmpeg")
         .args(["-nostdin", "-v", "error", "-threads", "1", "-i"])
         .arg(path)
@@ -140,19 +140,19 @@ async fn thumbnail(path: &Path) -> Result<Bytes, ServerError> {
         ]))
     .await?;
     if output.stdout.is_empty() {
-        return Err(ServerError::BadRequest("empty thumbnail".into()));
+        return Err(DomainError::BadRequest("empty thumbnail".into()));
     }
     Ok(Bytes::from(output.stdout))
 }
 
-async fn run(command: &mut Command) -> Result<Output, ServerError> {
+async fn run(command: &mut Command) -> Result<Output, DomainError> {
     command.kill_on_drop(true);
     let output = tokio::time::timeout(Duration::from_secs(30), command.output())
         .await
-        .map_err(|_| ServerError::BadRequest("media processing timed out".into()))?
-        .map_err(|error| ServerError::Store(format!("media processor: {error}")))?;
+        .map_err(|_| DomainError::BadRequest("media processing timed out".into()))?
+        .map_err(|error| DomainError::Store(format!("media processor: {error}")))?;
     if !output.status.success() {
-        return Err(ServerError::BadRequest("invalid media".into()));
+        return Err(DomainError::BadRequest("invalid media".into()));
     }
     Ok(output)
 }

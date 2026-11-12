@@ -4,13 +4,14 @@ use futures_util::stream::{self, StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 
 use ech_board_entity::Entity;
-use ech_board_program::model::{
-    Board, BoardPage, Forum, ForumPage, Hash, Post, PostPage, PostV1, Thread, ThreadMeta,
-    ThreadPage, ThreadPreview,
+use ech_board_program::entity::{
+    Board, BoardPage, Forum, ForumPage, Post, PostPage, PostV1, Thread, ThreadMeta, ThreadPage,
+    ThreadPreview,
 };
+use ech_board_program::types::Hash;
 
 use crate::content::{Key, Kind, Store};
-use crate::error::ServerError;
+use crate::error::DomainError;
 use crate::media::MediaMeta;
 
 #[derive(Serialize, Deserialize)]
@@ -42,10 +43,10 @@ impl Resources {
             .extend(hashes.into_iter().map(|hash| Key::new(kind, hash)));
     }
 
-    pub async fn load(self, store: &Store) -> Result<WithResources<()>, ServerError> {
+    pub async fn load(self, store: &Store) -> Result<WithResources<()>, DomainError> {
         let contents = stream::iter(self.contents)
             .map(|key| async move {
-                Ok::<_, ServerError>((
+                Ok::<_, DomainError>((
                     key.hash,
                     store.optional(key).await?.map(|bytes| bytes.to_vec()),
                 ))
@@ -53,7 +54,7 @@ impl Resources {
             .buffer_unordered(32)
             .try_collect();
         let attachments = stream::iter(self.media)
-            .map(|key| async move { Ok::<_, ServerError>((key.hash, store.metadata(key).await?)) })
+            .map(|key| async move { Ok::<_, DomainError>((key.hash, store.metadata(key).await?)) })
             .buffer_unordered(32)
             .try_collect();
         let (contents, attachments) = tokio::try_join!(contents, attachments)?;
@@ -167,7 +168,7 @@ impl PageResources for Entity<Post> {
 }
 
 impl<T: PageResources> WithResources<T> {
-    pub async fn load(store: &Store, view: T) -> Result<Self, ServerError> {
+    pub async fn load(store: &Store, view: T) -> Result<Self, DomainError> {
         let resources = view.resources().load(store).await?;
         Ok(Self {
             view,

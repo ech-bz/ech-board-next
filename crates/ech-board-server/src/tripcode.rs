@@ -3,7 +3,7 @@ use sha1::{Digest, Sha1};
 
 use ech_board_program::context::Tripcode;
 
-use crate::error::ServerError;
+use crate::error::DomainError;
 
 pub struct Trips {
     secret: String,
@@ -14,7 +14,7 @@ impl Trips {
         Self { secret }
     }
 
-    pub fn compute(&self, raw: &str) -> Result<Tripcode, ServerError> {
+    pub fn compute(&self, raw: &str) -> Result<Tripcode, DomainError> {
         if let Some(seed) = raw.strip_prefix("##") {
             return Ok(Tripcode {
                 secured: true,
@@ -22,7 +22,7 @@ impl Trips {
             });
         }
         let Some(seed) = raw.strip_prefix('#') else {
-            return Err(ServerError::BadRequest(
+            return Err(DomainError::BadRequest(
                 "tripcode must start with # or ##".to_string(),
             ));
         };
@@ -33,17 +33,17 @@ impl Trips {
     }
 }
 
-fn plain(input: &str) -> Result<String, ServerError> {
+fn plain(input: &str) -> Result<String, DomainError> {
     let salt = vichan_salt(input);
     let hash = pwhash::unix::crypt(input, &salt)
-        .map_err(|error| ServerError::Internal(format!("tripcode crypt: {error:?}")))?;
+        .map_err(|error| DomainError::Internal(format!("tripcode crypt: {error:?}")))?;
     Ok(hash[hash.len().saturating_sub(10)..].to_string())
 }
 
-fn secure(input: &str, key: &str) -> Result<String, ServerError> {
+fn secure(input: &str, key: &str) -> Result<String, DomainError> {
     let (encoded, _, had_errors) = encoding_rs::SHIFT_JIS.encode(input);
     if had_errors {
-        return Err(ServerError::BadRequest(
+        return Err(DomainError::BadRequest(
             "secure tripcode: shift_jis encoding failed".to_string(),
         ));
     }
@@ -55,11 +55,11 @@ fn secure(input: &str, key: &str) -> Result<String, ServerError> {
     let encoded_digest = base64::engine::general_purpose::STANDARD.encode(digest);
     let salt_part = encoded_digest
         .get(..4)
-        .ok_or_else(|| ServerError::Internal("secure tripcode: bad digest".to_string()))?
+        .ok_or_else(|| DomainError::Internal("secure tripcode: bad digest".to_string()))?
         .replace('+', ".");
     let setting = format!("_..A.{salt_part}");
     let hash = pwhash::unix::crypt(key_bytes, &setting)
-        .map_err(|error| ServerError::Internal(format!("secure tripcode: {error:?}")))?;
+        .map_err(|error| DomainError::Internal(format!("secure tripcode: {error:?}")))?;
     Ok(hash[hash.len().saturating_sub(10)..].to_string())
 }
 

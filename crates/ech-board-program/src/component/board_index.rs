@@ -1,12 +1,11 @@
 use std::collections::BTreeMap;
 
-use ech_board_entity::Result;
+use ech_board_entity::EntityError;
 use ech_db_guest::Bind;
 use ech_db_guest::{BigMap, BigSet};
 use serde::{Deserialize, Serialize};
 
-use crate::context::fail;
-use crate::error::ForumError;
+use crate::error::{ForumError, Result};
 
 const NODE_CAPACITY: usize = 64;
 const NODE_MINIMUM: usize = NODE_CAPACITY / 2;
@@ -48,7 +47,7 @@ impl Node {
             Self::Leaf(keys) => keys.last().copied(),
             Self::Branch(children) => children.last().map(|child| child.max),
         }
-        .ok_or_else(invalid_index)
+        .ok_or_else(|| ForumError::Entity(EntityError::InvalidArguments))
     }
 
     fn split(&mut self) -> Self {
@@ -63,7 +62,7 @@ impl Node {
         match (self, other) {
             (Self::Leaf(left), Self::Leaf(mut right)) => left.append(&mut right),
             (Self::Branch(left), Self::Branch(mut right)) => left.append(&mut right),
-            _ => return Err(invalid_index()),
+            _ => return Err(ForumError::Entity(EntityError::InvalidArguments)),
         }
         Ok(())
     }
@@ -134,7 +133,7 @@ impl BoardIndex {
     ) -> Result<(u64, Vec<BoardOrderKey>)> {
         if let Some(root) = root {
             if root == 0 || (root != self.root && !self.roots.contains(&root)?) {
-                return Err(fail(ForumError::InvalidBoardCursor));
+                return Err(ForumError::InvalidBoardCursor);
             }
         }
         let root = root.unwrap_or(self.root);
@@ -144,7 +143,10 @@ impl BoardIndex {
         let mut pending = vec![root];
         let mut keys = Vec::with_capacity(limit);
         while let Some(id) = pending.pop() {
-            let node = self.nodes.get(&id)?.ok_or_else(invalid_index)?;
+            let node = self
+                .nodes
+                .get(&id)?
+                .ok_or_else(|| ForumError::Entity(EntityError::InvalidArguments))?;
             match node {
                 Node::Leaf(entries) => {
                     for key in entries.into_iter().rev() {
@@ -182,7 +184,11 @@ impl Edit<'_> {
         if let Some(node) = self.pending.get(&id).or_else(|| self.loaded.get(&id)) {
             return Ok(node.clone());
         }
-        let node = self.index.nodes.get(&id)?.ok_or_else(invalid_index)?;
+        let node = self
+            .index
+            .nodes
+            .get(&id)?
+            .ok_or_else(|| ForumError::Entity(EntityError::InvalidArguments))?;
         self.loaded.insert(id, node.clone());
         Ok(node)
     }
@@ -193,7 +199,7 @@ impl Edit<'_> {
             .index
             .next_node
             .checked_add(1)
-            .ok_or_else(|| fail(ForumError::CounterOverflow))?;
+            .ok_or(ForumError::CounterOverflow)?;
         let id = self.index.next_node;
         self.pending.insert(id, node);
         Ok(Link { max, id })
@@ -212,7 +218,10 @@ impl Edit<'_> {
         let mut node = self.load(id)?;
         match &mut node {
             Node::Leaf(keys) => {
-                let position = keys.binary_search(&key).err().ok_or_else(invalid_index)?;
+                let position = keys
+                    .binary_search(&key)
+                    .err()
+                    .ok_or_else(|| ForumError::Entity(EntityError::InvalidArguments))?;
                 keys.insert(position, key);
             }
             Node::Branch(children) => {
@@ -230,12 +239,16 @@ impl Edit<'_> {
         let mut node = self.load(id)?;
         match &mut node {
             Node::Leaf(keys) => {
-                let position = keys.binary_search(&key).map_err(|_| invalid_index())?;
+                let position = keys
+                    .binary_search(&key)
+                    .map_err(|_| ForumError::Entity(EntityError::InvalidArguments))?;
                 keys.remove(position);
             }
             Node::Branch(children) => {
                 let position = children.partition_point(|child| child.max < key);
-                let child = children.get(position).ok_or_else(invalid_index)?;
+                let child = children
+                    .get(position)
+                    .ok_or_else(|| ForumError::Entity(EntityError::InvalidArguments))?;
                 if let Some(replacement) = self.remove(child.id, key)? {
                     children[position] = replacement;
                     if children.len() > 1 && self.load(replacement.id)?.len() < NODE_MINIMUM {
@@ -256,8 +269,4 @@ impl Edit<'_> {
             self.store(node).map(Some)
         }
     }
-}
-
-fn invalid_index() -> Vec<u8> {
-    b"invalid board order index".to_vec()
 }

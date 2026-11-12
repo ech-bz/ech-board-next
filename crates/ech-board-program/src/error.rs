@@ -1,82 +1,84 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+use ech_board_entity::EntityError;
+use ech_db_guest::GuestError;
+
+#[derive(Serialize, Deserialize, Debug, thiserror::Error)]
 pub enum ForumError {
+    #[error("root owner required")]
     RootOwnerRequired,
+    #[error("not authorized")]
     NotAuthorized,
+    #[error("ban expiry is in the past")]
     InvalidBanExpiry,
+    #[error("invalid board slug")]
     InvalidBoardSlug,
+    #[error("invalid bump limit")]
     InvalidBumpLimit,
+    #[error("invalid max media")]
     InvalidMaxMedia,
+    #[error("duplicate reaction")]
     DuplicateReaction,
+    #[error("at most eight pinned threads")]
     PinnedThreadLimit,
+    #[error("board is read-only")]
     BoardReadOnly,
+    #[error("too many attachments")]
     TooManyAttachments,
+    #[error("banned")]
     Banned,
+    #[error("thread is closed")]
     ThreadClosed,
+    #[error("missing post index")]
     MissingPostIndex,
+    #[error("invalid post index")]
     InvalidPostIndex,
+    #[error("poll needs 2 to 16 choices")]
     InvalidPollSize,
+    #[error("duplicate poll choice")]
     DuplicatePollChoice,
+    #[error("post is empty")]
     EmptyPost,
+    #[error("post requires media")]
     PostRequiresMedia,
+    #[error("poll unavailable")]
     PollUnavailable,
+    #[error("poll choice count mismatch")]
     InvalidVoteCount,
+    #[error("already voted")]
     AlreadyVoted,
+    #[error("invalid poll choice")]
     InvalidPollChoice,
+    #[error("post deleted")]
     PostDeleted,
+    #[error("reaction not allowed")]
     ReactionNotAllowed,
+    #[error("reaction intent mismatch")]
     ReactionConflict,
+    #[error("invalid reaction count")]
     InvalidReactionCount,
+    #[error("media not found")]
     MediaNotFound,
+    #[error("media already banned")]
     MediaAlreadyBanned,
+    #[error("media not banned")]
     MediaNotBanned,
+    #[error("counter overflow")]
     CounterOverflow,
+    #[error("not found")]
     NotFound,
+    #[error("forum already exists")]
     ForumExists,
+    #[error("board already exists")]
     BoardExists,
+    #[error("content hash mismatch")]
     InvalidContentHash,
+    #[error("invalid board cursor")]
     InvalidBoardCursor,
+    #[error(transparent)]
+    Entity(#[from] EntityError),
+    #[error(transparent)]
+    Guest(#[from] GuestError),
 }
 
-impl ForumError {
-    pub fn message(self) -> &'static str {
-        match self {
-            Self::RootOwnerRequired => "root owner required",
-            Self::NotAuthorized => "not authorized",
-            Self::InvalidBanExpiry => "ban expiry is in the past",
-            Self::InvalidBoardSlug => "invalid board slug",
-            Self::InvalidBumpLimit => "invalid bump limit",
-            Self::InvalidMaxMedia => "invalid max media",
-            Self::DuplicateReaction => "duplicate reaction",
-            Self::PinnedThreadLimit => "at most eight pinned threads",
-            Self::BoardReadOnly => "board is read-only",
-            Self::TooManyAttachments => "too many attachments",
-            Self::Banned => "banned",
-            Self::ThreadClosed => "thread is closed",
-            Self::MissingPostIndex => "missing post index",
-            Self::InvalidPostIndex => "invalid post index",
-            Self::InvalidPollSize => "poll needs 2 to 16 choices",
-            Self::DuplicatePollChoice => "duplicate poll choice",
-            Self::EmptyPost => "post is empty",
-            Self::PostRequiresMedia => "post requires media",
-            Self::PollUnavailable => "poll unavailable",
-            Self::InvalidVoteCount => "poll choice count mismatch",
-            Self::AlreadyVoted => "already voted",
-            Self::InvalidPollChoice => "invalid poll choice",
-            Self::PostDeleted => "post deleted",
-            Self::ReactionNotAllowed => "reaction not allowed",
-            Self::ReactionConflict => "reaction intent mismatch",
-            Self::InvalidReactionCount => "invalid reaction count",
-            Self::MediaNotFound => "media not found",
-            Self::MediaAlreadyBanned => "media already banned",
-            Self::MediaNotBanned => "media not banned",
-            Self::CounterOverflow => "counter overflow",
-            Self::NotFound => "not found",
-            Self::ForumExists => "forum already exists",
-            Self::BoardExists => "board already exists",
-            Self::InvalidContentHash => "content hash mismatch",
-            Self::InvalidBoardCursor => "invalid board cursor",
-        }
-    }
-}
+pub type Result<T> = std::result::Result<T, ForumError>;

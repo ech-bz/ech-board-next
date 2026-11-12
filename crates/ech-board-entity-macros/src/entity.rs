@@ -91,23 +91,39 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
     } else {
         None
     };
+    let last_ident = versions[versions.len() - 1].0.clone();
+    let last_type = versions[versions.len() - 1].2.clone();
+    let migrate_arms = (0..versions.len()).map(|index| {
+        let ident = &versions[index].0;
+        let mut steps = Vec::new();
+        let mut current = index;
+        while current + 1 < versions.len() {
+            let next = &versions[current + 1].2;
+            let argument = if current == index {
+                quote! { value }
+            } else {
+                quote! { &value }
+            };
+            steps.push(quote! {
+                let value = ::ech_board_entity::Upgrade::<#next>::upgrade(#argument)?;
+            });
+            current += 1;
+        }
+        let finish = if steps.is_empty() {
+            quote! { ::core::clone::Clone::clone(value) }
+        } else {
+            quote! { value }
+        };
+        quote! {
+            Self::#ident(value) => {
+                #(#steps)*
+                ::core::result::Result::Ok(Self::#last_ident(#finish))
+            }
+        }
+    });
     let single_ident = versions[0].0.clone();
     let deref = match &single {
         Some(ty) => quote! {
-            impl #name {
-                pub fn inner(&self) -> &#ty {
-                    match self {
-                        Self::#single_ident(value) => value,
-                    }
-                }
-
-                pub fn inner_mut(&mut self) -> &mut #ty {
-                    match self {
-                        Self::#single_ident(value) => value,
-                    }
-                }
-            }
-
             impl ::std::ops::Deref for #name {
                 type Target = #ty;
 
@@ -133,7 +149,13 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
 
         #deref
 
-        impl ::ech_board_entity::Record for #name {
+        impl ::core::convert::From<#last_type> for #name {
+            fn from(value: #last_type) -> Self {
+                Self::#last_ident(value)
+            }
+        }
+
+        impl ::ech_board_entity::Stored for #name {
             type Key = #key;
 
             const NAMESPACE: &'static str = #namespace;
@@ -145,13 +167,15 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
                 }
             }
 
-            fn missing() -> ::std::vec::Vec<u8> {
-                crate::context::fail(crate::error::ForumError::NotFound)
-            }
-
             fn attach(&mut self, id: &[u8; 32]) {
                 match self {
                     #(#attaches)*
+                }
+            }
+
+            fn migrate(&self) -> ::ech_board_entity::Result<Self> {
+                match self {
+                    #(#migrate_arms)*
                 }
             }
         }

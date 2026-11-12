@@ -1,4 +1,4 @@
-use crate::{Entity, Record, Result};
+use crate::{Entity, Result, Stored};
 
 pub struct WriteBatch {
     #[cfg(target_arch = "wasm32")]
@@ -10,7 +10,7 @@ pub struct WriteBatch {
 #[cfg(target_arch = "wasm32")]
 impl WriteBatch {
     pub fn new(ids: &[[u8; 32]]) -> Result<Self> {
-        let write = crate::current_write().ok_or_else(|| b"missing write context".to_vec())?;
+        let write = crate::Session::current_write().ok_or(crate::EntityError::MissingWrite)?;
         let mut ids = ids.to_vec();
         ids.sort_unstable();
         ids.dedup();
@@ -23,13 +23,13 @@ impl WriteBatch {
                     .unwrap_or(0)
                     .checked_add(1)
                     .map(|sequence| (id, sequence))
-                    .ok_or_else(|| b"entity history overflow".to_vec())
+                    .ok_or(crate::EntityError::HistoryOverflow)
             })
             .collect::<Result<_>>()?;
         Ok(Self { write, sequences })
     }
 
-    pub fn insert<T: Record>(&mut self, key: T::Key, mut value: T) -> Result<Entity<T>> {
+    pub fn insert<T: Stored>(&mut self, key: T::Key, mut value: T) -> Result<Entity<T>> {
         let id = T::id(&key);
         value.attach(&id);
         let entity = Entity {
@@ -43,9 +43,9 @@ impl WriteBatch {
         Ok(entity)
     }
 
-    pub fn save<T: Record>(&mut self, entity: &mut Entity<T>) -> Result<()> {
+    pub fn save<T: Stored>(&mut self, entity: &mut Entity<T>) -> Result<()> {
         if entity.value.version() != T::CURRENT {
-            return Err(b"entity version is not current".to_vec());
+            return Err(crate::EntityError::Outdated);
         }
         let id = entity.id();
         entity.seq = self.sequence(&id)?;
@@ -55,12 +55,12 @@ impl WriteBatch {
     fn sequence(&mut self, id: &[u8; 32]) -> Result<u64> {
         self.sequences
             .remove(id)
-            .ok_or_else(|| b"entity is not pending in write batch".to_vec())
+            .ok_or(crate::EntityError::NotPending)
     }
 
-    fn store<T: Record>(&self, id: &[u8; 32], entity: &Entity<T>) -> Result<()> {
+    fn store<T: Stored>(&self, id: &[u8; 32], entity: &Entity<T>) -> Result<()> {
         let raw = serde_bytes::ByteBuf::from(
-            bcs::to_bytes(entity).map_err(|error| format!("save entity: {error}").into_bytes())?,
+            bcs::to_bytes(entity).map_err(|error| crate::EntityError::Encode(error.to_string()))?,
         );
         crate::payloads().insert(id, &raw)?;
         crate::history_counts().insert(id, &entity.seq)?;
@@ -76,11 +76,11 @@ impl WriteBatch {
         unimplemented!("entity objects require the wasm runtime")
     }
 
-    pub fn insert<T: Record>(&mut self, _key: T::Key, _value: T) -> Result<Entity<T>> {
+    pub fn insert<T: Stored>(&mut self, _key: T::Key, _value: T) -> Result<Entity<T>> {
         unimplemented!("entity objects require the wasm runtime")
     }
 
-    pub fn save<T: Record>(&mut self, _entity: &mut Entity<T>) -> Result<()> {
+    pub fn save<T: Stored>(&mut self, _entity: &mut Entity<T>) -> Result<()> {
         unimplemented!("entity objects require the wasm runtime")
     }
 }

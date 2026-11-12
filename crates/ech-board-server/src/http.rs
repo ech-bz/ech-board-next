@@ -12,18 +12,18 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 use tracing::Instrument;
 
-use ech_board_entity::{Entity, HistoryEntry};
+use ech_board_entity::{Entity, HistoryEntry, Stored};
 use ech_board_program::context::ServerContext;
 use ech_board_program::context::UserRequests;
-use ech_board_program::model::{
-    Board, BoardKey, BoardPage, Esid, Forum, ForumPage, Hash, PostPage, Thread, ThreadMeta,
-    ThreadPage,
+use ech_board_program::entity::{
+    Board, BoardKey, BoardPage, Forum, ForumPage, PostPage, Thread, ThreadMeta, ThreadPage,
 };
+use ech_board_program::types::{Esid, Hash};
 use ech_db_protocol::id::Txid;
 use ech_db_protocol::value::{Author, UserPart};
 
 use crate::assets;
-use crate::error::ServerError;
+use crate::error::DomainError;
 use crate::postpart;
 use crate::realtime::App;
 use crate::resources::{PageResources, WithResources};
@@ -123,7 +123,7 @@ enum Subscription {
 async fn sse_forum(
     app: web::Data<App>,
     id: web::Path<String>,
-) -> Result<HttpResponse, ServerError> {
+) -> Result<HttpResponse, DomainError> {
     parse_public(&id)?;
     Ok(events(&app, Subscription::Forum))
 }
@@ -131,26 +131,23 @@ async fn sse_forum(
 async fn sse_thread(
     app: web::Data<App>,
     id: web::Path<String>,
-) -> Result<HttpResponse, ServerError> {
+) -> Result<HttpResponse, DomainError> {
     let thread = parse_public(&id)?;
     let record = app
         .forum
         .call("debug.entity", to_bytes(&("thread".to_string(), thread))?)
         .await?;
     let entity: Entity<Thread> = from_bytes(&record)?;
-    let board = ech_board_entity::entity_id(
-        "board",
-        &BoardKey {
-            slug: entity.key.board.clone(),
-        },
-    );
+    let board = Board::id(&BoardKey {
+        slug: entity.key.board.clone(),
+    });
     Ok(events(&app, Subscription::Thread { thread, board }))
 }
 
 async fn sse_board(
     app: web::Data<App>,
     id: web::Path<String>,
-) -> Result<HttpResponse, ServerError> {
+) -> Result<HttpResponse, DomainError> {
     let board = parse_public(&id)?;
     Ok(events(&app, Subscription::Board { board }))
 }
@@ -213,10 +210,10 @@ fn visible(subscription: &Subscription, event: &crate::realtime::Event) -> bool 
     }
 }
 
-fn require_user(signed: &Signed) -> Result<(), ServerError> {
+fn require_user(signed: &Signed) -> Result<(), DomainError> {
     match signed.user.author {
         Author::User { .. } => Ok(()),
-        Author::Server => Err(ServerError::BadRequest(
+        Author::Server => Err(DomainError::BadRequest(
             "server author is only accepted on the admin port".to_string(),
         )),
     }
@@ -226,7 +223,7 @@ async fn submit_user(
     app: web::Data<App>,
     req: HttpRequest,
     form: MultipartForm<SubmitForm>,
-) -> Result<HttpResponse, ServerError> {
+) -> Result<HttpResponse, DomainError> {
     let signed: Signed = from_bytes(&form.signed.data)?;
     require_user(&signed)?;
     submit_core(app, req, form, signed).await
@@ -236,7 +233,7 @@ async fn submit_admin(
     app: web::Data<App>,
     req: HttpRequest,
     form: MultipartForm<SubmitForm>,
-) -> Result<HttpResponse, ServerError> {
+) -> Result<HttpResponse, DomainError> {
     let signed: Signed = from_bytes(&form.signed.data)?;
     submit_core(app, req, form, signed).await
 }
@@ -246,11 +243,11 @@ async fn submit_core(
     req: HttpRequest,
     form: MultipartForm<SubmitForm>,
     signed: Signed,
-) -> Result<HttpResponse, ServerError> {
+) -> Result<HttpResponse, DomainError> {
     let started = Instant::now();
     let function = signed.user.call.function.clone();
     let requests = UserRequests::decode(&signed.user.ctx)
-        .map_err(|_| ServerError::BadRequest("invalid user requests".to_string()))?;
+        .map_err(|_| DomainError::BadRequest("invalid user requests".to_string()))?;
     let country = requests.geo.then_some(
         client_ip(&req)
             .and_then(|ip| app.geo.country(ip))
@@ -260,12 +257,12 @@ async fn submit_core(
         (Some(raw), true) => Some(app.trips.compute(&raw.0)?),
         (None, false) => None,
         (Some(_), false) => {
-            return Err(ServerError::BadRequest(
+            return Err(DomainError::BadRequest(
                 "tripcode password without a tripcode request".to_string(),
             ))
         }
         (None, true) => {
-            return Err(ServerError::BadRequest(
+            return Err(DomainError::BadRequest(
                 "tripcode requested without a password".to_string(),
             ))
         }
@@ -304,7 +301,7 @@ async fn submit_core(
         .body(output.result))
 }
 
-async fn submit_content(app: &App, form: &SubmitForm, signed: &Signed) -> Result<(), ServerError> {
+async fn submit_content(app: &App, form: &SubmitForm, signed: &Signed) -> Result<(), DomainError> {
     let expected = postpart::expected(&signed.user.call.function, &signed.user.call.args);
     let mut received = std::collections::BTreeSet::new();
     for part in &form.blob {
@@ -316,7 +313,7 @@ async fn submit_content(app: &App, form: &SubmitForm, signed: &Signed) -> Result
             .copied()
             .collect();
         if keys.is_empty() {
-            return Err(ServerError::BadRequest("unexpected content".to_string()));
+            return Err(DomainError::BadRequest("unexpected content".to_string()));
         }
         for key in keys {
             if received.insert(key) {
@@ -335,13 +332,13 @@ async fn submit_content(app: &App, form: &SubmitForm, signed: &Signed) -> Result
             _ => app.content.exists(key).await?,
         };
         if !ready {
-            return Err(ServerError::BadRequest("missing content".to_string()));
+            return Err(DomainError::BadRequest("missing content".to_string()));
         }
     }
     Ok(())
 }
 
-async fn query_user(app: web::Data<App>, body: web::Bytes) -> Result<HttpResponse, ServerError> {
+async fn query_user(app: web::Data<App>, body: web::Bytes) -> Result<HttpResponse, DomainError> {
     let batch: Vec<Signed> = from_bytes(&body)?;
     for signed in &batch {
         require_user(signed)?;
@@ -349,14 +346,14 @@ async fn query_user(app: web::Data<App>, body: web::Bytes) -> Result<HttpRespons
     query_core(app, batch).await
 }
 
-async fn query_admin(app: web::Data<App>, body: web::Bytes) -> Result<HttpResponse, ServerError> {
+async fn query_admin(app: web::Data<App>, body: web::Bytes) -> Result<HttpResponse, DomainError> {
     let batch: Vec<Signed> = from_bytes(&body)?;
     query_core(app, batch).await
 }
 
 #[tracing::instrument(target = "latency", level = "debug", name = "query.batch", skip_all,
     fields(queries = tracing::field::Empty))]
-async fn query_core(app: web::Data<App>, batch: Vec<Signed>) -> Result<HttpResponse, ServerError> {
+async fn query_core(app: web::Data<App>, batch: Vec<Signed>) -> Result<HttpResponse, DomainError> {
     let _handler = Timer::new("board_handler");
     let started = Instant::now();
     tracing::Span::current().record("queries", batch.len());
@@ -396,7 +393,7 @@ async fn query_core(app: web::Data<App>, batch: Vec<Signed>) -> Result<HttpRespo
 
 #[tracing::instrument(target = "latency", level = "debug", name = "query.page", skip_all,
     fields(root = %app.forum.root(), function = %signed.user.call.function))]
-async fn query_page(app: &App, signed: Signed) -> Result<Vec<u8>, ServerError> {
+async fn query_page(app: &App, signed: Signed) -> Result<Vec<u8>, DomainError> {
     let _page = Timer::new("page");
     let function = signed.user.call.function.clone();
     let output = app
@@ -410,7 +407,7 @@ async fn query_page(app: &App, signed: Signed) -> Result<Vec<u8>, ServerError> {
 }
 
 #[tracing::instrument(target = "latency", level = "debug", name = "query.hydrate", skip_all)]
-async fn hydrate(app: &App, function: &str, result: Vec<u8>) -> Result<Vec<u8>, ServerError> {
+async fn hydrate(app: &App, function: &str, result: Vec<u8>) -> Result<Vec<u8>, DomainError> {
     let _hydrate = Timer::new("hydrate");
     match function {
         "forum.meta" => view::<Entity<Forum>>(app, &result).await,
@@ -426,7 +423,7 @@ async fn hydrate(app: &App, function: &str, result: Vec<u8>) -> Result<Vec<u8>, 
     }
 }
 
-async fn view<T>(app: &App, result: &[u8]) -> Result<Vec<u8>, ServerError>
+async fn view<T>(app: &App, result: &[u8]) -> Result<Vec<u8>, DomainError>
 where
     T: PageResources + serde::de::DeserializeOwned + Serialize,
 {
@@ -449,9 +446,9 @@ async fn feed_page(
     app: web::Data<App>,
     id: web::Path<String>,
     query: web::Query<Feed>,
-) -> Result<web::Json<serde_json::Value>, ServerError> {
+) -> Result<web::Json<serde_json::Value>, DomainError> {
     if query.limit == 0 || query.limit > FEED_LIMIT {
-        return Err(ServerError::BadRequest(format!(
+        return Err(DomainError::BadRequest(format!(
             "limit must be between 1 and {FEED_LIMIT}"
         )));
     }
@@ -469,7 +466,7 @@ async fn feed_page(
     for entry in &history {
         let record = app.forum.record(Txid::new(entry.txid)).await?;
         let time = ServerContext::decode(&record.tx.server.ctx)
-            .map_err(|_| ServerError::Internal("server context".to_string()))?
+            .map_err(|_| DomainError::Internal("server context".to_string()))?
             .time;
         entries.push(serde_json::json!({
             "txid": hex_of(&entry.txid),
@@ -501,7 +498,7 @@ fn sender(author: &Author) -> String {
 async fn debug_entity(
     app: web::Data<App>,
     path: web::Path<(String, String)>,
-) -> Result<HttpResponse, ServerError> {
+) -> Result<HttpResponse, DomainError> {
     let (namespace, id) = path.into_inner();
     let id = parse_public(&id)?;
     let result = app
@@ -515,7 +512,7 @@ async fn debug_history(
     app: web::Data<App>,
     id: web::Path<String>,
     query: web::Query<Feed>,
-) -> Result<HttpResponse, ServerError> {
+) -> Result<HttpResponse, DomainError> {
     let id = parse_public(&id)?;
     let result = app
         .forum
@@ -530,12 +527,12 @@ fn client_ip(req: &HttpRequest) -> Option<IpAddr> {
         .and_then(|value| value.parse().ok())
 }
 
-fn parse_public(text: &str) -> Result<[u8; 32], ServerError> {
+fn parse_public(text: &str) -> Result<[u8; 32], DomainError> {
     let text = text.strip_prefix("0x").unwrap_or(text);
-    let bytes = hex::decode(text).map_err(|_| ServerError::BadRequest("key hex".to_string()))?;
+    let bytes = hex::decode(text).map_err(|_| DomainError::BadRequest("key hex".to_string()))?;
     bytes
         .try_into()
-        .map_err(|_| ServerError::BadRequest("key length".to_string()))
+        .map_err(|_| DomainError::BadRequest("key length".to_string()))
 }
 
 fn hex_of(bytes: &[u8]) -> String {
@@ -570,7 +567,7 @@ struct BoardBody {
 async fn admin_create_board(
     app: web::Data<App>,
     body: web::Json<BoardBody>,
-) -> Result<web::Json<serde_json::Value>, ServerError> {
+) -> Result<web::Json<serde_json::Value>, DomainError> {
     let id = app.forum.forum_id().await?;
     app.forum
         .execute(
@@ -588,14 +585,14 @@ struct ModeratorBody {
 
 async fn admin_moderators(
     app: web::Data<App>,
-) -> Result<web::Json<serde_json::Value>, ServerError> {
+) -> Result<web::Json<serde_json::Value>, DomainError> {
     Ok(web::Json(moderators_json(&app.forum.moderators().await?)))
 }
 
 async fn admin_add_moderator(
     app: web::Data<App>,
     body: web::Json<ModeratorBody>,
-) -> Result<web::Json<serde_json::Value>, ServerError> {
+) -> Result<web::Json<serde_json::Value>, DomainError> {
     let esid = parse_esid(&body.esid)?;
     Ok(web::Json(moderators_json(
         &app.forum.add_moderator(esid).await?,
@@ -605,7 +602,7 @@ async fn admin_add_moderator(
 async fn admin_remove_moderator(
     app: web::Data<App>,
     esid: web::Path<String>,
-) -> Result<web::Json<serde_json::Value>, ServerError> {
+) -> Result<web::Json<serde_json::Value>, DomainError> {
     let esid = parse_esid(&esid)?;
     Ok(web::Json(moderators_json(
         &app.forum.remove_moderator(esid).await?,
@@ -621,8 +618,8 @@ fn moderators_json(members: &[Esid]) -> serde_json::Value {
     })
 }
 
-fn parse_esid(text: &str) -> Result<Esid, ServerError> {
+fn parse_esid(text: &str) -> Result<Esid, DomainError> {
     let bytes = hex::decode(text.strip_prefix("0x").unwrap_or(text))
-        .map_err(|_| ServerError::BadRequest("esid hex".to_string()))?;
-    from_bytes(&bytes).map_err(|_| ServerError::BadRequest("esid encoding".to_string()))
+        .map_err(|_| DomainError::BadRequest("esid hex".to_string()))?;
+    from_bytes(&bytes).map_err(|_| DomainError::BadRequest("esid encoding".to_string()))
 }

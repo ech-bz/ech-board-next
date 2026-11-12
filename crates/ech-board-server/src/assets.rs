@@ -6,7 +6,7 @@ use object_store::GetRange;
 use serde::Deserialize;
 
 use crate::content::{self, Key, Kind};
-use crate::error::ServerError;
+use crate::error::DomainError;
 use crate::realtime::App;
 
 #[derive(Deserialize)]
@@ -19,16 +19,16 @@ pub async fn content_get(
     hash: web::Path<String>,
     query: web::Query<ContentQuery>,
     req: HttpRequest,
-) -> Result<HttpResponse, ServerError> {
+) -> Result<HttpResponse, DomainError> {
     let hash = parse_hash(&hash)?;
     let kind = query.kind.unwrap_or(Kind::Text);
     if !matches!(kind, Kind::Text | Kind::Plaintext) {
-        return Err(ServerError::BadRequest("invalid content kind".into()));
+        return Err(DomainError::BadRequest("invalid content kind".into()));
     }
     let bytes = match app.content.optional(Key::new(kind, hash)).await? {
         Some(bytes) => bytes,
         None if query.kind.is_none() => app.content.get(Key::new(Kind::Plaintext, hash)).await?,
-        None => return Err(ServerError::NotFound),
+        None => return Err(DomainError::NotFound),
     };
     let etag = etag(&hash);
     if not_modified(&req, &etag) {
@@ -43,19 +43,19 @@ pub async fn content_put(
     app: web::Data<App>,
     query: web::Query<ContentQuery>,
     body: web::Bytes,
-) -> Result<HttpResponse, ServerError> {
+) -> Result<HttpResponse, DomainError> {
     let kind = query.kind.unwrap_or(Kind::Text);
     if !matches!(kind, Kind::Text | Kind::Plaintext) {
-        return Err(ServerError::BadRequest("invalid content kind".into()));
+        return Err(DomainError::BadRequest("invalid content kind".into()));
     }
     upload(&app, kind, body).await
 }
 
-pub async fn media_put(app: web::Data<App>, body: web::Bytes) -> Result<HttpResponse, ServerError> {
+pub async fn media_put(app: web::Data<App>, body: web::Bytes) -> Result<HttpResponse, DomainError> {
     upload(&app, Kind::Media, body).await
 }
 
-async fn upload(app: &App, kind: Kind, bytes: web::Bytes) -> Result<HttpResponse, ServerError> {
+async fn upload(app: &App, kind: Kind, bytes: web::Bytes) -> Result<HttpResponse, DomainError> {
     let hash = content::hash(&bytes);
     app.content.upload(Key::new(kind, hash), bytes).await?;
     Ok(HttpResponse::Ok()
@@ -67,7 +67,7 @@ pub async fn media_get(
     app: web::Data<App>,
     hash: web::Path<String>,
     req: HttpRequest,
-) -> Result<HttpResponse, ServerError> {
+) -> Result<HttpResponse, DomainError> {
     media(&app, Key::new(Kind::Media, parse_hash(&hash)?), &req).await
 }
 
@@ -75,7 +75,7 @@ pub async fn reaction_get(
     app: web::Data<App>,
     hash: web::Path<String>,
     req: HttpRequest,
-) -> Result<HttpResponse, ServerError> {
+) -> Result<HttpResponse, DomainError> {
     media(&app, Key::new(Kind::Reaction, parse_hash(&hash)?), &req).await
 }
 
@@ -83,7 +83,7 @@ pub async fn metadata_get(
     app: web::Data<App>,
     hash: web::Path<String>,
     req: HttpRequest,
-) -> Result<HttpResponse, ServerError> {
+) -> Result<HttpResponse, DomainError> {
     let hash = parse_hash(&hash)?;
     let bytes = app.content.get(Key::new(Kind::MediaMeta, hash)).await?;
     let etag = etag(&hash);
@@ -99,7 +99,7 @@ pub async fn thumbnail_get(
     app: web::Data<App>,
     hash: web::Path<String>,
     req: HttpRequest,
-) -> Result<HttpResponse, ServerError> {
+) -> Result<HttpResponse, DomainError> {
     let hash = parse_hash(&hash)?;
     let bytes = app.content.get(Key::new(Kind::Thumb, hash)).await?;
     let etag = etag(&hash);
@@ -111,12 +111,12 @@ pub async fn thumbnail_get(
         .body(bytes))
 }
 
-async fn media(app: &App, key: Key, req: &HttpRequest) -> Result<HttpResponse, ServerError> {
+async fn media(app: &App, key: Key, req: &HttpRequest) -> Result<HttpResponse, DomainError> {
     let meta = app
         .content
         .metadata(key)
         .await?
-        .ok_or(ServerError::NotFound)?;
+        .ok_or(DomainError::NotFound)?;
     let etag = etag(&key.hash);
     if not_modified(req, &etag) {
         return Ok(response(StatusCode::NOT_MODIFIED, &etag).finish());
@@ -158,7 +158,7 @@ async fn media(app: &App, key: Key, req: &HttpRequest) -> Result<HttpResponse, S
                 bytes.slice(range.start as usize..range.end as usize)
             }
             Some(_) => {
-                return Err(ServerError::Store(
+                return Err(DomainError::Store(
                     "media size does not match metadata".into(),
                 ))
             }
@@ -236,9 +236,9 @@ fn response(status: StatusCode, etag: &str) -> HttpResponseBuilder {
     response
 }
 
-fn parse_hash(value: &str) -> Result<[u8; 32], ServerError> {
+fn parse_hash(value: &str) -> Result<[u8; 32], DomainError> {
     hex::decode(value.strip_prefix("0x").unwrap_or(value))
         .ok()
         .and_then(|bytes| bytes.try_into().ok())
-        .ok_or_else(|| ServerError::BadRequest("invalid content hash".into()))
+        .ok_or_else(|| DomainError::BadRequest("invalid content hash".into()))
 }

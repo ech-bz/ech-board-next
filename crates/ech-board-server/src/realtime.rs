@@ -5,12 +5,13 @@ use serde::Serialize;
 use tokio::sync::broadcast;
 
 use bcs::to_bytes;
-use ech_board_entity::{entity_id, Entity, Record};
-use ech_board_program::model::{Board, BoardKey, Forum, Hash, Post, Thread, ThreadKey};
+use ech_board_entity::{Entity, Output, Stored};
+use ech_board_program::entity::{Board, BoardKey, Forum, Post, Thread, ThreadKey};
+use ech_board_program::types::Hash;
 use ech_db_protocol::value::{Author, UserPart};
 
 use crate::content::Store;
-use crate::error::ServerError;
+use crate::error::DomainError;
 use crate::forum::Forum as ForumApi;
 use crate::geo::Geo;
 use crate::resources::{PageResources, Resources};
@@ -45,7 +46,7 @@ pub struct ReactionEvent {
 }
 
 impl ReactionEvent {
-    fn from_user(user: &UserPart) -> Result<Option<Self>, ServerError> {
+    fn from_user(user: &UserPart) -> Result<Option<Self>, DomainError> {
         if user.call.function != "post.react" {
             return Ok(None);
         }
@@ -102,11 +103,11 @@ impl Hub {
         &self,
         store: &Store,
         entities: &[EntityPayload],
-    ) -> Result<(Vec<BlobPayload>, Vec<BlobPayload>), ServerError> {
+    ) -> Result<(Vec<BlobPayload>, Vec<BlobPayload>), DomainError> {
         let mut resources = Resources::default();
         for entity in entities {
             let value = hex::decode(&entity.value)
-                .map_err(|error| ServerError::Store(error.to_string()))?;
+                .map_err(|error| DomainError::Store(error.to_string()))?;
             let next = match entity.kind.as_str() {
                 "post" => bcs::from_bytes::<Entity<Post>>(&value)?.resources(),
                 "thread" => bcs::from_bytes::<Entity<Thread>>(&value)?.resources(),
@@ -138,7 +139,7 @@ impl Hub {
                     })
                 })
             })
-            .collect::<Result<_, ServerError>>()?;
+            .collect::<Result<_, DomainError>>()?;
         Ok((contents, attachments))
     }
 
@@ -148,7 +149,7 @@ impl Hub {
         function: &str,
         args: &[u8],
         entities: &[EntityPayload],
-    ) -> Result<(String, String), ServerError> {
+    ) -> Result<(String, String), DomainError> {
         let Some(id) = args
             .get(..32)
             .and_then(|bytes| <[u8; 32]>::try_from(bytes).ok())
@@ -160,42 +161,30 @@ impl Hub {
                 let board = event_entity::<Board>(forum, entities, &id).await?;
                 let number = args
                     .get(32..40)
-                    .ok_or_else(|| ServerError::BadRequest("missing thread number".into()))?;
-                let thread = entity_id(
-                    "thread",
-                    &ThreadKey {
-                        number: bcs::from_bytes(number)?,
-                        board: board.key.slug,
-                    },
-                );
+                    .ok_or_else(|| DomainError::BadRequest("missing thread number".into()))?;
+                let thread = Thread::id(&ThreadKey {
+                    number: bcs::from_bytes(number)?,
+                    board: board.key.slug,
+                });
                 (hex_of(&id), hex_of(&thread))
             }
             Some("board") => (hex_of(&id), String::new()),
             Some("thread") => {
                 let thread = event_entity::<Thread>(forum, entities, &id).await?;
-                let board = entity_id(
-                    "board",
-                    &BoardKey {
-                        slug: thread.key.board,
-                    },
-                );
+                let board = Board::id(&BoardKey {
+                    slug: thread.key.board,
+                });
                 (hex_of(&board), hex_of(&id))
             }
             Some("post") => {
                 let post = event_entity::<Post>(forum, entities, &id).await?;
-                let board = entity_id(
-                    "board",
-                    &BoardKey {
-                        slug: post.key.board.clone(),
-                    },
-                );
-                let thread = entity_id(
-                    "thread",
-                    &ThreadKey {
-                        number: post.thread,
-                        board: post.key.board,
-                    },
-                );
+                let board = Board::id(&BoardKey {
+                    slug: post.key.board.clone(),
+                });
+                let thread = Thread::id(&ThreadKey {
+                    number: post.thread,
+                    board: post.key.board,
+                });
                 (hex_of(&board), hex_of(&thread))
             }
             _ => (String::new(), String::new()),
@@ -309,18 +298,18 @@ impl Hub {
     }
 }
 
-async fn event_entity<T: Record>(
+async fn event_entity<T: Stored>(
     forum: &ForumApi,
     entities: &[EntityPayload],
     id: &[u8; 32],
-) -> Result<Entity<T>, ServerError> {
+) -> Result<Entity<T>, DomainError> {
     let id_hex = hex_of(id);
     let bytes = match entities
         .iter()
         .find(|entity| entity.kind == T::NAMESPACE && entity.id == id_hex)
     {
         Some(entity) => {
-            hex::decode(&entity.value).map_err(|error| ServerError::Store(error.to_string()))?
+            hex::decode(&entity.value).map_err(|error| DomainError::Store(error.to_string()))?
         }
         None => {
             forum
@@ -336,7 +325,7 @@ fn hex_of(bytes: &[u8]) -> String {
 }
 
 fn changed(result: &[u8]) -> Vec<EntityPayload> {
-    let Ok(output) = bcs::from_bytes::<ech_board_entity::Output>(result) else {
+    let Ok(output) = bcs::from_bytes::<Output>(result) else {
         return Vec::new();
     };
     output

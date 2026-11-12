@@ -1,6 +1,5 @@
+use ech_board_program::types::Hash;
 use serde::Deserialize;
-
-type Hash = ech_board_program::model::Hash;
 type ThreadArgs = (
     Option<Hash>,
     Option<Hash>,
@@ -79,14 +78,14 @@ fn decode_expected(function: &str, args: &[u8]) -> Option<Expected> {
     let rest = args.get(32..)?;
     let mut expected = Expected::default();
     match function {
-        "board.create_post" => {
+        "post.create" => {
             let (text, media, name, votes, _): ThreadPostArgs =
-                bcs::from_bytes(args.get(40..)?).ok()?;
+                bcs::from_bytes(args.get(64..)?).ok()?;
             expected.add(Kind::Text, text);
             expected.add(Kind::Plaintext, name.into_iter().chain(votes));
             expected.add(Kind::Media, media);
         }
-        "board.create_thread" => {
+        "thread.create" => {
             let (topic, text, media, name, votes, _, _): ThreadArgs = bcs::from_bytes(rest).ok()?;
             expected.add(Kind::Text, text);
             expected.add(Kind::Plaintext, topic.into_iter().chain(name).chain(votes));
@@ -100,7 +99,7 @@ fn decode_expected(function: &str, args: &[u8]) -> Option<Expected> {
             let (hash,): (Hash,) = bcs::from_bytes(rest).ok()?;
             expected.add(Kind::Plaintext, [hash]);
         }
-        "forum.create_board" => {
+        "board.create" => {
             let (_, hash): (String, Option<Hash>) = bcs::from_bytes(rest).ok()?;
             expected.add(Kind::Plaintext, hash);
         }
