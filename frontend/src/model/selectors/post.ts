@@ -1,8 +1,9 @@
+import { blake2b } from '@noble/hashes/blake2'
+
 import { fromHex, toHex } from '../content/hex'
 import { postMedia } from '../content/media'
 import { partsToPlainText } from '../content/posts'
 import { reactionUrl } from '../content/reactions'
-import { shardIndex } from '../content/shard'
 import type { Post } from '../entities/post'
 import { optionalIdentityKey } from '../rules/identity'
 import { canPostAction, canUnbanMedia, type PostAction } from '../rules/permissions'
@@ -61,7 +62,10 @@ export function postFields(model: ForumState, root: string, id: string) {
     },
     reactionGlyph: () => {
       const hashes = board()?.reactions ?? []
-      return hashes.length ? reactionUrl(scope().relayUrl, toHex(hashes[shardIndex(fromHex(id), hashes.length)])) : null
+      if (!hashes.length) return null
+      const digest = blake2b(fromHex(id), { dkLen: 32 })
+      const shard = new DataView(digest.buffer, digest.byteOffset + 24, 8).getBigUint64(0, false)
+      return reactionUrl(scope().relayUrl, toHex(hashes[Number(shard % BigInt(hashes.length))]))
     },
     myReaction: () => {
       const base = post().myReactionBase

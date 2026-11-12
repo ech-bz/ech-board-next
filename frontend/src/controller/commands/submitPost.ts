@@ -6,6 +6,8 @@ import { finalizeParts, parseBbCode } from '../content/bbcode'
 import { makePostResolver } from '../content/postResolver'
 import type { ForumGateway } from '../forumGateway'
 import { Calls } from '../io/ech/forumApi'
+import { EntityId } from '../io/ech/protocol/entityId'
+import { PostEntitySchema, ThreadEntitySchema } from '../io/ech/protocol/entities'
 import { randomTweak } from '../io/crypto/identity'
 import { serializePostParts } from '../io/ech/protocol/types'
 import * as relayApi from '../io/ech/relay'
@@ -109,12 +111,6 @@ function serialize(parts: unknown): Uint8Array {
   return serializePostParts(parts as never)
 }
 
-function u64(result: Uint8Array): number {
-  let value = 0n
-  for (let index = 7; index >= 0; index -= 1) value = (value << 8n) | BigInt(result[index])
-  return Number(value)
-}
-
 export async function submitNewThread(
   ctx: PostSubmitCtx,
   form: PostFormState,
@@ -128,14 +124,14 @@ export async function submitNewThread(
   const topic = textBlob(subject)
   if (topic) blobs.push(topic.blob)
   const result = await api.append(
-    Calls.board.create_thread(ctx.boardId, topic ? topic.hash : null, hash, media, nameHash, [], false, !!form.selfAdmin),
+    Calls.thread.create(ctx.boardId, topic ? topic.hash : null, hash, media, nameHash, [], false, !!form.selfAdmin),
     blobs.map((bytes) => ({ hash: '', bytes })),
     tweak,
     undefined,
     { geo: form.withFlag, trip: trip !== null },
     trip,
   )
-  return { thread: u64(result.result) }
+  return { thread: Number(ThreadEntitySchema.parse(result.result).key.number) }
 }
 
 export async function submitReply(
@@ -148,12 +144,12 @@ export async function submitReply(
   const { textHash: hash, media, nameHash, trip, blobs } = await prepare(ctx, form, onProgress, tweak)
   const api = await ctx.gateway.connect(ctx.relayUrl)
   const result = await api.append(
-    Calls.board.create_post(ctx.boardId, ctx.threadNumber, hash, media, nameHash, [], false),
+    Calls.post.create(ctx.boardId, EntityId.thread(ctx.slug, ctx.threadNumber), hash, media, nameHash, [], false),
     blobs.map((bytes) => ({ hash: '', bytes })),
     tweak,
     undefined,
     { geo: form.withFlag, trip: trip !== null },
     trip,
   )
-  return { post: u64(result.result) }
+  return { post: Number(PostEntitySchema.parse(result.result).key.number) }
 }

@@ -62,7 +62,7 @@ export function createForumCommands(model: ForumState, commit: Commit, gateway: 
         const bytes = new TextEncoder().encode(description.trim())
         const hash = bytes.length ? toHex(blake2b(bytes, { dkLen: 32 })) : null
         const api = await gateway.connect(scope.relayUrl)
-        const { result } = await api.append(Calls.forum.create_board(slug, hash), hash ? [{ hash, bytes }] : [], roleTweak(role))
+        const { result } = await api.append(Calls.board.create(slug, hash), hash ? [{ hash, bytes }] : [], roleTweak(role))
         if (model.page.revision !== revision || currentScope(model) !== scope) return
         receive({
           scope: { forumId, relayUrl: scope.relayUrl },

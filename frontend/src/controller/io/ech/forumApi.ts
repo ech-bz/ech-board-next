@@ -44,16 +44,6 @@ const withId = (id: string, args: Uint8Array): Uint8Array => {
 export const Calls = {
   forum: {
     create: () => call('forum.create', new Uint8Array()),
-    create_board: (slug: string, description: string | null) =>
-      call(
-        'forum.create_board',
-        withId(
-          EntityId.forum(),
-          tuple(bcs.string(), bcs.option(Hash))
-            .serialize([slug, optionalHash(description)])
-            .toBytes(),
-        ),
-      ),
     set_title: (title: string) =>
       call(
         'forum.set_title',
@@ -98,38 +88,13 @@ export const Calls = {
       ),
   },
   board: {
-    create_thread: (
-      id: string,
-      topic: string | null,
-      textHash: string | null,
-      media: string[],
-      name: string | null,
-      votes: string[],
-      multi: boolean,
-      selfAdmin: boolean,
-    ) =>
+    create: (slug: string, description: string | null) =>
       call(
-        'board.create_thread',
+        'board.create',
         withId(
-          id,
-          tuple(
-            bcs.option(Hash),
-            bcs.option(Hash),
-            hashList,
-            bcs.option(Hash),
-            hashList,
-            bcs.bool(),
-            bcs.bool(),
-          )
-            .serialize([
-              optionalHash(topic),
-              optionalHash(textHash),
-              media.map(hashBytes),
-              optionalHash(name),
-              votes.map(hashBytes),
-              multi,
-              selfAdmin,
-            ])
+          EntityId.forum(),
+          tuple(bcs.string(), bcs.option(Hash))
+            .serialize([slug, optionalHash(description)])
             .toBytes(),
         ),
       ),
@@ -196,40 +161,43 @@ export const Calls = {
             .toBytes(),
         ),
       ),
-    create_post: (
+  },
+  thread: {
+    create: (
       id: string,
-      thread: number,
+      topic: string | null,
       textHash: string | null,
       media: string[],
       name: string | null,
       votes: string[],
       multi: boolean,
+      selfAdmin: boolean,
     ) =>
       call(
-        'board.create_post',
+        'thread.create',
         withId(
           id,
           tuple(
-            bcs.u64(),
+            bcs.option(Hash),
             bcs.option(Hash),
             hashList,
             bcs.option(Hash),
             hashList,
             bcs.bool(),
+            bcs.bool(),
           )
             .serialize([
-              thread,
+              optionalHash(topic),
               optionalHash(textHash),
               media.map(hashBytes),
               optionalHash(name),
               votes.map(hashBytes),
               multi,
+              selfAdmin,
             ])
             .toBytes(),
         ),
       ),
-  },
-  thread: {
     set_closed: (id: string, value: boolean) =>
       call('thread.set_closed', withId(id, tuple(bcs.bool()).serialize([value]).toBytes())),
     set_pinned: (id: string, value: boolean) =>
@@ -290,6 +258,33 @@ export const Calls = {
       ),
   },
   post: {
+    create: (
+      id: string,
+      threadId: string,
+      textHash: string | null,
+      media: string[],
+      name: string | null,
+      votes: string[],
+      multi: boolean,
+    ) =>
+      call(
+        'post.create',
+        withId(
+          id,
+          withId(
+            threadId,
+            tuple(bcs.option(Hash), hashList, bcs.option(Hash), hashList, bcs.bool())
+              .serialize([
+                optionalHash(textHash),
+                media.map(hashBytes),
+                optionalHash(name),
+                votes.map(hashBytes),
+                multi,
+              ])
+              .toBytes(),
+          ),
+        ),
+      ),
     get: (id: string) => call('post.get', withId(id, new Uint8Array())),
     set_text: (id: string, value: string | null) =>
       call(

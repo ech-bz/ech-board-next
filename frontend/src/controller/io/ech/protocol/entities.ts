@@ -104,6 +104,7 @@ const ForumV1Schema = struct('ForumV1', {
   title_hash: bcs.option(Hash),
   moderators: bcs.vector(EsidSchema),
   bans: BansSchema,
+  boards: struct('BigLog<BoardKey>', { entries: bigMap('BigMap<u64, BoardKey>'), length: bcs.u64() }),
 })
 
 const entity = <K, V>(key: BcsType<K, any, any>, value: BcsType<V, any, any>) =>
