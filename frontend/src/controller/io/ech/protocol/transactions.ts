@@ -65,11 +65,24 @@ export const MediaMetaSchema = bcs.struct('MediaMeta', {
   thumbnail: bcs.bool(),
 })
 
+export const ServerPartSchema = bcs.struct('ServerPart', {
+  ctx: bcs.byteVector(),
+  proof: ProofSchema,
+})
+
+export const TxSchema = bcs.struct('Tx', {
+  user: UserPartSchema,
+  server: ServerPartSchema,
+})
+
+export type Tx = typeof TxSchema.$inferType
+
 export const ResourcesSchema = <T extends BcsType<any, any, any>>(view: T) =>
   bcs.struct('WithResources', {
     view,
     contents: bcs.map(Hash, bcs.option(bcs.byteVector())),
     attachments: bcs.map(Hash, bcs.option(MediaMetaSchema)),
+    transactions: bcs.map(Hash, TxSchema),
   })
 
 export const HistoryEntrySchema = bcs.struct('HistoryEntry', {
@@ -93,6 +106,7 @@ export type Resources<T> = {
   view: T
   contents: Map<string, Uint8Array | null>
   attachments: Map<string, Media | null>
+  transactions: Map<string, Tx>
 }
 
 export function encodeText(value: string): Uint8Array {

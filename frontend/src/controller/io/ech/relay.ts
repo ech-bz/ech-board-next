@@ -144,6 +144,9 @@ function parseResources<T>(bytes: Uint8Array, schema: BcsType<any, any, any>): R
     attachments: new Map(
       Array.from(parsed.attachments, ([hash, media]) => [hex(hash), media]),
     ),
+    transactions: new Map(
+      Array.from(parsed.transactions, ([hash, tx]) => [`0x${hex(hash)}`, tx]),
+    ),
   }
 }
 

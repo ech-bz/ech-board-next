@@ -44,6 +44,7 @@ export function pageSnapshot(updates: EntityUpdate[], page: ForumState['page']):
     myReactions: [...myReactions].filter(([id]) => postIds.has(id)),
     contents: new Map(updates.flatMap((update) => [...update.contents ?? []])),
     attachments: new Map(updates.flatMap((update) => [...update.attachments ?? []])),
+    transactions: new Map(updates.flatMap((update) => [...update.transactions ?? []])),
     feed: initial.feed ? { ...initial.feed, threadIds: threads.map((entity) => EntityId.thread(entity.key.board, Number(entity.key.number))) } : undefined,
     retention: 'loaded',
   }

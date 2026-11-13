@@ -6,6 +6,7 @@ import { convertBoard } from '../convert/board'
 import { decodePostContent } from '../convert/content'
 import { convertForum } from '../convert/forum'
 import { convertPost } from '../convert/post'
+import { transactionOf } from '../convert/genesis'
 import { convertThread } from '../convert/thread'
 import { EntityId } from '../io/ech/protocol/entityId'
 import type { EntityUpdate } from './entities.types'
@@ -96,8 +97,9 @@ export function createEntityUpdates(model: ForumState, write: SetStoreFunction<F
         if (current && current.sequence >= entity.history.length) { retention.track(root, id, changes.retention); continue }
         const previousHash = current?.textHash ? toHex(current.textHash) : null
         const previousMedia = current?.mediaHashes.map(toHex) ?? []
-        if (!current) write('scopes', root, 'entities', 'posts', id, attach(root, () => convertPost(entity, model, root, id), id))
-        else write('scopes', root, 'entities', 'posts', id, reconcile(convertPost(entity, model, root, id)))
+        const tx = transactionOf(entity.genesis, changes.transactions)
+        if (!current) write('scopes', root, 'entities', 'posts', id, attach(root, () => convertPost(entity, model, root, id, tx), id))
+        else write('scopes', root, 'entities', 'posts', id, reconcile(convertPost(entity, model, root, id, tx)))
         const post = scope.entities.posts[id]
         changed.add(id)
         indexAttachments(root, id, previousMedia, post.mediaHashes.map(toHex))

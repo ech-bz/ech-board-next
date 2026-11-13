@@ -14,6 +14,7 @@ function resources(data: ForumViewData): EntityUpdate {
     boards: data.boards,
     contents: data.contentMap,
     attachments: data.mediaMeta,
+    transactions: data.transactions,
   }
 }
 

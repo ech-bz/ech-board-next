@@ -13,6 +13,7 @@ export interface RealtimeEvent {
   entities: EntityPayload[]
   contents: BlobPayload[]
   attachments: BlobPayload[]
+  transactions: BlobPayload[]
 }
 
 export interface BlobPayload {
