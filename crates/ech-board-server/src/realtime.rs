@@ -207,7 +207,7 @@ impl Hub {
                             cursor = Some(txid);
                             let queue_ms = received.elapsed().as_secs_f64() * 1000.0;
                             let function = record.tx.user.call.function.clone();
-                            let entities = changed(&record.result);
+                            let entities = changed(&forum, &record.result).await;
                             let scope_started = Instant::now();
                             let (board, thread) = match hub.scope(&entities) {
                                 Ok(scope) => scope,
@@ -295,17 +295,28 @@ fn changed_entity<T: Stored>(
     }))
 }
 
-fn changed(result: &[u8]) -> Vec<EntityPayload> {
+async fn changed(forum: &ForumApi, result: &[u8]) -> Vec<EntityPayload> {
     let Ok(output) = bcs::from_bytes::<Output>(result) else {
         return Vec::new();
+    };
+    if output.entities.is_empty() {
+        return Vec::new();
+    }
+    let values = match forum.entities(&output.entities).await {
+        Ok(values) => values,
+        Err(error) => {
+            tracing::warn!(%error, "journal entities");
+            return Vec::new();
+        }
     };
     output
         .entities
         .into_iter()
-        .map(|entity| EntityPayload {
+        .zip(values)
+        .map(|(entity, value)| EntityPayload {
             kind: entity.namespace,
             id: hex_of(&entity.id),
-            value: hex_of(&entity.value),
+            value: hex_of(&value),
         })
         .collect()
 }

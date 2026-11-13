@@ -159,7 +159,7 @@ impl Board {
         forum: &mut Write<Forum>,
         slug: String,
         description_hash: Option<Hash>,
-    ) -> Result<Entity<Board>> {
+    ) -> Result<BoardKey> {
         Bans::gate(&[&forum.bans])?;
         if !forum.is_moderator()? {
             return Err(ForumError::NotAuthorized);
@@ -194,7 +194,7 @@ impl Board {
         )?;
         forum.boards.push(&board.key)?;
         forum.save()?;
-        Ok(board)
+        Ok(board.key)
     }
 
     pub(crate) fn gate(board: &Entity<Board>) -> Result<()> {
@@ -230,7 +230,7 @@ impl Board {
         })
     }
 
-    pub(crate) fn add_moderator(board: &mut Write<Board>, member: Esid) -> Result<&Entity<Board>> {
+    pub(crate) fn add_moderator(board: &mut Write<Board>, member: Esid) -> Result<()> {
         Self::gate(board)?;
         if !Self::forum()?.is_moderator()? {
             return Err(ForumError::NotAuthorized);
@@ -239,20 +239,17 @@ impl Board {
             board.moderators.push(member);
         }
         board.save()?;
-        Ok(board)
+        Ok(())
     }
 
-    pub(crate) fn remove_moderator(
-        board: &mut Write<Board>,
-        member: Esid,
-    ) -> Result<&Entity<Board>> {
+    pub(crate) fn remove_moderator(board: &mut Write<Board>, member: Esid) -> Result<()> {
         Self::gate(board)?;
         if !Self::forum()?.is_moderator()? {
             return Err(ForumError::NotAuthorized);
         }
         board.moderators.retain(|entry| *entry != member);
         board.save()?;
-        Ok(board)
+        Ok(())
     }
 
     pub(crate) fn ban(
@@ -260,7 +257,7 @@ impl Board {
         target: Esid,
         reason_hash: Option<Hash>,
         expires: u64,
-    ) -> Result<Vec<(Esid, BanValue)>> {
+    ) -> Result<()> {
         Self::gate(board)?;
         if !board.is_moderator(&*Self::forum()?)? {
             return Err(ForumError::NotAuthorized);
@@ -277,17 +274,17 @@ impl Board {
                 expires,
             },
         )?;
-        board.bans.entries(None, 32)
+        Ok(())
     }
 
-    pub(crate) fn unban(board: &mut Write<Board>, target: Esid) -> Result<Vec<(Esid, BanValue)>> {
+    pub(crate) fn unban(board: &mut Write<Board>, target: Esid) -> Result<()> {
         Self::gate(board)?;
         if !board.is_moderator(&*Self::forum()?)? {
             return Err(ForumError::NotAuthorized);
         }
         let sid = Context::sid(&target)?;
         board.bans.unban(&target, &sid)?;
-        board.bans.entries(None, 32)
+        Ok(())
     }
 
     pub(crate) fn ban_list(
@@ -298,17 +295,17 @@ impl Board {
         board.bans.entries(after.as_ref(), limit as usize)
     }
 
-    pub(crate) fn set_readonly(board: &mut Write<Board>, value: bool) -> Result<&Entity<Board>> {
+    pub(crate) fn set_readonly(board: &mut Write<Board>, value: bool) -> Result<()> {
         Self::gate(board)?;
         if !Self::forum()?.is_moderator()? {
             return Err(ForumError::NotAuthorized);
         }
         board.readonly = value;
         board.save()?;
-        Ok(board)
+        Ok(())
     }
 
-    pub(crate) fn set_bump_limit(board: &mut Write<Board>, value: u32) -> Result<&Entity<Board>> {
+    pub(crate) fn set_bump_limit(board: &mut Write<Board>, value: u32) -> Result<()> {
         Self::gate(board)?;
         if !Self::forum()?.is_moderator()? {
             return Err(ForumError::NotAuthorized);
@@ -318,10 +315,10 @@ impl Board {
         }
         board.bump_limit = value;
         board.save()?;
-        Ok(board)
+        Ok(())
     }
 
-    pub(crate) fn set_max_media(board: &mut Write<Board>, value: u8) -> Result<&Entity<Board>> {
+    pub(crate) fn set_max_media(board: &mut Write<Board>, value: u8) -> Result<()> {
         Self::gate(board)?;
         if !Self::forum()?.is_moderator()? {
             return Err(ForumError::NotAuthorized);
@@ -331,39 +328,30 @@ impl Board {
         }
         board.max_media = value;
         board.save()?;
-        Ok(board)
+        Ok(())
     }
 
-    pub(crate) fn set_description(
-        board: &mut Write<Board>,
-        value: Option<Hash>,
-    ) -> Result<&Entity<Board>> {
+    pub(crate) fn set_description(board: &mut Write<Board>, value: Option<Hash>) -> Result<()> {
         Self::gate(board)?;
         if !board.is_moderator(&*Self::forum()?)? {
             return Err(ForumError::NotAuthorized);
         }
         board.description_hash = value;
         board.save()?;
-        Ok(board)
+        Ok(())
     }
 
-    pub(crate) fn set_ignore_forum_bans(
-        board: &mut Write<Board>,
-        value: bool,
-    ) -> Result<&Entity<Board>> {
+    pub(crate) fn set_ignore_forum_bans(board: &mut Write<Board>, value: bool) -> Result<()> {
         Self::gate(board)?;
         if !board.is_moderator(&*Self::forum()?)? {
             return Err(ForumError::NotAuthorized);
         }
         board.ignore_forum_bans = value;
         board.save()?;
-        Ok(board)
+        Ok(())
     }
 
-    pub(crate) fn set_reactions(
-        board: &mut Write<Board>,
-        values: Vec<Hash>,
-    ) -> Result<&Entity<Board>> {
+    pub(crate) fn set_reactions(board: &mut Write<Board>, values: Vec<Hash>) -> Result<()> {
         Self::gate(board)?;
         if !board.is_moderator(&*Self::forum()?)? {
             return Err(ForumError::NotAuthorized);
@@ -373,13 +361,10 @@ impl Board {
         }
         board.reactions = values;
         board.save()?;
-        Ok(board)
+        Ok(())
     }
 
-    pub(crate) fn set_pinned(
-        board: &mut Write<Board>,
-        mut values: Vec<u64>,
-    ) -> Result<&Entity<Board>> {
+    pub(crate) fn set_pinned(board: &mut Write<Board>, mut values: Vec<u64>) -> Result<()> {
         Self::gate(board)?;
         if !board.is_moderator(&*Self::forum()?)? {
             return Err(ForumError::NotAuthorized);
@@ -412,7 +397,7 @@ impl Board {
         }
         board.pinned = values;
         board.save()?;
-        Ok(board)
+        Ok(())
     }
 
     fn previews(board: &Entity<Board>, numbers: &[u64]) -> Result<Vec<ThreadPreview>> {

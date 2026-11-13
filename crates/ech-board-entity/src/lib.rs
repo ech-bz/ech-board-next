@@ -90,8 +90,6 @@ pub struct Write {
 pub struct Changed {
     pub namespace: String,
     pub id: [u8; 32],
-    #[serde(with = "serde_bytes")]
-    pub value: Vec<u8>,
 }
 
 #[derive(Clone, Debug, Serialize, serde::Deserialize)]
@@ -119,17 +117,18 @@ fn types(namespace: &str) -> BigSet<[u8; 32]> {
 }
 
 #[cfg(target_arch = "wasm32")]
-fn change(namespace: &str, id: [u8; 32], value: Vec<u8>) {
+fn change(namespace: &str, id: [u8; 32]) {
     CHANGES.with(|changes| {
         let mut changes = changes.borrow_mut();
-        if let Some(entry) = changes.iter_mut().find(|entry| entry.id == id) {
-            entry.value = value;
+        if changes
+            .iter()
+            .any(|entry| entry.id == id && entry.namespace == namespace)
+        {
             return;
         }
         changes.push(Changed {
             namespace: namespace.to_string(),
             id,
-            value,
         });
     });
 }

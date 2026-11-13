@@ -12,6 +12,14 @@ impl Debug {
         Store::record(&namespace, &id)?.ok_or(ForumError::NotFound)
     }
 
+    pub(crate) fn entities(changes: Vec<(String, Hash)>) -> Result<Vec<u8>> {
+        let mut values = Vec::with_capacity(changes.len());
+        for (namespace, id) in changes {
+            values.push(Store::record(&namespace, &id)?.ok_or(ForumError::NotFound)?);
+        }
+        Ok(bcs::to_bytes(&values).expect("entities encode"))
+    }
+
     pub(crate) fn history(
         namespace: String,
         id: Hash,
