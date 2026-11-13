@@ -6,7 +6,6 @@ import { Field } from './Field'
 
 const pageVariants = cva('max-w-settings p-6')
 const settingRowVariants = cva('flex items-center justify-between gap-3 border-b border-separator px-0.5 py-3 text-lg')
-const toggleWrapVariants = cva('inline-flex flex-none cursor-pointer')
 const toggleVariants = cva('settings-checkbox relative h-toggle w-toggle flex-none cursor-pointer appearance-none rounded-full bg-toggle-track checked:bg-toggle-on transition-colors')
 
 export function AppearanceView() {
@@ -34,48 +33,33 @@ export function AppearanceView() {
     <div class={pageVariants()}>
       <label class={settingRowVariants()}>
         <span>{t('settings.showDeleted')}</span>
-        <span
+        <input
           ref={(el) => haptic(el)}
-          role="checkbox"
-          aria-checked={showDeleted()}
-          class={toggleWrapVariants()}
-          onClick={(e) => {
-            e.preventDefault()
-            setShowDeleted(!showDeleted())
-          }}
-        >
-          <input type="checkbox" class={toggleVariants()} checked={showDeleted()} readOnly />
-        </span>
+          type="checkbox"
+          class={toggleVariants()}
+          checked={showDeleted()}
+          onChange={(e) => setShowDeleted(e.currentTarget.checked)}
+        />
       </label>
       <label class={settingRowVariants()}>
         <span>{t('settings.showHidden')}</span>
-        <span
+        <input
           ref={(el) => haptic(el)}
-          role="checkbox"
-          aria-checked={!hideThreadsCompletely()}
-          class={toggleWrapVariants()}
-          onClick={(e) => {
-            e.preventDefault()
-            setHideThreadsCompletely(!hideThreadsCompletely())
-          }}
-        >
-          <input type="checkbox" class={toggleVariants()} checked={!hideThreadsCompletely()} readOnly />
-        </span>
+          type="checkbox"
+          class={toggleVariants()}
+          checked={!hideThreadsCompletely()}
+          onChange={(e) => setHideThreadsCompletely(!e.currentTarget.checked)}
+        />
       </label>
       <label class={settingRowVariants()}>
         <span>{t('settings.expandFolds')}</span>
-        <span
+        <input
           ref={(el) => haptic(el)}
-          role="checkbox"
-          aria-checked={expandFolds()}
-          class={toggleWrapVariants()}
-          onClick={(e) => {
-            e.preventDefault()
-            setExpandFolds(!expandFolds())
-          }}
-        >
-          <input type="checkbox" class={toggleVariants()} checked={expandFolds()} readOnly />
-        </span>
+          type="checkbox"
+          class={toggleVariants()}
+          checked={expandFolds()}
+          onChange={(e) => setExpandFolds(e.currentTarget.checked)}
+        />
       </label>
       <div class={settingRowVariants()}>
         <span>{t('settings.theme')}</span>
