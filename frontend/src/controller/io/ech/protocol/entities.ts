@@ -185,7 +185,7 @@ export const UserRequestsSchema = struct('UserRequests', {
 
 export type UserRequests = typeof UserRequestsSchema.$inferType
 
-const ServerContextSchema = struct('ServerContext', {
+export const ServerContextSchema = struct('ServerContext', {
   time: bcs.u64(),
   country: bcs.option(bcs.u32()),
   trip: bcs.option(TripcodeSchema),
