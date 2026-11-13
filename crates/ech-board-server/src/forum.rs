@@ -7,7 +7,7 @@ use ech_board_program::entity::Forum as ForumEntity;
 use ech_board_program::error::ForumError;
 use ech_db_protocol::error::Reject;
 use ech_db_protocol::id::{Root, Txid};
-use ech_db_protocol::value::{Author, Call, Esid, Program, Record, Request, UserPart};
+use ech_db_protocol::value::{Author, Call, Esid, Program, Record, Request, Tx, UserPart};
 use ech_db_sdk::Domain;
 
 use crate::db::{DbClient, DbError};
@@ -19,6 +19,12 @@ pub struct Forum {
     domain: Domain,
     program: Txid,
     upload: UserPart,
+}
+
+#[derive(serde::Serialize)]
+pub struct AuthorHistoryPage {
+    pub entries: Vec<Tx>,
+    pub next: Option<Txid>,
 }
 
 impl Forum {
@@ -195,14 +201,14 @@ impl Forum {
     pub async fn history(&self, from: Option<Txid>) -> Result<Vec<Record>, DomainError> {
         Ok(self
             .db
-            .history(&self.root(), "forward", from, Self::PAGE)
+            .history(&self.root(), "forward", from, Self::PAGE, None)
             .await?)
     }
 
     pub async fn last(&self) -> Result<Option<Record>, DomainError> {
         Ok(self
             .db
-            .history(&self.root(), "backward", None, 1)
+            .history(&self.root(), "backward", None, 1, None)
             .await?
             .into_iter()
             .next())
@@ -211,7 +217,7 @@ impl Forum {
     pub async fn record(&self, txid: Txid) -> Result<Record, DomainError> {
         let mut records = self
             .db
-            .history(&self.root(), "forward", Some(txid), 1)
+            .history(&self.root(), "forward", Some(txid), 1, None)
             .await?;
         let record = records
             .first_mut()
@@ -222,6 +228,33 @@ impl Forum {
             )));
         }
         Ok(records.remove(0))
+    }
+
+    pub async fn author_history(
+        &self,
+        esid: &Esid,
+        from: Option<Txid>,
+        limit: u32,
+    ) -> Result<AuthorHistoryPage, DomainError> {
+        let mut records = self
+            .db
+            .history(
+                &self.root(),
+                "backward",
+                from,
+                u64::from(limit) + 1,
+                Some(esid),
+            )
+            .await?;
+        let next = if records.len() > limit as usize {
+            Some(records.pop().expect("extra record").tx.txid(&self.root())?)
+        } else {
+            None
+        };
+        Ok(AuthorHistoryPage {
+            entries: records.into_iter().map(|record| record.tx).collect(),
+            next,
+        })
     }
 
     #[tracing::instrument(
