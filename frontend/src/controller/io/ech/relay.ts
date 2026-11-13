@@ -1,3 +1,4 @@
+import { contentUrl, type ContentPath } from '../../../model/content/url'
 import type { BcsType } from '@mysten/bcs'
 import { bcs, toHex as hex, fromHex as unhex } from '@mysten/bcs'
 import { blake2b } from '@noble/hashes/blake2'
@@ -249,15 +250,16 @@ function threadPageArgs(id: string, after: number): Uint8Array {
 export async function getContent(
   relay: Relay,
   hash: string,
+  path: ContentPath,
 ): Promise<Uint8Array | null> {
-  const response = await fetch(`${relay.base}/content/${hash}`)
+  const response = await fetch(contentUrl(relay.base.replace(/\/api$/, ''), path, hash))
   if (response.status === 404) return null
   if (!response.ok) throw new Error(await response.text())
   return new Uint8Array(await response.arrayBuffer())
 }
 
-export async function getMediaMeta(relay: Relay, hash: string): Promise<Media | null> {
-  const response = await fetch(`${relay.base}/media/${hash}/meta`)
+export async function getMediaMeta(relay: Relay, hash: string, path: ContentPath): Promise<Media | null> {
+  const response = await fetch(contentUrl(relay.base.replace(/\/api$/, ''), path, hash, 'metadata'))
   if (response.status === 404) return null
   if (!response.ok) throw new Error(await response.text())
   return MediaMetaSchema.parse(new Uint8Array(await response.arrayBuffer()))

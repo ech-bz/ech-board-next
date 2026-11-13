@@ -34,7 +34,7 @@ export interface Post extends Entity {
   readonly tripSecured: boolean
   readonly flagUrl: string | null
   readonly hasText: boolean
-  readonly parts: PostPart[] | null
+  readonly parts: PostPart[]
   readonly plain: string
   readonly refs: readonly PostReference[]
   readonly refsRevision: number

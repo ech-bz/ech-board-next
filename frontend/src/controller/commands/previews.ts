@@ -1,4 +1,3 @@
-import { toHex } from '../../model/content/hex'
 import { forumKey, numberKey } from '../../model/selectors/forum'
 import { findForum } from '../../model/selectors/navigation'
 import type { PreviewTarget } from '../../model/state/previews'
@@ -24,7 +23,7 @@ export function createPreviewCommands(model: ForumState, commit: Commit, gateway
       const op = thread ? scope.postIds[numberKey(thread.board, thread.number)] : null
       const dependencies = [target.postId, ...op ? [op] : []]
       commit({ type: 'preview.set', value: { id, forumId: root, postId: target.postId, dependencies, active: true, error: false } })
-      if (post && thread && op && scope.entities.posts[op] && (!post.textHash || scope.contents[toHex(post.textHash)])) return id
+      if (post && thread && op && scope.entities.posts[op]) return id
       if (!relayUrl) { commit({ type: 'preview.set', value: { ...model.previews[id], error: true } }); return id }
       void readPost(relayUrl, target.postId).then((data) => {
         if (isDisposed() || !model.previews[id]?.active) return

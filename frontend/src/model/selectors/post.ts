@@ -34,38 +34,40 @@ export function postFields(model: ForumState, root: string, id: string) {
       return bytes ? new TextDecoder().decode(bytes) || null : null
     },
     flagUrl: () => post().country ? `/static/flags/${String(post().country).padStart(3, '0')}.svg` : null,
-    hasText: () => post().textHash !== null,
+    hasText: () => post().parts.length > 0,
     parts: () => {
       const hash = post().textHash
       if (!hash) return []
       const key = toHex(hash)
-      return scope().parts[key] ?? (scope().contents[key] ? [] : null)
+      return scope().parts[key] ?? []
     },
     plain: () => {
       const parts = post().parts
-      return parts ? partsToPlainText(parts, true, { forumId: root, boardId: boardId() }) : ''
+      return partsToPlainText(parts, true, { forumId: root, boardId: boardId() })
     },
     refs: () => model.references[referenceKey(root, id)]?.items ?? [],
     refsRevision: () => model.references[referenceKey(root, id)]?.revision ?? 0,
     media: () => postMedia(post(), scope()),
     reactions: () => {
+      const available = new Set((board()?.reactions ?? []).map(toHex))
       const selected = post().myReaction
       const base = post().myReactionBase
       const counts = new Map<string, number>()
       for (const { hash, count } of post().reactionCounts) {
         const hex = toHex(hash)
+        if (!available.has(hex)) continue
         const value = Number(count) + Number(selected === hex && base !== hex) - Number(base === hex && selected !== hex)
         if (value > 0) counts.set(hex, value)
       }
-      if (selected && !counts.has(selected)) counts.set(selected, 1)
-      return [...counts].sort((a, b) => b[1] - a[1]).map(([hex, count]) => ({ hex, count, url: reactionUrl(scope().relayUrl, hex) }))
+      if (selected && available.has(selected) && !counts.has(selected)) counts.set(selected, 1)
+      return [...counts].sort((a, b) => b[1] - a[1]).map(([hex, count]) => ({ hex, count, url: reactionUrl(scope().relayUrl, hex, boardId()) }))
     },
     reactionGlyph: () => {
       const hashes = board()?.reactions ?? []
       if (!hashes.length) return null
       const digest = blake2b(fromHex(id), { dkLen: 32 })
       const shard = new DataView(digest.buffer, digest.byteOffset + 24, 8).getBigUint64(0, false)
-      return reactionUrl(scope().relayUrl, toHex(hashes[Number(shard % BigInt(hashes.length))]))
+      return reactionUrl(scope().relayUrl, toHex(hashes[Number(shard % BigInt(hashes.length))]), boardId())
     },
     myReaction: () => {
       const base = post().myReactionBase
@@ -99,7 +101,7 @@ export function postFields(model: ForumState, root: string, id: string) {
 export const postEquality = {
   media: (left: Post['media'], right: Post['media']) => left.length === right.length && left.every((media, index) => {
     const next = right[index]
-    return media.thumbUrl === next.thumbUrl && media.fullUrl === next.fullUrl && media.width === next.width && media.height === next.height && media.mime === next.mime && media.size === next.size && media.durationMs === next.durationMs && media.hash === next.hash && media.banned === next.banned && media.threadId === next.threadId
+    return media.thumbUrl === next.thumbUrl && media.fullUrl === next.fullUrl && media.width === next.width && media.height === next.height && media.mime === next.mime && media.size === next.size && media.durationMs === next.durationMs && media.hash === next.hash && media.banned === next.banned && media.missing === next.missing && media.threadId === next.threadId
   }),
   reactions: (left: Post['reactions'], right: Post['reactions']) => left.length === right.length && left.every((reaction, index) => reaction.hex === right[index].hex && reaction.count === right[index].count && reaction.url === right[index].url),
 }

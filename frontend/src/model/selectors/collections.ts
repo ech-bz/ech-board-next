@@ -33,7 +33,7 @@ export function createCollections(model: ForumState) {
       const value = currentScope(model)?.entities.threads[id]
       return value ? [...value.opId ? [value.opId] : [], ...value.replyIds] : []
     })
-    return ids.flatMap((id) => model.scopes[root]?.entities.posts[id]?.media.filter((media) => !media.banned) ?? [])
+    return ids.flatMap((id) => model.scopes[root]?.entities.posts[id]?.media.filter((media) => !media.banned && !media.missing) ?? [])
   }
   const allMedia = createMemo(() => model.gallery && model.page.mode === 'board' && model.preferences.showDeleted ? gallery(true) : [])
   const visibleMedia = createMemo(() => model.gallery && model.page.mode === 'board' && !model.preferences.showDeleted ? gallery(false) : [])

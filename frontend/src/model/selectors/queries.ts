@@ -1,9 +1,7 @@
 import { createMemo } from 'solid-js'
-import { toHex } from '../content/hex'
 import type { MediaReference } from '../entities/media'
 import type { Post } from '../entities/post'
 import type { PostReference } from '../entities/postReference'
-import { postReady } from '../rules/postVisibility'
 import type { ForumState } from '../state/forum'
 import type { BoardInfo } from '../state/navigation'
 import type { StaticInfo } from '../state/page'
@@ -35,7 +33,7 @@ export function createQueries(model: ForumState) {
     if (!preview) return undefined
     const scope = model.scopes[preview.forumId]
     const post = scope?.entities.posts[preview.postId]
-    return post && scope.entities.boards[scope.boardIds[post.board]] && scope.entities.threads[post.threadId] && (!post.textHash || scope.contents[toHex(post.textHash)]) ? post : undefined
+    return post && scope.entities.boards[scope.boardIds[post.board]] && scope.entities.threads[post.threadId] ? post : undefined
   }
   return {
     boards, info, get, roles, previewPost,
@@ -49,7 +47,7 @@ export function createQueries(model: ForumState) {
       if (!selected) return empty
       const scope = model.scopes[selected.forumId]
       const post = scope?.entities.posts[selected.postId]
-      const media = post?.media.find((item) => item.hash === selected.hash && !item.banned)
+      const media = post?.media.find((item) => item.hash === selected.hash && !item.banned && !item.missing)
       if (!media) return empty
       const showDeleted = model.preferences.showDeleted
       if (selected.forumId === model.page.forumId && model.page.mode === 'thread' && post.threadId === model.page.threadId) {
@@ -72,7 +70,7 @@ export function createQueries(model: ForumState) {
     },
     galleryMedia(reference: MediaReference | undefined) {
       const selected = model.gallery
-      return selected && reference ? model.scopes[selected.forumId]?.entities.posts[reference.postId]?.media.find((item) => item.hash === reference.hash && !item.banned) : undefined
+      return selected && reference ? model.scopes[selected.forumId]?.entities.posts[reference.postId]?.media.find((item) => item.hash === reference.hash && !item.banned && !item.missing) : undefined
     },
     forumModerators() {
       const scope = currentScope(model)
@@ -109,7 +107,7 @@ export function createQueries(model: ForumState) {
     threadPosts: () => model.page.threadId ? currentScope(model)?.threadPosts[model.page.threadId] : undefined,
     postVisible: (id: string, showDeleted: boolean) => {
       const scope = currentScope(model), post = scope?.entities.posts[id]
-      return !!scope && !!post && post.threadId === model.page.threadId && postReady(scope, post) && (showDeleted || !post.deleted && !scope.entities.threads[post.threadId]?.deleted)
+      return !!scope && !!post && post.threadId === model.page.threadId && (showDeleted || !post.deleted && !scope.entities.threads[post.threadId]?.deleted)
     },
     containsPost(root: string, threadId: string, id: string): boolean {
       const scope = model.scopes[forumKey(root)]

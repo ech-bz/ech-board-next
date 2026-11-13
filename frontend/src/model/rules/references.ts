@@ -1,4 +1,3 @@
-import { toHex } from '../content/hex'
 import { replyTargets } from '../content/references'
 import type { PostReference } from '../entities/postReference'
 import { referenceKey } from '../selectors/forum'
@@ -18,7 +17,7 @@ export function referenceUpdates(model: ForumState, root: string, ids: Iterable<
   for (const id of ids) {
     const post = removed ? undefined : scope.entities.posts[id]
     const source = referenceKey(root, id)
-    const parts = post?.textHash ? scope.parts[toHex(post.textHash)] ?? [] : []
+    const parts = post?.parts ?? []
     const next = post ? replyTargets(parts) : new Set<string>()
     const previous = new Set(model.outgoing[source] ?? [])
     if (post && previous.size === next.size && [...previous].every((target) => next.has(target))) continue

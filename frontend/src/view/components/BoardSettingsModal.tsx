@@ -216,7 +216,7 @@ export function BoardSettingsModal(props: {
             <For each={reactions()}>
               {(reaction, index) => (
                 <div class={chipVariants()}>
-                  <img class={chipImgVariants()} src={model.resources.reactions[resourceKey(props.relayUrl, toHex(reaction).replace(/^0x/, ''))]?.preview ?? reactionUrl(props.relayUrl, toHex(reaction))} alt="" />
+                  <img class={chipImgVariants()} src={model.resources.reactions[resourceKey(props.relayUrl, toHex(reaction).replace(/^0x/, ''))]?.preview ?? reactionUrl(props.relayUrl, toHex(reaction), props.boardId)} alt="" />
                   <IconButton
                     size="xs"
                     class={chipRemoveVariants()}

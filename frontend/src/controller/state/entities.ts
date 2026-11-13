@@ -50,6 +50,7 @@ export function createEntityUpdates(model: ForumState, write: SetStoreFunction<F
       const affected = new Set<string>()
       const contentHashes = new Set<string>()
       const attachmentHashes = new Set<string>()
+      const changed = new Set<string>()
       for (const [hash, bytes] of changes.contents ?? []) {
         const key = toHex(fromHex(hash))
         if (scope.contents[key]) continue
@@ -87,7 +88,6 @@ export function createEntityUpdates(model: ForumState, write: SetStoreFunction<F
         threadPosts.ensure(root, thread.id)
       }
       const additions = new Map<string, string[]>()
-      const changed = new Set<string>()
       for (const entity of changes.posts ?? []) {
         const key = numberKey(entity.key.board, Number(entity.key.number))
         const id = scope.postIds[key] ?? EntityId.post(entity.key.board, Number(entity.key.number))
