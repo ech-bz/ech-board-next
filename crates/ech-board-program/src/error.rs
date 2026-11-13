@@ -69,6 +69,8 @@ pub enum ForumError {
     MediaNotBanned,
     #[error("counter overflow")]
     CounterOverflow,
+    #[error("no change")]
+    NoChange,
     #[error("not found")]
     NotFound,
     #[error("forum already exists")]
