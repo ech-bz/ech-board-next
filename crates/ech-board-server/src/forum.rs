@@ -25,6 +25,7 @@ pub struct Forum {
 pub struct AuthorHistoryPage {
     pub entries: Vec<Tx>,
     pub next: Option<Txid>,
+    pub length: Option<u64>,
 }
 
 impl Forum {
@@ -202,7 +203,8 @@ impl Forum {
         Ok(self
             .db
             .history(&self.root(), "forward", from, Self::PAGE, None)
-            .await?)
+            .await?
+            .0)
     }
 
     pub async fn last(&self) -> Result<Option<Record>, DomainError> {
@@ -210,12 +212,13 @@ impl Forum {
             .db
             .history(&self.root(), "backward", None, 1, None)
             .await?
+            .0
             .into_iter()
             .next())
     }
 
     pub async fn record(&self, txid: Txid) -> Result<Record, DomainError> {
-        let mut records = self
+        let (mut records, _) = self
             .db
             .history(&self.root(), "forward", Some(txid), 1, None)
             .await?;
@@ -236,7 +239,7 @@ impl Forum {
         from: Option<Txid>,
         limit: u32,
     ) -> Result<AuthorHistoryPage, DomainError> {
-        let mut records = self
+        let (mut records, length) = self
             .db
             .history(
                 &self.root(),
@@ -254,6 +257,7 @@ impl Forum {
         Ok(AuthorHistoryPage {
             entries: records.into_iter().map(|record| record.tx).collect(),
             next,
+            length,
         })
     }
 

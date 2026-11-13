@@ -105,6 +105,7 @@ pub struct Output {
 pub struct HistoryPage {
     pub entries: Vec<Tx>,
     pub next: Option<u64>,
+    pub length: u64,
 }
 
 #[cfg(target_arch = "wasm32")]

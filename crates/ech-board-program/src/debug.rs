@@ -42,7 +42,11 @@ impl Debug {
         for (_, txid) in rows {
             entries.push(load_transaction(&Txid::new(txid))?);
         }
-        Ok(HistoryPage { entries, next })
+        Ok(HistoryPage {
+            entries,
+            next,
+            length: entity.history.len(),
+        })
     }
 
     pub(crate) fn forum() -> Result<[u8; 32]> {
