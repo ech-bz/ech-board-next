@@ -1,5 +1,5 @@
 import { cva } from 'class-variance-authority'
-import { createSignal, Show } from 'solid-js'
+import { Show } from 'solid-js'
 import { fromHex } from '../../model/content/hex'
 import type { MediaInfo } from '../../model/entities/media'
 import type { Post } from '../../model/entities/post'
@@ -60,12 +60,16 @@ function formatMime(mime: string): string {
 export function MediaBox(props: { m: MediaInfo; post: Post; onOpen: (m: MediaInfo, rect?: SourceRect) => void }) {
   const { t } = useI18n()
   const actions = useEntityActions()
-  const [natW, setNatW] = createSignal<number | null>(null)
   const isVideo = () => props.m.mime.startsWith('video/')
   const isAudio = () => props.m.mime.startsWith('audio/')
   const isDocument = () => props.m.mime === 'application/pdf'
   const isGif = () => props.m.mime === 'image/gif'
   const isImage = () => props.m.mime.startsWith('image/')
+  const thumbnailWidth = () => {
+    const { width, height, banned } = props.m
+    if (banned || !isImage() && !isVideo() || width <= 0 || height <= 0) return undefined
+    return `${Math.max(1, Math.round(Math.min(width, 220, width * 220 / height)))}px`
+  }
   const searchItems = (): MenuItem[] =>
     isImage() && !props.m.banned
       ? [
@@ -85,7 +89,7 @@ export function MediaBox(props: { m: MediaInfo; post: Post; onOpen: (m: MediaInf
       href={props.m.banned ? undefined : props.m.fullUrl}
       target={isDocument() ? '_blank' : undefined}
       rel={isDocument() ? 'noopener noreferrer' : undefined}
-      style={{ '--nat-w': natW() != null ? `${natW()}px` : undefined }}
+      style={{ '--nat-w': thumbnailWidth() }}
       onClick={(e) => {
         if (props.m.banned) {
           e.preventDefault()
@@ -119,7 +123,6 @@ export function MediaBox(props: { m: MediaInfo; post: Post; onOpen: (m: MediaInf
             loading="lazy"
             decoding="async"
             draggable={false}
-            onLoad={(e) => setNatW(e.currentTarget.naturalWidth)}
           />
         </Show>
       </Show>
