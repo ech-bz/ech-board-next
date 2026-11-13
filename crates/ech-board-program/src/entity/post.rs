@@ -7,7 +7,7 @@ use ech_db_guest::{BigMap, Bind};
 
 use crate::component::bans::Bans;
 use crate::context::Context;
-use crate::entity::{Board, Forum, Read, Thread, Write};
+use crate::entity::{Board, Forum, Read, Thread, User, Write};
 use crate::error::{ForumError, Result};
 use crate::types::{Esid, Hash, Sid};
 
@@ -39,6 +39,8 @@ pub struct PostV1 {
     pub reacted: BigMap<Sid, Hash>,
     pub mod_note_hash: Option<Hash>,
     pub banned: Option<Esid>,
+    pub postcount: Option<u64>,
+    pub threadcount: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -48,32 +50,6 @@ pub struct PostPage {
 }
 
 impl Post {
-    pub(crate) fn new(
-        thread: u64,
-        text_hash: Option<Hash>,
-        media_hashes: Vec<Hash>,
-        name_hash: Option<Hash>,
-        multi_vote: bool,
-        vote_keys: Vec<Hash>,
-    ) -> Post {
-        Post::from(PostV1 {
-            thread,
-            text_hash,
-            media_hashes,
-            name_hash,
-            deleted: false,
-            banned_media: Vec::new(),
-            edited: false,
-            multi_vote,
-            votes: vote_keys.into_iter().map(|key| (key, 0)).collect(),
-            reactions: Vec::new(),
-            voted: BigMap::new(),
-            reacted: BigMap::new(),
-            mod_note_hash: None,
-            banned: None,
-        })
-    }
-
     pub(crate) fn create(
         board: &mut Write<Board>,
         thread: &mut Write<Thread>,
@@ -83,6 +59,7 @@ impl Post {
         vote_keys: Vec<Hash>,
         multi_vote: bool,
     ) -> Result<Entity<Post>> {
+        let user = User::record_post()?;
         Thread::gate(thread)?;
         let forum = Forum::current()?;
         if thread.key.board != board.key.slug {
@@ -112,30 +89,42 @@ impl Post {
         if bump {
             thread.bump = post_number;
         }
-        let post_key = PostKey {
-            board: board.key.slug.clone(),
-            number: post_number,
-        };
         let mut writes = WriteBatch::new()?;
+        let requests = Context::requests()?;
         let post = writes.insert(
-            post_key,
-            Post::new(
-                number,
+            PostKey {
+                board: board.key.slug.clone(),
+                number: post_number,
+            },
+            Post::from(PostV1 {
+                thread: number,
                 text_hash,
                 media_hashes,
                 name_hash,
+                deleted: false,
+                banned_media: Vec::new(),
+                edited: false,
                 multi_vote,
-                vote_keys,
-            ),
+                votes: vote_keys.into_iter().map(|key| (key, 0)).collect(),
+                reactions: Vec::new(),
+                voted: BigMap::new(),
+                reacted: BigMap::new(),
+                mod_note_hash: None,
+                banned: None,
+                postcount: requests.postcount.then_some(user.post_count),
+                threadcount: requests.postcount.then_some(user.thread_count),
+            }),
         )?;
         thread.post_count = thread
             .post_count
             .checked_add(1)
             .ok_or(ForumError::CounterOverflow)?;
         thread.posts.insert(&thread.post_count, &post_number)?;
-        thread.last_posts.push(post_number);
-        if thread.last_posts.len() > 3 {
-            thread.last_posts.remove(0);
+        if post_number != number {
+            thread.last_posts.push(post_number);
+            if thread.last_posts.len() > 3 {
+                thread.last_posts.remove(0);
+            }
         }
         writes.save(thread)?;
         writes.save(board)?;

@@ -36,6 +36,7 @@ impl ServerContext {
 pub struct UserRequests {
     pub geo: bool,
     pub trip: bool,
+    pub postcount: bool,
 }
 
 impl UserRequests {
@@ -60,6 +61,7 @@ thread_local! {
 pub struct Context {
     author: Author,
     time: u64,
+    requests: UserRequests,
 }
 
 impl Context {
@@ -78,6 +80,7 @@ impl Context {
         Ok(Self {
             author: request.tx.user.author.clone(),
             time: server.time,
+            requests,
         })
     }
 
@@ -103,6 +106,10 @@ impl Context {
 
     pub fn time() -> Result<u64> {
         Self::state(|state| state.context.time)
+    }
+
+    pub fn requests() -> Result<UserRequests> {
+        Self::state(|state| state.context.requests)
     }
 
     pub fn esid() -> Result<Esid> {

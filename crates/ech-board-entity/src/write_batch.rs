@@ -39,7 +39,13 @@ impl WriteBatch {
             return Err(crate::EntityError::Outdated);
         }
         let id = entity.id();
-        entity.history.push(&self.write.txid)?;
+        let last_txid = match entity.history.len().checked_sub(1) {
+            Some(index) => entity.history.get(index)?,
+            None => None,
+        };
+        if last_txid != Some(self.write.txid) {
+            entity.history.push(&self.write.txid)?;
+        }
         self.store(&id, entity)
     }
 

@@ -119,3 +119,33 @@ fn decode_expected(function: &str, args: &[u8]) -> Option<Expected> {
 pub fn validate(bytes: &[u8]) -> bool {
     bcs::from_bytes::<Vec<PostPart>>(bytes).is_ok()
 }
+
+pub fn requests_postcount(bytes: &[u8]) -> Result<bool, bcs::Error> {
+    let mut parts: Vec<PostPart> = bcs::from_bytes(bytes)?;
+    while let Some(part) = parts.pop() {
+        match part {
+            PostPart::Plain(text) => {
+                if text
+                    .split_ascii_whitespace()
+                    .any(|word| word == "/postcount")
+                {
+                    return Ok(true);
+                }
+            }
+            PostPart::Bold(children)
+            | PostPart::Italic(children)
+            | PostPart::Underline(children)
+            | PostPart::Overline(children)
+            | PostPart::Spoiler(children)
+            | PostPart::Strike(children)
+            | PostPart::Sup(children)
+            | PostPart::Sub(children)
+            | PostPart::Fold { children, .. } => parts.extend(children),
+            PostPart::Code(_)
+            | PostPart::Secret { .. }
+            | PostPart::ReplyTo { .. }
+            | PostPart::Link { .. } => {}
+        }
+    }
+    Ok(false)
+}
