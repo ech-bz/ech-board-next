@@ -15,7 +15,7 @@ export async function fetchHistory(
   kind: HistoryKind,
   id: string,
   cursor?: string | null,
-): Promise<{ entries: Tx[]; next: string | null }> {
+): Promise<{ entries: Tx[]; next: string | null; length: bigint | null }> {
   const hex = id.replace(/^0x/, "")
   if (kind === 'author') {
     const page = cursor ? `&from=${encodeURIComponent(cursor)}` : ''
@@ -24,7 +24,7 @@ export async function fetchHistory(
     )
     if (!response.ok) throw new Error(await response.text())
     const result = AuthorHistoryPageSchema.parse(new Uint8Array(await response.arrayBuffer()))
-    return { entries: result.entries, next: result.next === null ? null : toHex(result.next).replace(/^0x/, '') }
+    return { entries: result.entries, next: result.next === null ? null : toHex(result.next).replace(/^0x/, ''), length: result.length }
   }
   const page = cursor ? `&before=${cursor}` : ""
   const response = await fetch(
@@ -32,7 +32,7 @@ export async function fetchHistory(
   )
   if (!response.ok) throw new Error(await response.text())
   const result = HistoryPageSchema.parse(new Uint8Array(await response.arrayBuffer()))
-  return { entries: result.entries, next: result.next === null ? null : result.next.toString() }
+  return { entries: result.entries, next: result.next === null ? null : result.next.toString(), length: result.length }
 }
 export async function fetchBans(
   api: ForumApi,
