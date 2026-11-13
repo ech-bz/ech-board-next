@@ -5,12 +5,12 @@ import { postValue, threadValue } from '../convert/versions'
 import { EntityId } from '../io/ech/protocol/entityId'
 import type { EntityUpdate } from '../state/entities.types'
 
-function latest<T extends { seq: bigint }>(entities: Iterable<T>, key: (entity: T) => string): T[] {
+function latest<T extends { history: { length: bigint } }>(entities: Iterable<T>, key: (entity: T) => string): T[] {
   const values = new Map<string, T>()
   for (const entity of entities) {
     const id = key(entity)
     const previous = values.get(id)
-    if (!previous || previous.seq < entity.seq) values.set(id, entity)
+    if (!previous || previous.history.length < entity.history.length) values.set(id, entity)
   }
   return [...values.values()]
 }

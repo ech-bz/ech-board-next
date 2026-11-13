@@ -1,5 +1,5 @@
 import type { ForumState, PendingReaction, PostPreview, ReactionSelection } from '../../model/state/forum'
-import type { BanListState, FeedState, SnapshotState } from '../../model/state/inspection'
+import type { BanListState, HistoryState, SnapshotState } from '../../model/state/inspection'
 import type { SecretState } from '../../model/state/resources'
 import type { EntityUpdate } from './entities.types'
 
@@ -19,7 +19,7 @@ interface OperationValues {
   'draft.patch': { mode: 'reply' | 'thread'; value: Partial<Omit<ForumState['drafts']['reply'], 'revision'>> }
   'operations.patch': Partial<ForumState['operations']>
   'bans.set': { key: string; value: BanListState }
-  'feed.set': { key: string; value: FeedState }
+  'history.set': { key: string; value: HistoryState }
   'snapshot.set': { key: string; value: SnapshotState }
   'secret.set': { key: string; value: SecretState }
   'reactionUpload.set': { key: string; value: ForumState['resources']['reactions'][string] }

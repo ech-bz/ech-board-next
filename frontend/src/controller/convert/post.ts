@@ -12,7 +12,7 @@ export function convertPost(entity: PostEntity, model: ForumState, root: string,
   const context = entityContext(entity)
   return withDerived({
     id,
-    sequence: entity.seq,
+    sequence: entity.history.length,
     number: Number(entity.key.number),
     board: entity.key.board,
     threadNumber: Number(value.thread),

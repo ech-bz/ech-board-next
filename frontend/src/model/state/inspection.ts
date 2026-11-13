@@ -1,5 +1,5 @@
 import type { Ban } from '../entities/ban'
-import type { FeedEntry } from '../entities/event'
+import type { HistoryEvent } from '../entities/event'
 
 export interface BanListState {
   items: Ban[]
@@ -7,8 +7,8 @@ export interface BanListState {
   error: string | null
 }
 
-export interface FeedState {
-  items: FeedEntry[]
+export interface HistoryState {
+  items: HistoryEvent[]
   next: string | null
   loading: boolean
   loadingMore: boolean

@@ -14,7 +14,7 @@ export function convertThread(entity: ThreadEntity, model: ForumState, root: str
   const previous = model.scopes[root]?.entities.threads[id]
   return withDerived({
     id,
-    sequence: entity.seq,
+    sequence: entity.history.length,
     number: Number(entity.key.number),
     board: entity.key.board,
     topicHash: value.topic_hash ? convertBytes(value.topic_hash, previous?.topicHash) : null,

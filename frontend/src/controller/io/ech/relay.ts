@@ -290,31 +290,6 @@ async function putBlob(
   return hex(new Uint8Array(await response.arrayBuffer()))
 }
 
-export async function feed(
-  relay: Relay,
-  entity: string,
-  before: string | null,
-  limit: number,
-): Promise<{
-  entity: string
-  entries: {
-    txid: string
-    timestamp_ms: number
-    sender: string
-    function: string
-    args: string
-    result: string
-  }[]
-  next: string | null
-}> {
-  const cursor = before === null ? '' : `&before=${before}`
-  const response = await fetch(
-    `${relay.base}/feed/${entity}?limit=${limit}${cursor}`,
-  )
-  if (!response.ok) throw new Error(await response.text())
-  return response.json()
-}
-
 function u64(value: number): number[] {
   const out: number[] = []
   let rest = BigInt(value)

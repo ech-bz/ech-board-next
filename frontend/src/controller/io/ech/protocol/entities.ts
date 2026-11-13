@@ -25,6 +25,8 @@ const TxSchema = struct('Tx', {
   server: ServerPartSchema,
 })
 
+export type Tx = typeof TxSchema.$inferType
+
 const BanValueSchema = struct('BanValue', {
   reason_hash: bcs.option(Hash),
   expires: bcs.u64(),
@@ -107,13 +109,24 @@ const ForumV1Schema = struct('ForumV1', {
   boards: struct('BigLog<BoardKey>', { entries: bigMap('BigMap<u64, BoardKey>'), length: bcs.u64() }),
 })
 
+const HistoryLog = struct('BigLog<[u8; 32]>', {
+  entries: bigMap('BigMap<u64, [u8; 32]>'),
+  length: bcs.u64().transform({ input: (value: bigint) => value, output: (value) => BigInt(value) }),
+})
+
 const entity = <K, V>(key: BcsType<K, any, any>, value: BcsType<V, any, any>) =>
-  struct('Entity', { genesis: TxSchema, key, value, seq: bcs.u64().transform({ input: (value: bigint) => value, output: (value) => BigInt(value) }) })
+  struct('Entity', { history: HistoryLog, genesis: TxSchema, key, value })
 
 export const PostEntitySchema = entity(PostKeySchema, enumeration('Post', { V1: PostV1Schema }))
 export const ThreadEntitySchema = entity(ThreadKeySchema, enumeration('Thread', { V1: ThreadV1Schema }))
 export const BoardEntitySchema = entity(BoardKeySchema, enumeration('Board', { V1: BoardV1Schema }))
 export const ForumEntitySchema = entity(ForumKeySchema, enumeration('Forum', { V1: ForumV1Schema }))
+
+export const HistoryPageSchema = struct('HistoryPage', {
+  entries: bcs.vector(TxSchema),
+  next: bcs.option(bcs.u64().transform({ input: (value: bigint) => value, output: (value) => BigInt(value) })),
+})
+export type HistoryPage = typeof HistoryPageSchema.$inferType
 
 const schemas = {
   post: PostEntitySchema,

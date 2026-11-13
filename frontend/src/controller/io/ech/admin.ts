@@ -1,27 +1,26 @@
-import type { FeedEntry } from '../../../model/entities/event'
+import type { EntityKind, HistoryPage } from "./protocol/entities"
+import { HistoryPageSchema } from "./protocol/entities"
 import { Calls, type ForumApi } from "./forumApi"
-import { BanEntriesSchema, decodeEntity, type BanEntry, type EntityKind } from "./protocol/entities"
+import { BanEntriesSchema, decodeEntity, type BanEntry } from "./protocol/entities"
 export async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init)
   if (!response.ok) throw new Error(await response.text())
   return (await response.json()) as T
 }
-export interface FeedPage {
-  entity: string
-  entries: FeedEntry[]
-  next: string | null
-}
-const FEED_LIMIT = 32
-export async function fetchFeed(
+const HISTORY_LIMIT = 64
+export async function fetchHistory(
   base: string,
+  kind: EntityKind,
   id: string,
   cursor?: string | null,
-): Promise<FeedPage> {
+): Promise<HistoryPage> {
   const hex = id.replace(/^0x/, "")
   const page = cursor ? `&before=${cursor}` : ""
-  return request<FeedPage>(
-    `${base.replace(/\/$/, "")}/api/feed/${hex}?limit=${FEED_LIMIT}${page}`,
+  const response = await fetch(
+    `${base.replace(/\/$/, "")}/api/debug/history/${kind}/${hex}?limit=${HISTORY_LIMIT}${page}`,
   )
+  if (!response.ok) throw new Error(await response.text())
+  return HistoryPageSchema.parse(new Uint8Array(await response.arrayBuffer()))
 }
 export async function fetchBans(
   api: ForumApi,

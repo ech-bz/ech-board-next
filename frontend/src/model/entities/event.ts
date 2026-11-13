@@ -1,9 +1,6 @@
-export interface FeedEntry {
-  txid: string
-  timestamp_ms: number
-  sender: string
-  function: string
-  args: string
-  result: string
+export interface HistoryEvent {
+  readonly function: string
+  readonly time: number
+  readonly tx: unknown
 }
 

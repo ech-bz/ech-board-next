@@ -13,7 +13,7 @@ export function convertForum(entity: ForumEntity, model: ForumState, root: strin
   const previous = model.scopes[root]?.entities.forums[EntityId.forum()]
   return withDerived({
     id: EntityId.forum(),
-    sequence: entity.seq,
+    sequence: entity.history.length,
     titleHash: value.title_hash ? convertBytes(value.title_hash, previous?.titleHash) : null,
     moderators: value.moderators.map((identity, index) => convertIdentity(identity, previous?.moderators[index])),
   }, forumFields(model, root, EntityId.forum()))

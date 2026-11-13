@@ -1,5 +1,5 @@
 import type { PostPart } from '../content/postPart'
-import type { BanListState, FeedState, SnapshotState } from './inspection'
+import type { BanListState, HistoryState, SnapshotState } from './inspection'
 
 export interface SecretState {
   parts: PostPart[] | null
@@ -9,7 +9,7 @@ export interface SecretState {
 
 export interface ResourceState {
   bans: Record<string, BanListState>
-  feeds: Record<string, FeedState>
+  history: Record<string, HistoryState>
   snapshots: Record<string, SnapshotState>
   secrets: Record<string, SecretState>
   reactions: Record<string, { preview: string; bytes: Uint8Array | null }>

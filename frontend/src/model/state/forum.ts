@@ -107,7 +107,7 @@ export function initialForumState(): ForumState {
     preferences: initialPreferences(),
     drafts: { reply: emptyDraft('reply'), thread: emptyDraft('thread') },
     operations: { posting: false, uploadProgress: null, moderating: false, reacting: {}, selectionProgress: null },
-    resources: { bans: {}, feeds: {}, snapshots: {}, secrets: {}, reactions: {} },
+    resources: { bans: {}, history: {}, snapshots: {}, secrets: {}, reactions: {} },
     notifications: [],
     navigation: { defaultForumId: null, route: null, lastContentRoute: null, context: null, forums: [], loading: true, refreshing: false, reconnecting: false, error: null, collapsed: false },
     scopes: {},

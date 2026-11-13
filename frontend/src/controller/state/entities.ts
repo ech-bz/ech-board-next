@@ -68,20 +68,20 @@ export function createEntityUpdates(model: ForumState, write: SetStoreFunction<F
         const id = EntityId.forum()
         const current = scope.entities.forums[id]
         if (!current) write('scopes', root, 'entities', 'forums', id, attach(root, () => convertForum(entity, model, root)))
-        else if (current.sequence < entity.seq) write('scopes', root, 'entities', 'forums', id, reconcile(convertForum(entity, model, root)))
+        else if (current.sequence < entity.history.length) write('scopes', root, 'entities', 'forums', id, reconcile(convertForum(entity, model, root)))
       }
       for (const entity of changes.boards ?? []) {
         const id = EntityId.board(entity.key.slug)
         const current = scope.entities.boards[id]
         if (!current) write('scopes', root, 'entities', 'boards', id, attach(root, () => convertBoard(entity, model, root)))
-        else if (current.sequence < entity.seq) write('scopes', root, 'entities', 'boards', id, reconcile(convertBoard(entity, model, root)))
+        else if (current.sequence < entity.history.length) write('scopes', root, 'entities', 'boards', id, reconcile(convertBoard(entity, model, root)))
         write('scopes', root, 'boardIds', entity.key.slug, id)
       }
       for (const entity of changes.threads ?? []) {
         const id = EntityId.thread(entity.key.board, Number(entity.key.number))
         const current = scope.entities.threads[id]
         if (!current) write('scopes', root, 'entities', 'threads', id, attach(root, () => convertThread(entity, model, root)))
-        else if (current.sequence < entity.seq) write('scopes', root, 'entities', 'threads', id, reconcile(convertThread(entity, model, root)))
+        else if (current.sequence < entity.history.length) write('scopes', root, 'entities', 'threads', id, reconcile(convertThread(entity, model, root)))
         const thread = scope.entities.threads[id]
         write('scopes', root, 'threadIds', numberKey(thread.board, thread.number), thread.id)
         threadPosts.ensure(root, thread.id)
@@ -93,7 +93,7 @@ export function createEntityUpdates(model: ForumState, write: SetStoreFunction<F
         const id = scope.postIds[key] ?? EntityId.post(entity.key.board, Number(entity.key.number))
         previewDependencies?.add(id)
         const current = scope.entities.posts[id]
-        if (current && current.sequence >= entity.seq) { retention.track(root, id, changes.retention); continue }
+        if (current && current.sequence >= entity.history.length) { retention.track(root, id, changes.retention); continue }
         const previousHash = current?.textHash ? toHex(current.textHash) : null
         const previousMedia = current?.mediaHashes.map(toHex) ?? []
         if (!current) write('scopes', root, 'entities', 'posts', id, attach(root, () => convertPost(entity, model, root, id), id))

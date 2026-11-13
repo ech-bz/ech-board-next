@@ -9,7 +9,7 @@ export type LocalOperation = Exclude<Operation, { type: 'entities.ingest' | 'ent
 export function applyLocalOperation(model: ForumState, write: SetStoreFunction<ForumState>, operation: LocalOperation) {
   switch (operation.type) {
     case 'resources.releasePage':
-      for (const key of ['bans', 'feeds', 'snapshots', 'secrets'] as const) write('resources', key, reconcile({}))
+      for (const key of ['bans', 'history', 'snapshots', 'secrets'] as const) write('resources', key, reconcile({}))
       break
     case 'realtime.set': write('realtime', reconcile(operation.value)); break
     case 'realtime.enqueue': write('realtime', 'events', model.realtime.events.length, operation.value); break
@@ -34,7 +34,7 @@ export function applyLocalOperation(model: ForumState, write: SetStoreFunction<F
       break
     }
     case 'bans.set': write('resources', 'bans', operation.value.key, reconcile(operation.value.value)); break
-    case 'feed.set': write('resources', 'feeds', operation.value.key, reconcile(operation.value.value)); break
+    case 'history.set': write('resources', 'history', operation.value.key, reconcile(operation.value.value)); break
     case 'snapshot.set': write('resources', 'snapshots', operation.value.key, reconcile(operation.value.value)); break
     case 'secret.set': write('resources', 'secrets', operation.value.key, reconcile(operation.value.value)); break
     case 'reactionUpload.set': write('resources', 'reactions', operation.value.key, reconcile(operation.value.value)); break

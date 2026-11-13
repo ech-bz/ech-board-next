@@ -92,7 +92,7 @@ export function createController() {
       ...createUnreadCommands(model, write),
       loadBans: inspection.loadBans,
       loadSnapshot: inspection.loadSnapshot,
-      loadFeed: inspection.loadFeed,
+      loadHistory: inspection.loadHistory,
       revealSecret: secrets.revealSecret,
       receiveEvent: realtime.receiveEvent,
       cancelPosting: posting.cancel,

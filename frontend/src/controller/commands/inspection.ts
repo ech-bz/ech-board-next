@@ -7,7 +7,8 @@ import { resourceKey } from '../../model/state/resources'
 import type { Commit } from '../commit'
 import { formatDebugValue } from '../convert/debug'
 import type { ForumGateway } from '../forumGateway'
-import { fetchBans, fetchEntitySnapshot, fetchFeed } from '../io/ech/admin'
+import { fetchBans, fetchEntitySnapshot, fetchHistory } from '../io/ech/admin'
+import { convertHistory } from '../convert/history'
 
 const message = (error: unknown) => error instanceof Error ? error.message : String(error)
 
@@ -50,21 +51,21 @@ export function createInspectionCommands(model: ForumState, commit: Commit, gate
         finish(`snapshot:${key}`, request)
       }
     },
-    async loadFeed(relayUrl: string, id: string, more = false) {
-      const key = resourceKey(relayUrl, id)
-      const previous = untrack(() => model.resources.feeds[key])
+    async loadHistory(relayUrl: string, kind: EntityKind, id: string, more = false) {
+      const key = resourceKey(relayUrl, kind, id)
+      const previous = untrack(() => model.resources.history[key])
       if (more && (!previous?.next || previous.loading || previous.loadingMore)) return
-      const request = begin(`feed:${key}`)
+      const request = begin(`history:${key}`)
       const items = more ? previous.items.slice() : []
-      commit({ type: 'feed.set', value: { key, value: { items, next: more ? previous.next : null, loading: !more, loadingMore: more, error: null } } })
+      commit({ type: 'history.set', value: { key, value: { items, next: more ? previous.next : null, loading: !more, loadingMore: more, error: null } } })
       try {
-        const page = await fetchFeed(relayUrl, id, more ? previous.next : null)
-        if (!current(`feed:${key}`, request)) return
-        commit({ type: 'feed.set', value: { key, value: { items: [...items, ...page.entries], next: page.next, loading: false, loadingMore: false, error: null } } })
+        const page = await fetchHistory(relayUrl, kind, id, more ? previous.next : null)
+        if (!current(`history:${key}`, request)) return
+        commit({ type: 'history.set', value: { key, value: { items: [...items, ...page.entries.map(convertHistory)], next: page.next === null ? null : page.next.toString(), loading: false, loadingMore: false, error: null } } })
       } catch (error) {
-        if (current(`feed:${key}`, request)) commit({ type: 'feed.set', value: { key, value: { items, next: more ? previous.next : null, loading: false, loadingMore: false, error: message(error) } } })
+        if (current(`history:${key}`, request)) commit({ type: 'history.set', value: { key, value: { items, next: more ? previous.next : null, loading: false, loadingMore: false, error: message(error) } } })
       } finally {
-        finish(`feed:${key}`, request)
+        finish(`history:${key}`, request)
       }
     },
     disposeInspection() { disposed = true; requests.clear() },

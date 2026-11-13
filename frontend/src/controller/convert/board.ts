@@ -13,7 +13,7 @@ export function convertBoard(entity: BoardEntity, model: ForumState, root: strin
   const previous = model.scopes[root]?.entities.boards[EntityId.board(entity.key.slug)]
   return withDerived({
     id: EntityId.board(entity.key.slug),
-    sequence: entity.seq,
+    sequence: entity.history.length,
     slug: entity.key.slug,
     descriptionHash: value.description_hash ? convertBytes(value.description_hash, previous?.descriptionHash) : null,
     readonly: value.readonly,

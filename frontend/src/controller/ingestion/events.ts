@@ -47,7 +47,7 @@ export async function eventChanges(model: ForumState, gateway: ForumGateway, rel
     const id = toHex(fromHex(event.reaction.post))
     const post = changes.posts?.find((post) => EntityId.post(post.key.board, Number(post.key.number)) === id)
     if (post && api.identity.owns(api.root, author)) {
-      changes.myReactions = [[id, { seq: post.seq, value: event.reaction.value === null ? null : toHex(fromHex(event.reaction.value)) }]]
+      changes.myReactions = [[id, { seq: post.history.length, value: event.reaction.value === null ? null : toHex(fromHex(event.reaction.value)) }]]
     }
   }
   const { contentHashes, attachmentHashes } = requiredResources(changes)

@@ -1,5 +1,6 @@
 import { cva } from 'class-variance-authority'
 import { createEffect, createSignal, For, onCleanup, Show } from 'solid-js'
+import { type EntityKind } from '../../../model/entities/entity'
 import { resourceKey } from '../../../model/state/resources'
 import { useForumController, useForumModel } from '../../bindings/forum'
 import { useI18n } from '../../i18n'
@@ -14,11 +15,11 @@ const kindVariants = cva('mr-1 text-sm font-bold text-accent')
 const fieldsVariants = cva('text-sm text-secondary break-all')
 const bodyVariants = cva('border-t border-separator px-1.5 py-1.5 font-mono text-sm text-secondary')
 
-export function FeedView(props: { entityId: string; relayUrl: string }) {
+export function HistoryView(props: { entityId: string; kind: EntityKind; relayUrl: string }) {
   const { t } = useI18n()
   const controller = useForumController()
   const model = useForumModel()
-  const state = () => model.resources.feeds[resourceKey(props.relayUrl, props.entityId)]
+  const state = () => model.resources.history[resourceKey(props.relayUrl, props.kind, props.entityId)]
   const items = () => state()?.items ?? []
   const nextCursor = () => state()?.next ?? null
   const loading = () => state()?.loading ?? false
@@ -28,7 +29,7 @@ export function FeedView(props: { entityId: string; relayUrl: string }) {
   let sentinel: HTMLDivElement | undefined
   let scroller: HTMLDivElement | undefined
 
-  const loadMore = () => controller.loadFeed(props.relayUrl, props.entityId, true)
+  const loadMore = () => controller.loadHistory(props.relayUrl, props.kind, props.entityId, true)
 
   const toggle = (idx: number) => {
     const next = new Set(expanded())
@@ -38,7 +39,7 @@ export function FeedView(props: { entityId: string; relayUrl: string }) {
   }
 
   createEffect(() => {
-    void controller.loadFeed(props.relayUrl, props.entityId)
+    void controller.loadHistory(props.relayUrl, props.kind, props.entityId)
   })
 
   createEffect(() => {
@@ -53,14 +54,14 @@ export function FeedView(props: { entityId: string; relayUrl: string }) {
   return (
     <div ref={scroller} class={scrollVariants()}>
       <Show when={loading()}>
-        <p class={statusVariants()}>{t('feed.loading')}</p>
+        <p class={statusVariants()}>{t('history.loading')}</p>
       </Show>
       <Show when={error()}>{(message) => <div class={errorVariants()}>{message()}</div>}</Show>
       <Show when={!loading() && !error() && items().length === 0}>
-        <p class={statusVariants()}>{t('feed.noEvents')}</p>
+        <p class={statusVariants()}>{t('history.noEvents')}</p>
       </Show>
       <For each={items()}>
-        {(tx, index) => {
+        {(event, index) => {
           const isExpanded = () => expanded().has(index())
           return (
             <div class={itemVariants()}>
@@ -72,14 +73,14 @@ export function FeedView(props: { entityId: string; relayUrl: string }) {
                   toggle(index())
                 }}
               >
-                <span class={kindVariants()}>{tx.function}</span>
+                <span class={kindVariants()}>{event.function}</span>
                 <Show when={!isExpanded()}>
-                  <span class={fieldsVariants()}>{tx.txid.slice(0, 12)}… {new Date(tx.timestamp_ms).toLocaleString()}</span>
+                  <span class={fieldsVariants()}>{new Date(event.time).toLocaleString()}</span>
                 </Show>
               </div>
               <Show when={isExpanded()}>
                 <div class={bodyVariants()}>
-                  <JsonTree data={tx} />
+                  <JsonTree data={event.tx} />
                 </div>
               </Show>
             </div>
@@ -88,7 +89,7 @@ export function FeedView(props: { entityId: string; relayUrl: string }) {
       </For>
       <div ref={sentinel} style={{ height: '1px' }} />
       <Show when={loadingMore()}>
-        <p class={statusVariants()}>{t('feed.loadingMore')}</p>
+        <p class={statusVariants()}>{t('history.loadingMore')}</p>
       </Show>
     </div>
   )

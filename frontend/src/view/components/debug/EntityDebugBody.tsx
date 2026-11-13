@@ -4,7 +4,7 @@ import { type EntityObject } from '../../../model/entities/entity'
 import { resourceKey } from '../../../model/state/resources'
 import { useForumController, useForumModel } from '../../bindings/forum'
 import { useI18n } from '../../i18n'
-import { FeedView } from './FeedView'
+import { HistoryView } from './HistoryView'
 import { JsonTree } from './JsonTree'
 
 const sectionVariants = cva('mb-4')
@@ -47,9 +47,10 @@ export function EntityDebugBody(props: {
       <Show when={snapshot()} keyed>
         {(snapshot) => (
           <div class={sectionVariants()}>
-            <div class={labelVariants()}>{t('feed.eventLog')}</div>
-            <FeedView
+            <div class={labelVariants()}>{t('history.title')}</div>
+            <HistoryView
               entityId={snapshot.id}
+              kind={props.object.kind}
               relayUrl={props.relayUrl}
             />
           </div>

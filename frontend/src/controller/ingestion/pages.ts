@@ -25,7 +25,7 @@ function myReactions(posts: readonly PostEntity[], values: PostPageEntity['my_re
   const reactions = new Map([...values].map(([post, reaction]) => [toHex(post), toHex(reaction)]))
   return posts.map((post) => {
     const id = EntityId.post(post.key.board, Number(post.key.number))
-    return [id, { seq: post.seq, value: reactions.get(id) ?? null }]
+    return [id, { seq: post.history.length, value: reactions.get(id) ?? null }]
   })
 }
 
