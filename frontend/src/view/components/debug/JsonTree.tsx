@@ -4,12 +4,13 @@ import { toHex } from '../../../model/content/hex'
 
 const valueVariants = cva('break-all text-secondary')
 const contentsVariants = cva('contents')
-const rowVariants = cva('whitespace-pre-wrap break-all')
+const rowVariants = cva('whitespace-pre-wrap break-all', {
+  variants: { nested: { true: 'pl-2' } },
+})
 const indexVariants = cva('text-secondary')
 const keyVariants = cva('text-accent')
 
-export function JsonTree(props: { data: unknown; depth?: number }) {
-  const depth = () => props.depth ?? 0
+export function JsonTree(props: { data: unknown; nested?: boolean }) {
   const bytes = () => (props.data instanceof Uint8Array ? props.data : null)
   const keys = () => (props.data != null && typeof props.data === 'object' && !Array.isArray(props.data) ? Object.keys(props.data as object).filter((key) => key !== '$kind') : [])
   return (
@@ -25,9 +26,9 @@ export function JsonTree(props: { data: unknown; depth?: number }) {
               <span class={contentsVariants()}>
                 <For each={keys()}>
                   {(key) => (
-                    <div class={rowVariants()} style={{ 'padding-left': `${depth() * 4}px` }}>
+                    <div class={rowVariants({ nested: props.nested })}>
                       <span class={keyVariants()}>{key}:</span>{' '}
-                      <JsonTree data={(props.data as Record<string, unknown>)[key]} depth={depth() + 1} />
+                      <JsonTree data={(props.data as Record<string, unknown>)[key]} nested />
                     </div>
                   )}
                 </For>
@@ -39,8 +40,8 @@ export function JsonTree(props: { data: unknown; depth?: number }) {
             <span class={contentsVariants()}>
               <For each={props.data as unknown[]}>
                 {(item, index) => (
-                  <div class={rowVariants()} style={{ 'padding-left': `${depth() * 4}px` }}>
-                    <span class={indexVariants()}>[{index()}]</span> <JsonTree data={item} depth={depth() + 1} />
+                  <div class={rowVariants({ nested: props.nested })}>
+                    <span class={indexVariants()}>[{index()}]</span> <JsonTree data={item} nested />
                   </div>
                 )}
               </For>
