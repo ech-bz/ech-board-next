@@ -2,7 +2,7 @@ import type { Thread } from '../../model/entities/thread'
 
 import type { Post } from '../../model/entities/post'
 import { canBanById, canSelectAllFromAuthor, type BanScope } from '../../model/rules/permissions'
-import { useForumQueries } from '../bindings/forum'
+import { useForumController, useForumQueries } from '../bindings/forum'
 import { useEntityActions } from '../entityActions'
 import { useI18n } from '../i18n'
 import { usePostSelection } from '../postSelection/PostSelectionProvider'
@@ -13,10 +13,12 @@ export function PostMenu(props: { post: Post; closed: boolean; threadObject?: Th
   const { t } = useI18n()
   const actions = useEntityActions()
   const read = useForumQueries()
+  const controller = useForumController()
   const selection = usePostSelection()
   const items = (): MenuItem[] => {
     const rec = props.post
     const result: MenuItem[] = []
+    if (rec.author) result.push({ label: t('history.author'), onClick: () => controller.openAuthorHistory(rec.author!) })
     if (props.onEdit && rec.canEdit) result.push({ label: t('mod.edit'), onClick: () => props.onEdit?.(rec.id) })
     const author = (): MenuItem => ({ label: t('mod.selectAllFromAuthor'), onClick: () => selection?.selectAllFromAuthor(rec, rec.threadId) })
     if (rec.op) {

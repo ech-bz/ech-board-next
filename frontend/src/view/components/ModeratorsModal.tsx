@@ -6,6 +6,7 @@ import type { Moderators } from '../../model/rules/roles'
 import { useI18n } from '../i18n'
 import type { MessageKey } from '../i18n/ru'
 import { Modal } from './Modal'
+import { Button } from './Button'
 
 const groupVariants = cva('mb-4 last:mb-0')
 const groupLabelVariants = cva('mb-1.5 font-bold')
@@ -53,11 +54,12 @@ export function ModeratorsModal(props: { moderators: Moderators; onClose: () => 
               <div class={listVariants()}>
                 <For each={group.items}>
                   {(address) => (
-                    <div class={listItemVariants()} title={t('settings.copy')} onClick={() => void copy(address)}>
-                      <span>{address}</span>
+                    <div class={listItemVariants()}>
+                      <span class="min-w-0" title={t('settings.copy')} onClick={() => void copy(address)}>{address}</span>
                       <Show when={copied() === address}>
                         <span class={copiedVariants()}>{t('settings.copied')}</span>
                       </Show>
+                      <Button size="xs" class="flex-none" onClick={() => controller.openAuthorHistory(address)}>{t('history.title')}</Button>
                     </div>
                   )}
                 </For>

@@ -6,6 +6,7 @@ import { canBoardCore, canBoardSettings, roleForForumSettings, type BanScope } f
 import type { RoleKind, RoleOption } from '../model/rules/roles'
 import { useForumController, useForumModel, useForumQueries } from './bindings/forum'
 import { BanModal } from './components/BanModal'
+import { AuthorHistoryModal } from './components/AuthorHistoryModal'
 import { BansModal } from './components/BansModal'
 import { BoardSettingsModal } from './components/BoardSettingsModal'
 import { CreateBoardModal } from './components/CreateBoardModal'
@@ -142,6 +143,9 @@ export function ModalsProvider(props: { roles: RoleOption[]; relayUrl: string; c
             onClose={() => controller.closeDialog('logs')}
           />
         )}
+      </Show>
+      <Show when={model.dialogs.authorHistory !== null}>
+        <AuthorHistoryModal esid={model.dialogs.authorHistory ?? ''} relayUrl={props.relayUrl} onClose={() => controller.closeDialog('authorHistory')} />
       </Show>
       <Show when={boardSettings() && read.boardObject() && read.info()}>
         <BoardSettingsModal
