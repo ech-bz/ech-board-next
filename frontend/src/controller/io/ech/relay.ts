@@ -35,7 +35,7 @@ import {
 } from './protocol/transactions'
 
 const CONTENT_TYPE = 'application/octet-stream'
-export const NO_REQUESTS: UserRequests = { geo: false, trip: false }
+export const NO_REQUESTS: UserRequests = { geo: false, trip: false, postcount: false }
 const BASE = `${SERVER_URL}/api`
 
 export type Relay = {

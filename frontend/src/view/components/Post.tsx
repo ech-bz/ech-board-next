@@ -262,6 +262,12 @@ export function PostBody(props: {
           </button>
         </div>
       </Show>
+      <Show when={props.post.postcount !== null}>
+        <div class={'mt-5 text-secondary italic'}>{t('post.postcount', {
+          n: props.post.postcount?.toString() ?? '',
+          threads: props.post.threadcount?.toString() ?? '',
+        })}</div>
+      </Show>
       <Show when={props.post.banned}>
         <div class={'mt-5 text-warn italic'}>{t('post.authorBanned')}</div>
       </Show>
