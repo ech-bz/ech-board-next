@@ -55,7 +55,7 @@ impl WriteBatch {
         );
         crate::payloads().insert(id, &raw)?;
         if T::PUBLIC {
-            crate::change(T::NAMESPACE, *id, raw.into_vec());
+            crate::change(T::NAMESPACE, *id);
         }
         Ok(())
     }

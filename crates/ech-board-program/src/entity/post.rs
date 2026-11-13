@@ -58,7 +58,7 @@ impl Post {
         name_hash: Option<Hash>,
         vote_keys: Vec<Hash>,
         multi_vote: bool,
-    ) -> Result<Entity<Post>> {
+    ) -> Result<PostKey> {
         let user = User::record_post()?;
         Thread::gate(thread)?;
         let forum = Forum::current()?;
@@ -128,7 +128,7 @@ impl Post {
         }
         writes.save(thread)?;
         writes.save(board)?;
-        Ok(post)
+        Ok(post.key)
     }
 
     pub(crate) fn import(
@@ -139,7 +139,7 @@ impl Post {
         name_hash: Option<Hash>,
         deleted: bool,
         edited: bool,
-    ) -> Result<Entity<Post>> {
+    ) -> Result<PostKey> {
         if !Context::is_server()? {
             return Err(ForumError::NotAuthorized);
         }
@@ -190,7 +190,7 @@ impl Post {
         }
         writes.save(thread)?;
         writes.save(board)?;
-        Ok(post)
+        Ok(post.key)
     }
 
     pub(crate) fn my_reactions<'a>(
@@ -213,11 +213,7 @@ impl Post {
             .collect())
     }
 
-    pub(crate) fn set_media(
-        post: &mut Entity<Post>,
-        hashes: Vec<Hash>,
-        ban: bool,
-    ) -> Result<&Entity<Post>> {
+    pub(crate) fn set_media(post: &mut Entity<Post>, hashes: Vec<Hash>, ban: bool) -> Result<()> {
         Self::gate(post)?;
         let forum = Forum::current()?;
         let board = Board::open(post.key.board.clone())?;
@@ -249,7 +245,7 @@ impl Post {
             }
         }
         post.save()?;
-        Ok(post)
+        Ok(())
     }
 
     pub(crate) fn gate(post: &Entity<Post>) -> Result<()> {
@@ -270,10 +266,7 @@ impl Post {
         })
     }
 
-    pub(crate) fn set_text(
-        post: &mut Write<Post>,
-        text_hash: Option<Hash>,
-    ) -> Result<&Entity<Post>> {
+    pub(crate) fn set_text(post: &mut Write<Post>, text_hash: Option<Hash>) -> Result<()> {
         Self::gate(post)?;
         let forum = Forum::current()?;
         let board = Board::open(post.key.board.clone())?;
@@ -288,10 +281,10 @@ impl Post {
         } else {
             post.save()?;
         }
-        Ok(post)
+        Ok(())
     }
 
-    pub(crate) fn set_deleted(post: &mut Write<Post>, deleted: bool) -> Result<&Entity<Post>> {
+    pub(crate) fn set_deleted(post: &mut Write<Post>, deleted: bool) -> Result<()> {
         Self::gate(post)?;
         let forum = Forum::current()?;
         let board = Board::open(post.key.board.clone())?;
@@ -313,10 +306,10 @@ impl Post {
         }
         thread.save()?;
         post.save()?;
-        Ok(post)
+        Ok(())
     }
 
-    pub(crate) fn vote(post: &mut Write<Post>, choices: Vec<Hash>) -> Result<&Entity<Post>> {
+    pub(crate) fn vote(post: &mut Write<Post>, choices: Vec<Hash>) -> Result<()> {
         Self::gate(post)?;
         let sid = Context::author_sid()?;
         Thread::open(post.key.board.clone(), post.thread)?;
@@ -342,14 +335,10 @@ impl Post {
         }
         post.voted.insert(&sid, &choices)?;
         post.save()?;
-        Ok(post)
+        Ok(())
     }
 
-    pub(crate) fn react(
-        post: &mut Write<Post>,
-        old: Option<Hash>,
-        reaction: Hash,
-    ) -> Result<&Entity<Post>> {
+    pub(crate) fn react(post: &mut Write<Post>, old: Option<Hash>, reaction: Hash) -> Result<()> {
         Self::gate(post)?;
         let sid = Context::author_sid()?;
         let board = Board::open(post.key.board.clone())?;
@@ -393,21 +382,18 @@ impl Post {
             post.reacted.insert(&sid, &reaction)?;
         }
         post.save()?;
-        Ok(post)
+        Ok(())
     }
 
-    pub(crate) fn ban_media(post: &mut Write<Post>, hashes: Vec<Hash>) -> Result<&Entity<Post>> {
+    pub(crate) fn ban_media(post: &mut Write<Post>, hashes: Vec<Hash>) -> Result<()> {
         Self::set_media(post, hashes, true)
     }
 
-    pub(crate) fn unban_media(post: &mut Write<Post>, hashes: Vec<Hash>) -> Result<&Entity<Post>> {
+    pub(crate) fn unban_media(post: &mut Write<Post>, hashes: Vec<Hash>) -> Result<()> {
         Self::set_media(post, hashes, false)
     }
 
-    pub(crate) fn set_banned(
-        post: &mut Write<Post>,
-        banned: Option<Esid>,
-    ) -> Result<&Entity<Post>> {
+    pub(crate) fn set_banned(post: &mut Write<Post>, banned: Option<Esid>) -> Result<()> {
         Self::gate(post)?;
         let forum = Forum::current()?;
         let board = Board::open(post.key.board.clone())?;
@@ -417,13 +403,10 @@ impl Post {
         }
         post.banned = banned;
         post.save()?;
-        Ok(post)
+        Ok(())
     }
 
-    pub(crate) fn set_mod_note(
-        post: &mut Write<Post>,
-        value: Option<Hash>,
-    ) -> Result<&Entity<Post>> {
+    pub(crate) fn set_mod_note(post: &mut Write<Post>, value: Option<Hash>) -> Result<()> {
         Self::gate(post)?;
         let forum = Forum::current()?;
         let board = Board::open(post.key.board.clone())?;
@@ -433,6 +416,6 @@ impl Post {
         }
         post.mod_note_hash = value;
         post.save()?;
-        Ok(post)
+        Ok(())
     }
 }

@@ -47,14 +47,14 @@ impl Forum {
         Ok(false)
     }
 
-    pub(crate) fn create() -> Result<Entity<Forum>> {
+    pub(crate) fn create() -> Result<ForumKey> {
         if !Context::is_server()? {
             return Err(ForumError::NotAuthorized);
         }
         if Entity::<Self>::load(&ForumKey {}).is_ok() {
             return Err(ForumError::ForumExists);
         }
-        let forum = Entity::<Self>::insert(
+        Entity::<Self>::insert(
             ForumKey {},
             Forum::from(ForumV1 {
                 title_hash: None,
@@ -63,7 +63,7 @@ impl Forum {
                 boards: BigLog::new(),
             }),
         )?;
-        Ok(forum)
+        Ok(ForumKey {})
     }
 
     pub(crate) fn current() -> Result<Entity<Forum>> {
@@ -85,17 +85,17 @@ impl Forum {
         })
     }
 
-    pub(crate) fn set_title(forum: &mut Write<Forum>, title_hash: Hash) -> Result<&Entity<Forum>> {
+    pub(crate) fn set_title(forum: &mut Write<Forum>, title_hash: Hash) -> Result<()> {
         Bans::gate(&[&forum.bans])?;
         if !forum.is_moderator()? {
             return Err(ForumError::NotAuthorized);
         }
         forum.title_hash = Some(title_hash);
         forum.save()?;
-        Ok(forum)
+        Ok(())
     }
 
-    pub(crate) fn add_moderator(forum: &mut Write<Forum>, member: Esid) -> Result<&Entity<Forum>> {
+    pub(crate) fn add_moderator(forum: &mut Write<Forum>, member: Esid) -> Result<()> {
         Bans::gate(&[&forum.bans])?;
         if !Context::is_server()? {
             return Err(ForumError::NotAuthorized);
@@ -104,20 +104,17 @@ impl Forum {
             forum.moderators.push(member);
         }
         forum.save()?;
-        Ok(forum)
+        Ok(())
     }
 
-    pub(crate) fn remove_moderator(
-        forum: &mut Write<Forum>,
-        member: Esid,
-    ) -> Result<&Entity<Forum>> {
+    pub(crate) fn remove_moderator(forum: &mut Write<Forum>, member: Esid) -> Result<()> {
         Bans::gate(&[&forum.bans])?;
         if !Context::is_server()? {
             return Err(ForumError::NotAuthorized);
         }
         forum.moderators.retain(|entry| *entry != member);
         forum.save()?;
-        Ok(forum)
+        Ok(())
     }
 
     pub(crate) fn ban(
@@ -125,7 +122,7 @@ impl Forum {
         target: Esid,
         reason_hash: Option<Hash>,
         expires: u64,
-    ) -> Result<Vec<(Esid, BanValue)>> {
+    ) -> Result<()> {
         Bans::gate(&[&forum.bans])?;
         if !forum.is_moderator()? {
             return Err(ForumError::NotAuthorized);
@@ -142,17 +139,17 @@ impl Forum {
                 expires,
             },
         )?;
-        forum.bans.entries(None, 32)
+        Ok(())
     }
 
-    pub(crate) fn unban(forum: &mut Write<Forum>, target: Esid) -> Result<Vec<(Esid, BanValue)>> {
+    pub(crate) fn unban(forum: &mut Write<Forum>, target: Esid) -> Result<()> {
         Bans::gate(&[&forum.bans])?;
         if !forum.is_moderator()? {
             return Err(ForumError::NotAuthorized);
         }
         let sid = Context::sid(&target)?;
         forum.bans.unban(&target, &sid)?;
-        forum.bans.entries(None, 32)
+        Ok(())
     }
 
     pub(crate) fn ban_list(

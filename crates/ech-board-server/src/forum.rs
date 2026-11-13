@@ -91,6 +91,18 @@ impl Forum {
             .map_err(|_| DomainError::BadRequest("forum id".to_string()))
     }
 
+    pub async fn entities(
+        &self,
+        changes: &[ech_board_entity::Changed],
+    ) -> Result<Vec<Vec<u8>>, DomainError> {
+        let input: Vec<(String, [u8; 32])> = changes
+            .iter()
+            .map(|change| (change.namespace.clone(), change.id))
+            .collect();
+        let bytes = self.call("debug.entities", bcs::to_bytes(&input)?).await?;
+        Ok(bcs::from_bytes(&bytes)?)
+    }
+
     pub async fn ensure(&self) -> Result<(), DomainError> {
         match self.execute("forum.create", Vec::new()).await {
             Ok(_) => Ok(()),

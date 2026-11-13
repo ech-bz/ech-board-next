@@ -126,7 +126,7 @@ impl Thread {
         vote_keys: Vec<Hash>,
         multi_vote: bool,
         self_admin: bool,
-    ) -> Result<Entity<Thread>> {
+    ) -> Result<ThreadKey> {
         User::record_thread()?;
         if board.max_media != 0 && media_hashes.is_empty() {
             return Err(ForumError::PostRequiresMedia);
@@ -176,7 +176,7 @@ impl Thread {
             vote_keys,
             multi_vote,
         )?;
-        Ok(thread.into_inner())
+        Ok(thread.key.clone())
     }
 
     pub(crate) fn import(
@@ -187,7 +187,7 @@ impl Thread {
         name_hash: Option<Hash>,
         closed: bool,
         deleted: bool,
-    ) -> Result<Entity<Thread>> {
+    ) -> Result<ThreadKey> {
         if !Context::is_server()? {
             return Err(ForumError::NotAuthorized);
         }
@@ -231,7 +231,7 @@ impl Thread {
             deleted,
             false,
         )?;
-        Ok(thread.into_inner())
+        Ok(thread.key.clone())
     }
 
     pub(crate) fn previews(threads: Vec<Entity<Thread>>) -> Result<Vec<ThreadPreview>> {
@@ -338,7 +338,7 @@ impl Thread {
         };
         Ok(page)
     }
-    pub(crate) fn set_closed(thread: &mut Write<Thread>, value: bool) -> Result<&Entity<Thread>> {
+    pub(crate) fn set_closed(thread: &mut Write<Thread>, value: bool) -> Result<()> {
         Self::gate(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
@@ -347,10 +347,10 @@ impl Thread {
         }
         thread.closed = value;
         thread.save()?;
-        Ok(thread)
+        Ok(())
     }
 
-    pub(crate) fn set_pinned(thread: &mut Write<Thread>, value: bool) -> Result<&Entity<Thread>> {
+    pub(crate) fn set_pinned(thread: &mut Write<Thread>, value: bool) -> Result<()> {
         Self::gate(thread)?;
         let forum = Forum::current()?;
         let mut board = Board::open(thread.key.board.clone())?;
@@ -365,10 +365,10 @@ impl Thread {
         thread.pinned = value;
         board.save()?;
         thread.save()?;
-        Ok(thread)
+        Ok(())
     }
 
-    pub(crate) fn set_deleted(thread: &mut Write<Thread>, value: bool) -> Result<&Entity<Thread>> {
+    pub(crate) fn set_deleted(thread: &mut Write<Thread>, value: bool) -> Result<()> {
         Self::gate(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
@@ -377,13 +377,10 @@ impl Thread {
         }
         thread.deleted = value;
         thread.save()?;
-        Ok(thread)
+        Ok(())
     }
 
-    pub(crate) fn set_topic(
-        thread: &mut Write<Thread>,
-        value: Option<Hash>,
-    ) -> Result<&Entity<Thread>> {
+    pub(crate) fn set_topic(thread: &mut Write<Thread>, value: Option<Hash>) -> Result<()> {
         Self::gate(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
@@ -392,13 +389,10 @@ impl Thread {
         }
         thread.topic_hash = value;
         thread.save()?;
-        Ok(thread)
+        Ok(())
     }
 
-    pub(crate) fn set_admin(
-        thread: &mut Write<Thread>,
-        value: Option<Esid>,
-    ) -> Result<&Entity<Thread>> {
+    pub(crate) fn set_admin(thread: &mut Write<Thread>, value: Option<Esid>) -> Result<()> {
         Self::gate(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
@@ -407,13 +401,10 @@ impl Thread {
         }
         thread.admin = value;
         thread.save()?;
-        Ok(thread)
+        Ok(())
     }
 
-    pub(crate) fn add_moderator(
-        thread: &mut Write<Thread>,
-        member: Esid,
-    ) -> Result<&Entity<Thread>> {
+    pub(crate) fn add_moderator(thread: &mut Write<Thread>, member: Esid) -> Result<()> {
         Self::gate(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
@@ -424,13 +415,10 @@ impl Thread {
             thread.moderators.push(member);
         }
         thread.save()?;
-        Ok(thread)
+        Ok(())
     }
 
-    pub(crate) fn remove_moderator(
-        thread: &mut Write<Thread>,
-        member: Esid,
-    ) -> Result<&Entity<Thread>> {
+    pub(crate) fn remove_moderator(thread: &mut Write<Thread>, member: Esid) -> Result<()> {
         Self::gate(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
@@ -439,7 +427,7 @@ impl Thread {
         }
         thread.moderators.retain(|entry| *entry != member);
         thread.save()?;
-        Ok(thread)
+        Ok(())
     }
 
     pub(crate) fn ban(
@@ -447,7 +435,7 @@ impl Thread {
         target: Esid,
         reason_hash: Option<Hash>,
         expires: u64,
-    ) -> Result<Vec<(Esid, BanValue)>> {
+    ) -> Result<()> {
         Self::gate(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
@@ -466,10 +454,10 @@ impl Thread {
                 expires,
             },
         )?;
-        thread.bans.entries(None, 32)
+        Ok(())
     }
 
-    pub(crate) fn unban(thread: &mut Write<Thread>, target: Esid) -> Result<Vec<(Esid, BanValue)>> {
+    pub(crate) fn unban(thread: &mut Write<Thread>, target: Esid) -> Result<()> {
         Self::gate(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
@@ -478,7 +466,7 @@ impl Thread {
         }
         let sid = Context::sid(&target)?;
         thread.bans.unban(&target, &sid)?;
-        thread.bans.entries(None, 32)
+        Ok(())
     }
 
     pub(crate) fn ban_list(
