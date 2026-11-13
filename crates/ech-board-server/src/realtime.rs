@@ -143,53 +143,27 @@ impl Hub {
         Ok((contents, attachments))
     }
 
-    async fn scope(
-        &self,
-        forum: &ForumApi,
-        function: &str,
-        args: &[u8],
-        entities: &[EntityPayload],
-    ) -> Result<(String, String), DomainError> {
-        let Some(id) = args
-            .get(..32)
-            .and_then(|bytes| <[u8; 32]>::try_from(bytes).ok())
-        else {
-            return Ok((String::new(), String::new()));
-        };
-        let scope = match function.split_once('.').map(|(namespace, _)| namespace) {
-            Some("board") if function == "board.create_post" => {
-                let board = event_entity::<Board>(forum, entities, &id).await?;
-                let number = args
-                    .get(32..40)
-                    .ok_or_else(|| DomainError::BadRequest("missing thread number".into()))?;
-                let thread = Thread::id(&ThreadKey {
-                    number: bcs::from_bytes(number)?,
-                    board: board.key.slug,
-                });
-                (hex_of(&id), hex_of(&thread))
-            }
-            Some("board") => (hex_of(&id), String::new()),
-            Some("thread") => {
-                let thread = event_entity::<Thread>(forum, entities, &id).await?;
-                let board = Board::id(&BoardKey {
-                    slug: thread.key.board,
-                });
-                (hex_of(&board), hex_of(&id))
-            }
-            Some("post") => {
-                let post = event_entity::<Post>(forum, entities, &id).await?;
-                let board = Board::id(&BoardKey {
-                    slug: post.key.board.clone(),
-                });
-                let thread = Thread::id(&ThreadKey {
-                    number: post.thread,
-                    board: post.key.board,
-                });
-                (hex_of(&board), hex_of(&thread))
-            }
-            _ => (String::new(), String::new()),
-        };
-        Ok(scope)
+    fn scope(&self, entities: &[EntityPayload]) -> Result<(String, String), DomainError> {
+        if let Some(post) = changed_entity::<Post>(entities)? {
+            let board = Board::id(&BoardKey {
+                slug: post.value.key.board.clone(),
+            });
+            let thread = Thread::id(&ThreadKey {
+                number: post.value.thread,
+                board: post.value.key.board,
+            });
+            return Ok((hex_of(&board), hex_of(&thread)));
+        }
+        if let Some(thread) = changed_entity::<Thread>(entities)? {
+            let board = Board::id(&BoardKey {
+                slug: thread.value.key.board.clone(),
+            });
+            return Ok((hex_of(&board), thread.id));
+        }
+        if let Some(board) = changed_entity::<Board>(entities)? {
+            return Ok((board.id, String::new()));
+        }
+        Ok((String::new(), String::new()))
     }
 
     pub fn spawn(self: &Arc<Self>, forum: Arc<ForumApi>, content: Arc<Store>) {
@@ -224,19 +198,16 @@ impl Hub {
                                 continue;
                             }
                             idle = false;
+                            cursor = Some(txid);
                             let queue_ms = received.elapsed().as_secs_f64() * 1000.0;
                             let function = record.tx.user.call.function.clone();
                             let entities = changed(&record.result);
                             let scope_started = Instant::now();
-                            let (board, thread) = match hub
-                                .scope(&forum, &function, &record.tx.user.call.args, &entities)
-                                .await
-                            {
+                            let (board, thread) = match hub.scope(&entities) {
                                 Ok(scope) => scope,
                                 Err(error) => {
                                     tracing::warn!(%error, %txid, %function, "journal scope");
-                                    tokio::time::sleep(Duration::from_secs(1)).await;
-                                    break;
+                                    continue;
                                 }
                             };
                             let scope_ms = scope_started.elapsed().as_secs_f64() * 1000.0;
@@ -248,8 +219,7 @@ impl Hub {
                                 Ok(resources) => resources,
                                 Err(error) => {
                                     tracing::warn!(%error, %txid, %function, "journal resources");
-                                    tokio::time::sleep(Duration::from_secs(1)).await;
-                                    break;
+                                    continue;
                                 }
                             };
                             let resources_ms = resources_started.elapsed().as_secs_f64() * 1000.0;
@@ -268,8 +238,7 @@ impl Hub {
                                 Ok(reaction) => reaction,
                                 Err(error) => {
                                     tracing::warn!(%error, %txid, "journal reaction");
-                                    tokio::time::sleep(Duration::from_secs(1)).await;
-                                    break;
+                                    continue;
                                 }
                             };
                             hub.publish(Event {
@@ -282,7 +251,6 @@ impl Hub {
                                 contents,
                                 attachments,
                             });
-                            cursor = Some(txid);
                         }
                         if idle {
                             tokio::time::sleep(Duration::from_millis(50)).await;
@@ -298,30 +266,27 @@ impl Hub {
     }
 }
 
-async fn event_entity<T: Stored>(
-    forum: &ForumApi,
-    entities: &[EntityPayload],
-    id: &[u8; 32],
-) -> Result<Entity<T>, DomainError> {
-    let id_hex = hex_of(id);
-    let bytes = match entities
-        .iter()
-        .find(|entity| entity.kind == T::NAMESPACE && entity.id == id_hex)
-    {
-        Some(entity) => {
-            hex::decode(&entity.value).map_err(|error| DomainError::Store(error.to_string()))?
-        }
-        None => {
-            forum
-                .call("debug.entity", to_bytes(&(T::NAMESPACE, *id))?)
-                .await?
-        }
-    };
-    Ok(bcs::from_bytes(&bytes)?)
-}
-
 fn hex_of(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+struct ChangedEntity<T: Stored> {
+    id: String,
+    value: Entity<T>,
+}
+
+fn changed_entity<T: Stored>(
+    entities: &[EntityPayload],
+) -> Result<Option<ChangedEntity<T>>, DomainError> {
+    let Some(entity) = entities.iter().find(|entity| entity.kind == T::NAMESPACE) else {
+        return Ok(None);
+    };
+    let bytes =
+        hex::decode(&entity.value).map_err(|error| DomainError::Store(error.to_string()))?;
+    Ok(Some(ChangedEntity {
+        id: entity.id.clone(),
+        value: bcs::from_bytes(&bytes)?,
+    }))
 }
 
 fn changed(result: &[u8]) -> Vec<EntityPayload> {
