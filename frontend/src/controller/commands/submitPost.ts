@@ -8,7 +8,7 @@ import { makePostResolver } from '../content/postResolver'
 import type { ForumGateway } from '../forumGateway'
 import { Calls } from '../io/ech/forumApi'
 import { EntityId } from '../io/ech/protocol/entityId'
-import { PostEntitySchema, ThreadEntitySchema } from '../io/ech/protocol/entities'
+import { PostKeySchema, ThreadKeySchema } from '../io/ech/protocol/entities'
 import { randomTweak } from '../io/crypto/identity'
 import { serializePostParts } from '../io/ech/protocol/types'
 import * as relayApi from '../io/ech/relay'
@@ -132,7 +132,7 @@ export async function submitNewThread(
     { geo: form.withFlag, trip: trip !== null, postcount },
     trip,
   )
-  return { thread: Number(ThreadEntitySchema.parse(result.result).key.number) }
+  return { thread: Number(ThreadKeySchema.parse(result.result).number) }
 }
 
 export async function submitReply(
@@ -152,5 +152,5 @@ export async function submitReply(
     { geo: form.withFlag, trip: trip !== null, postcount },
     trip,
   )
-  return { post: Number(PostEntitySchema.parse(result.result).key.number) }
+  return { post: Number(PostKeySchema.parse(result.result).number) }
 }

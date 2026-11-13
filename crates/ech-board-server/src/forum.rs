@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-use ech_board_entity::{Entity, Output};
+use ech_board_entity::{Changed, Entity, Output};
 use ech_board_program::context::{ServerContext, Tripcode, UserRequests};
 use ech_board_program::entity::Forum as ForumEntity;
 use ech_board_program::error::ForumError;
@@ -91,10 +91,7 @@ impl Forum {
             .map_err(|_| DomainError::BadRequest("forum id".to_string()))
     }
 
-    pub async fn entities(
-        &self,
-        changes: &[ech_board_entity::Changed],
-    ) -> Result<Vec<Vec<u8>>, DomainError> {
+    pub async fn entities(&self, changes: &[Changed]) -> Result<Vec<Vec<u8>>, DomainError> {
         let input: Vec<(String, [u8; 32])> = changes
             .iter()
             .map(|change| (change.namespace.clone(), change.id))
