@@ -128,7 +128,7 @@ export class Identity {
     const { x, r } = this.scalars(root, tweak)
     const esid = this.esid(root, tweak)
     const statement = this.statement(root, esid)
-    const context = UserContext.serialize([root, ctx, call]).toBytes()
+    const context = UserContext.serialize([root, tweak, ctx, call]).toBytes()
     const alpha = randomScalar()
     const beta = randomScalar()
     const anchor = point(root)
