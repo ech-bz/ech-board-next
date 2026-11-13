@@ -62,7 +62,10 @@ export function createInspectionCommands(model: ForumState, commit: Commit, gate
       try {
         const page = await fetchHistory(relayUrl, kind, id, more ? previous.next : null)
         if (!current(`history:${key}`, request)) return
-        commit({ type: 'history.set', value: { key, value: { items: [...items, ...page.entries.map(convertHistory)], next: page.next, loading: false, loadingMore: false, error: null } } })
+        const lastNumber = items.at(-1)?.number ?? null
+        const firstNumber = more ? (lastNumber === null ? null : lastNumber - 1n) : page.length
+        const entries = page.entries.map((tx, index) => convertHistory(tx, firstNumber === null ? null : firstNumber - BigInt(index)))
+        commit({ type: 'history.set', value: { key, value: { items: [...items, ...entries], next: page.next, loading: false, loadingMore: false, error: null } } })
       } catch (error) {
         if (current(`history:${key}`, request)) commit({ type: 'history.set', value: { key, value: { items, next: more ? previous.next : null, loading: false, loadingMore: false, error: message(error) } } })
       } finally {

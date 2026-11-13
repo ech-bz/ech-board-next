@@ -73,7 +73,10 @@ export function HistoryView(props: { entityId: string; kind: HistoryKind; relayU
                   toggle(index())
                 }}
               >
-                <span class={kindVariants()}>{event.function}</span>
+                <span class={kindVariants()}>
+                  <Show when={event.number !== null}>#{event.number?.toString()} </Show>
+                  {event.function}
+                </span>
                 <Show when={!isExpanded()}>
                   <span class={fieldsVariants()}>{new Date(event.time).toLocaleString()}</span>
                 </Show>

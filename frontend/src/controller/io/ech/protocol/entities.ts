@@ -127,12 +127,14 @@ export const ForumEntitySchema = entity(ForumKeySchema, enumeration('Forum', { V
 export const HistoryPageSchema = struct('HistoryPage', {
   entries: bcs.vector(TxSchema),
   next: bcs.option(bcs.u64().transform({ input: (value: bigint) => value, output: (value) => BigInt(value) })),
+  length: bcs.u64().transform({ input: (value: bigint) => value, output: (value) => BigInt(value) }),
 })
 export type HistoryPage = typeof HistoryPageSchema.$inferType
 
 export const AuthorHistoryPageSchema = struct('AuthorHistoryPage', {
   entries: bcs.vector(TxSchema),
   next: bcs.option(Hash),
+  length: bcs.option(bcs.u64().transform({ input: (value: bigint) => value, output: (value) => BigInt(value) })),
 })
 
 const schemas = {
