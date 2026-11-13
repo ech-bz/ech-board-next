@@ -16,14 +16,14 @@ use crate::types::{Esid, Hash, EDIT_WINDOW_MS};
 
 pub const PAGE_POSTS: u64 = 1024;
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
+#[derive(Bind, Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub struct ThreadKey {
     pub number: u64,
     pub board: String,
 }
 
 #[entity(ThreadKey)]
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
+#[derive(Bind, Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub enum Thread {
     V1(ThreadV1),
 }

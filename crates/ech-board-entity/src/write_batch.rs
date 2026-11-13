@@ -1,4 +1,4 @@
-use crate::{Entity, Result, Stored};
+use crate::{Bind, Entity, Result, Stored};
 
 pub struct WriteBatch {
     #[cfg(target_arch = "wasm32")]
@@ -29,15 +29,15 @@ impl WriteBatch {
         Ok(Self { write, sequences })
     }
 
-    pub fn insert<T: Stored>(&mut self, key: T::Key, mut value: T) -> Result<Entity<T>> {
+    pub fn insert<T: Stored>(&mut self, key: T::Key, value: T) -> Result<Entity<T>> {
         let id = T::id(&key);
-        value.attach(&id);
-        let entity = Entity {
+        let mut entity = Entity {
             genesis: self.write.tx.clone(),
             key,
             value,
             seq: self.sequence(&id)?,
         };
+        entity.bind(&id);
         self.store(&id, &entity)?;
         crate::types(T::NAMESPACE).insert(&id)?;
         Ok(entity)

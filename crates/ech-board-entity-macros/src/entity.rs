@@ -81,11 +81,6 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
     let arms = versions.iter().map(|(ident, version, _)| {
         quote! { Self::#ident(_) => #version, }
     });
-    let attaches = versions.iter().map(|(ident, _, _)| {
-        quote! {
-            Self::#ident(value) => ::ech_board_entity::Bind::bind(value, id),
-        }
-    });
     let single = if versions.len() == 1 {
         Some(versions[0].2.clone())
     } else {
@@ -164,12 +159,6 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
             fn version(&self) -> u32 {
                 match self {
                     #(#arms)*
-                }
-            }
-
-            fn attach(&mut self, id: &[u8; 32]) {
-                match self {
-                    #(#attaches)*
                 }
             }
 

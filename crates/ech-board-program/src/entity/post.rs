@@ -11,14 +11,14 @@ use crate::entity::{Board, Forum, Read, Thread, Write};
 use crate::error::{ForumError, Result};
 use crate::types::{Esid, Hash, Sid};
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
+#[derive(Bind, Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub struct PostKey {
     pub number: u64,
     pub board: String,
 }
 
 #[entity(PostKey)]
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
+#[derive(Bind, Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub enum Post {
     V1(PostV1),
 }

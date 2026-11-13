@@ -9,11 +9,11 @@ use crate::entity::{Board, BoardKey, Read, Write};
 use crate::error::{ForumError, Result};
 use crate::types::{Esid, Hash};
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
+#[derive(Bind, Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub struct ForumKey {}
 
 #[entity(ForumKey)]
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
+#[derive(Bind, Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub enum Forum {
     V1(ForumV1),
 }

@@ -15,13 +15,13 @@ use crate::types::{Esid, Hash};
 const PAGE_THREADS: usize = 20;
 const PINNED_LIMIT: usize = 8;
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
+#[derive(Bind, Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub struct BoardKey {
     pub slug: String,
 }
 
 #[entity(BoardKey)]
-#[derive(Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
+#[derive(Bind, Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub enum Board {
     V1(BoardV1),
 }

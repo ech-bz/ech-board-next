@@ -1,5 +1,9 @@
 pub use ech_board_entity_macros::entity;
+#[doc(hidden)]
 pub use ech_db_guest::Bind;
+pub use ech_db_guest::GuestError;
+#[doc(hidden)]
+pub use serde;
 
 pub mod call;
 pub mod profile;
@@ -37,8 +41,8 @@ pub trait Upgrade<Next> {
     fn upgrade(&self) -> Result<Next>;
 }
 
-pub trait Stored: Serialize + DeserializeOwned + Clone + Sized {
-    type Key: Serialize + DeserializeOwned + Clone;
+pub trait Stored: Bind + Serialize + DeserializeOwned + Clone + Sized {
+    type Key: Bind + Serialize + DeserializeOwned + Clone;
 
     const NAMESPACE: &'static str;
     const CURRENT: u32;
@@ -48,8 +52,6 @@ pub trait Stored: Serialize + DeserializeOwned + Clone + Sized {
     }
 
     fn version(&self) -> u32;
-
-    fn attach(&mut self, id: &[u8; 32]);
 
     fn migrate(&self) -> Result<Self>;
 }
@@ -139,7 +141,7 @@ fn change(namespace: &str, id: [u8; 32], value: Vec<u8>) {
     });
 }
 
-#[derive(Clone, Serialize, serde::Deserialize)]
+#[derive(Bind, Clone, Serialize, serde::Deserialize)]
 #[serde(bound = "")]
 pub struct Entity<T: Stored> {
     pub genesis: Tx,
@@ -204,7 +206,7 @@ impl<T: Stored> Entity<T> {
         if self.needs_migration() {
             self.value = self.value.migrate()?;
             let id = T::id(&self.key);
-            self.value.attach(&id);
+            self.bind(&id);
         }
         WriteBatch::new(&[self.id()])?.save(self)
     }
@@ -243,7 +245,7 @@ fn decode_entity<T: Stored>(id: &[u8; 32], raw: Option<Vec<u8>>) -> Result<Optio
     if profile::measure("entity_check_id", || T::id(&entity.key)) != *id {
         return Err(EntityError::KeyChanged);
     }
-    profile::measure("entity_bind", || entity.value.attach(id));
+    profile::measure("entity_bind", || entity.bind(id));
     Ok(Some(entity))
 }
 
