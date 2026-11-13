@@ -3,6 +3,7 @@ import { toHex } from '../../model/content/hex'
 import { type EntityKind } from '../../model/entities/entity'
 import { identityKey } from '../../model/rules/identity'
 import type { ForumState } from '../../model/state/forum'
+import type { HistoryKind } from '../../model/state/inspection'
 import { resourceKey } from '../../model/state/resources'
 import type { Commit } from '../commit'
 import { formatDebugValue } from '../convert/debug'
@@ -51,7 +52,7 @@ export function createInspectionCommands(model: ForumState, commit: Commit, gate
         finish(`snapshot:${key}`, request)
       }
     },
-    async loadHistory(relayUrl: string, kind: EntityKind, id: string, more = false) {
+    async loadHistory(relayUrl: string, kind: HistoryKind, id: string, more = false) {
       const key = resourceKey(relayUrl, kind, id)
       const previous = untrack(() => model.resources.history[key])
       if (more && (!previous?.next || previous.loading || previous.loadingMore)) return
@@ -61,7 +62,7 @@ export function createInspectionCommands(model: ForumState, commit: Commit, gate
       try {
         const page = await fetchHistory(relayUrl, kind, id, more ? previous.next : null)
         if (!current(`history:${key}`, request)) return
-        commit({ type: 'history.set', value: { key, value: { items: [...items, ...page.entries.map(convertHistory)], next: page.next === null ? null : page.next.toString(), loading: false, loadingMore: false, error: null } } })
+        commit({ type: 'history.set', value: { key, value: { items: [...items, ...page.entries.map(convertHistory)], next: page.next, loading: false, loadingMore: false, error: null } } })
       } catch (error) {
         if (current(`history:${key}`, request)) commit({ type: 'history.set', value: { key, value: { items, next: more ? previous.next : null, loading: false, loadingMore: false, error: message(error) } } })
       } finally {

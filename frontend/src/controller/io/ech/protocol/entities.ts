@@ -130,6 +130,11 @@ export const HistoryPageSchema = struct('HistoryPage', {
 })
 export type HistoryPage = typeof HistoryPageSchema.$inferType
 
+export const AuthorHistoryPageSchema = struct('AuthorHistoryPage', {
+  entries: bcs.vector(TxSchema),
+  next: bcs.option(Hash),
+})
+
 const schemas = {
   post: PostEntitySchema,
   thread: ThreadEntitySchema,

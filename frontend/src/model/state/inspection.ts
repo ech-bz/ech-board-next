@@ -1,5 +1,8 @@
 import type { Ban } from '../entities/ban'
 import type { HistoryEvent } from '../entities/event'
+import type { EntityKind } from '../entities/entity'
+
+export type HistoryKind = EntityKind | 'author'
 
 export interface BanListState {
   items: Ban[]

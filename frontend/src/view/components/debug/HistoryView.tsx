@@ -1,6 +1,6 @@
 import { cva } from 'class-variance-authority'
 import { createEffect, createSignal, For, onCleanup, Show } from 'solid-js'
-import { type EntityKind } from '../../../model/entities/entity'
+import type { HistoryKind } from '../../../model/state/inspection'
 import { resourceKey } from '../../../model/state/resources'
 import { useForumController, useForumModel } from '../../bindings/forum'
 import { useI18n } from '../../i18n'
@@ -15,7 +15,7 @@ const kindVariants = cva('mr-1 text-sm font-bold text-accent')
 const fieldsVariants = cva('text-sm text-secondary break-all')
 const bodyVariants = cva('border-t border-separator px-1.5 py-1.5 font-mono text-sm text-secondary')
 
-export function HistoryView(props: { entityId: string; kind: EntityKind; relayUrl: string }) {
+export function HistoryView(props: { entityId: string; kind: HistoryKind; relayUrl: string }) {
   const { t } = useI18n()
   const controller = useForumController()
   const model = useForumModel()

@@ -10,6 +10,7 @@ export interface DialogState {
   createBoard: string | null
   forumTitle: string | null
   logs: { tab: EntityKind; object: EntityObject | null } | null
+  authorHistory: string | null
 }
 
-export const emptyDialogs = (): DialogState => ({ topic: null, moderators: null, banTarget: null, banId: false, bans: null, boardSettings: false, createBoard: null, forumTitle: null, logs: null })
+export const emptyDialogs = (): DialogState => ({ topic: null, moderators: null, banTarget: null, banId: false, bans: null, boardSettings: false, createBoard: null, forumTitle: null, logs: null, authorHistory: null })

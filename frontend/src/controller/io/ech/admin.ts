@@ -1,5 +1,7 @@
-import type { EntityKind, HistoryPage } from "./protocol/entities"
-import { HistoryPageSchema } from "./protocol/entities"
+import type { EntityKind, Tx } from "./protocol/entities"
+import { AuthorHistoryPageSchema, HistoryPageSchema } from "./protocol/entities"
+import { toHex } from '../../../model/content/hex'
+import type { HistoryKind } from '../../../model/state/inspection'
 import { Calls, type ForumApi } from "./forumApi"
 import { BanEntriesSchema, decodeEntity, type BanEntry } from "./protocol/entities"
 export async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -10,17 +12,27 @@ export async function request<T>(url: string, init?: RequestInit): Promise<T> {
 const HISTORY_LIMIT = 64
 export async function fetchHistory(
   base: string,
-  kind: EntityKind,
+  kind: HistoryKind,
   id: string,
   cursor?: string | null,
-): Promise<HistoryPage> {
+): Promise<{ entries: Tx[]; next: string | null }> {
   const hex = id.replace(/^0x/, "")
+  if (kind === 'author') {
+    const page = cursor ? `&from=${encodeURIComponent(cursor)}` : ''
+    const response = await fetch(
+      `${base.replace(/\/$/, '')}/api/history/author/${encodeURIComponent(hex)}?limit=32${page}`,
+    )
+    if (!response.ok) throw new Error(await response.text())
+    const result = AuthorHistoryPageSchema.parse(new Uint8Array(await response.arrayBuffer()))
+    return { entries: result.entries, next: result.next === null ? null : toHex(result.next).replace(/^0x/, '') }
+  }
   const page = cursor ? `&before=${cursor}` : ""
   const response = await fetch(
     `${base.replace(/\/$/, "")}/api/debug/history/${kind}/${hex}?limit=${HISTORY_LIMIT}${page}`,
   )
   if (!response.ok) throw new Error(await response.text())
-  return HistoryPageSchema.parse(new Uint8Array(await response.arrayBuffer()))
+  const result = HistoryPageSchema.parse(new Uint8Array(await response.arrayBuffer()))
+  return { entries: result.entries, next: result.next === null ? null : result.next.toString() }
 }
 export async function fetchBans(
   api: ForumApi,
