@@ -1,7 +1,7 @@
 import { fromHex } from '../../model/content/hex'
 import { forumKey } from '../../model/selectors/forum'
 import { type Commit } from '../commit'
-import { entityAuthor } from '../convert/genesis'
+import { transactionOf, txAuthor } from '../convert/genesis'
 import { boardValue, forumValue, threadValue } from '../convert/versions'
 import { esidHex } from '../io/crypto/esid'
 import { Identity } from '../io/crypto/identity'
@@ -27,7 +27,7 @@ export function createReceiver(model: ForumState, commit: Commit, isDisposed: ()
       authors[key] = { mine: identity.owns(rootBytes, author), tweak: author.tweak.slice() }
     }
     for (const entity of changes.posts ?? []) {
-      const author = entityAuthor(entity)
+      const author = txAuthor(transactionOf(entity.genesis, changes.transactions))
       if (author !== null) rememberOwner(author)
     }
     for (const entity of changes.forums ?? []) for (const author of forumValue(entity).moderators) rememberOwner(author)

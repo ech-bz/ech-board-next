@@ -3,7 +3,7 @@ import type { BoardCursor } from '../model/entities/board'
 import type { Commit } from './commit'
 import { postValue, threadValue } from './convert/versions'
 import { ForumApi } from './io/ech/forumApi'
-import type { BoardEntity, ForumEntity, PostEntity, PostPageEntity, ThreadEntity, ThreadPreviewEntity } from './io/ech/protocol/entities'
+import type { BoardEntity, ForumEntity, PostEntity, PostPageEntity, ThreadEntity, ThreadPreviewEntity, Tx } from './io/ech/protocol/entities'
 import { EntityId } from './io/ech/protocol/entityId'
 import type { Media, Resources } from './io/ech/protocol/transactions'
 import * as relay from './io/ech/relay'
@@ -17,6 +17,7 @@ export interface ForumViewData {
   boards: BoardEntity[]
   contentMap: Map<string, Uint8Array>
   mediaMeta: Map<string, Media>
+  transactions: Map<string, Tx>
 }
 
 export interface PostCtx extends ForumViewData {
@@ -47,6 +48,7 @@ function resources(pages: Resources<unknown>[]) {
   return {
     contentMap: new Map(pages.flatMap((page) => [...page.contents].flatMap(([hash, bytes]) => bytes ? [['0x' + clean(hash), bytes] as const] : []))),
     mediaMeta: new Map(pages.flatMap((page) => [...page.attachments].flatMap(([hash, media]) => media ? [['0x' + clean(hash), media] as const] : []))),
+    transactions: new Map(pages.flatMap((page) => [...page.transactions])),
   }
 }
 
@@ -93,15 +95,17 @@ export function createForumGateway(model: ForumState, commit: Commit) {
     for (let after = 0; after < count; after += pageSize) cursors.push(after)
     const pages = await api.threadPages(board, number, cursors)
     const content = resources(pages)
+    const posts = pages.flatMap((page) => [...page.view.posts.values()])
     return {
       ...context,
       board: data.board!.view,
       threadId: EntityId.thread(board, number),
       thread,
       myReactions: new Map(pages.flatMap((page) => [...page.view.my_reactions])),
-      posts: pages.flatMap((page) => [...page.view.posts.values()]),
+      posts,
       contentMap: new Map([...context.contentMap, ...content.contentMap]),
       mediaMeta: new Map([...context.mediaMeta, ...content.mediaMeta]),
+      transactions: new Map([...context.transactions, ...content.transactions]),
     }
   }
 
@@ -118,6 +122,7 @@ export function createForumGateway(model: ForumState, commit: Commit) {
       next: response.view.next,
       contentMap: new Map([...context.contentMap, ...content.contentMap]),
       mediaMeta: new Map([...context.mediaMeta, ...content.mediaMeta]),
+      transactions: new Map([...context.transactions, ...content.transactions]),
     }
   }
 
@@ -144,6 +149,7 @@ export function createForumGateway(model: ForumState, commit: Commit) {
       myReactions: new Map([...postPage.view.my_reactions, ...opPage.view.my_reactions]),
       contentMap: new Map([...context.contentMap, ...content.contentMap]),
       mediaMeta: new Map([...context.mediaMeta, ...content.mediaMeta]),
+      transactions: new Map([...context.transactions, ...content.transactions]),
     }
   }
 

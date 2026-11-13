@@ -2,21 +2,21 @@ import { withDerived } from '../../model/derive'
 import type { Post } from '../../model/entities/post'
 import { postEquality, postFields } from '../../model/selectors/post'
 import type { ForumState } from '../../model/state/forum'
-import type { PostEntity } from '../io/ech/protocol/entities'
-import { entityContext, entitySender } from './genesis'
+import type { PostEntity, Tx } from '../io/ech/protocol/entities'
+import { txContext, txSender } from './genesis'
 import { convertIdentity } from './identity'
 import { postValue } from './versions'
 
-export function convertPost(entity: PostEntity, model: ForumState, root: string, id: string): Post {
+export function convertPost(entity: PostEntity, model: ForumState, root: string, id: string, tx: Tx): Post {
   const value = postValue(entity)
-  const context = entityContext(entity)
+  const context = txContext(tx)
   return withDerived({
     id,
     sequence: entity.history.length,
     number: Number(entity.key.number),
     board: entity.key.board,
     threadNumber: Number(value.thread),
-    author: entitySender(entity),
+    author: txSender(tx),
     createdAt: context.time,
     textHash: value.text_hash?.slice() ?? null,
     mediaHashes: value.media_hashes.map((hash) => hash.slice()),

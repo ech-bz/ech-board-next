@@ -8,7 +8,7 @@ import type { ForumGateway } from '../forumGateway'
 import { parseEntity, type BoardEntity, type ForumEntity, type PostEntity, type ThreadEntity } from '../io/ech/protocol/entities'
 import { EntityId } from '../io/ech/protocol/entityId'
 import type { RealtimeEvent } from '../io/ech/protocol/events'
-import { EsidSchema, MediaMetaSchema } from '../io/ech/protocol/transactions'
+import { EsidSchema, MediaMetaSchema, TxSchema } from '../io/ech/protocol/transactions'
 import type { EntityUpdate } from '../state/entities.types'
 
 
@@ -34,6 +34,9 @@ export async function eventChanges(model: ForumState, gateway: ForumGateway, rel
     if (entity.kind === 'board') boards.push(parseEntity('board', bytes))
     if (entity.kind === 'forum') forums.push(parseEntity('forum', bytes))
   }
+  changes.transactions = new Map(
+    event.transactions.map((item) => [toHex(fromHex(item.hash)), TxSchema.parse(fromHex(item.value))]),
+  )
   if (!fresh) {
     changes.threads = threads.filter((entity) => model.page.mode === 'thread'
       ? EntityId.thread(entity.key.board, Number(entity.key.number)) === model.page.threadId

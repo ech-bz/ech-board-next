@@ -10,22 +10,13 @@ function enumeration<T extends Record<string, BcsType<any, any, any> | null>>(na
   return Object.assign(bcs.enum(name, fields), { fields: fields as unknown as Record<string, Schema> })
 }
 
-import { EsidSchema, ProofSchema, UserPartSchema } from './transactions';
+import { EsidSchema, ProofSchema, TxSchema, type Tx, UserPartSchema } from './transactions';
 
 const Hash = bcs.bytes(32)
 const bigMap = (name: string) => struct(name, {})
 
-const ServerPartSchema = struct('ServerPart', {
-  ctx: bcs.byteVector(),
-  proof: ProofSchema,
-})
-
-const TxSchema = struct('Tx', {
-  user: UserPartSchema,
-  server: ServerPartSchema,
-})
-
-export type Tx = typeof TxSchema.$inferType
+export { TxSchema }
+export type { Tx }
 
 const BanValueSchema = struct('BanValue', {
   reason_hash: bcs.option(Hash),
@@ -118,7 +109,7 @@ const HistoryLog = struct('BigLog<[u8; 32]>', {
 })
 
 const entity = <K, V>(key: BcsType<K, any, any>, value: BcsType<V, any, any>) =>
-  struct('Entity', { history: HistoryLog, genesis: TxSchema, key, value })
+  struct('Entity', { history: HistoryLog, genesis: Hash, key, value })
 
 export const PostEntitySchema = entity(PostKeySchema, enumeration('Post', { V1: PostV1Schema }))
 export const ThreadEntitySchema = entity(ThreadKeySchema, enumeration('Thread', { V1: ThreadV1Schema }))
