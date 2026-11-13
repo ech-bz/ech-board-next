@@ -249,8 +249,7 @@ export function PostBody(props: {
               hasPost={hasPost}
               relayUrl={props.ctx.relayUrl}
               forumId={props.ctx.forumId}
-              boardId={props.ctx.boardId}
-              slug={props.slug}
+              slug={props.post.board}
               threadNum={props.threadNum}
             />
           )}
@@ -311,7 +310,7 @@ export function PostBody(props: {
                     class={'cursor-pointer text-accent'}
                     href={href()}
                     label={`>>${ref().number}`}
-                    target={{ postId: ref().postId, number: ref().number, forumId: ref().forumId ?? props.ctx.forumId }}
+                    target={{ board: ref().board, number: ref().number, forumId: ref().forumId ?? props.ctx.forumId }}
                     onClick={(e) => {
                       if (ref().board && ref().threadNumber !== undefined) {
                         if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return

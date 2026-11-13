@@ -78,6 +78,7 @@ function isReplyRefLine(line: string): boolean {
 
 interface RenderOpts {
   resolvePost: ReturnType<typeof useForumController>['resolvePost']
+  postId: ReturnType<typeof useForumQueries>['postId']
   threadPath: ReturnType<typeof useRoutes>['threadPath']
   resolveRelayUrl: (root: string) => string | null
   author: string | null
@@ -85,8 +86,7 @@ interface RenderOpts {
   relayUrl: string
   navigate: (route: Route) => void
   forumIdHex: string
-  boardId: string
-  slug?: string
+  slug: string
   threadNum?: number
 }
 
@@ -119,15 +119,14 @@ function renderPart(p: PostPartInput, opts: RenderOpts, renderNested: RenderNest
     return <Fold title={p.Fold.title}>{renderParts(trimFoldEdges(p.Fold.children), opts, renderNested)}</Fold>
   }
   if ('ReplyTo' in p) {
-    const postHex = toHex(p.ReplyTo.post)
-    const hintNum = p.ReplyTo.hint.split('/').pop() ?? ''
-    const num = /^\d+$/.test(hintNum) ? Number(hintNum) : null
+    const num = p.ReplyTo.post
     const targetForumId = toHex(p.ReplyTo.forum).replace(/^0x/, '')
     const sameForum = targetForumId === opts.forumIdHex
-    const sameBoard = toHex(p.ReplyTo.board) === opts.boardId
-    const label = `>>${replyLabel(p.ReplyTo, { forumId: opts.forumIdHex, boardId: opts.boardId })}`
-    const target = { postId: postHex, number: num ?? 0, forumId: targetForumId, relayUrl: sameForum ? opts.relayUrl : opts.resolveRelayUrl(targetForumId) ?? undefined }
-    if (num !== null && sameForum && sameBoard && opts.hasPost(postHex)) {
+    const sameBoard = p.ReplyTo.board === opts.slug
+    const postId = opts.postId(p.ReplyTo.board, num, targetForumId)
+    const label = `>>${replyLabel(p.ReplyTo, { forumId: opts.forumIdHex, board: opts.slug })}`
+    const target = { board: p.ReplyTo.board, number: num, forumId: targetForumId, relayUrl: sameForum ? opts.relayUrl : opts.resolveRelayUrl(targetForumId) ?? undefined }
+    if (sameForum && sameBoard && postId && opts.hasPost(postId)) {
       const localHref = opts.slug && opts.threadNum != null ? opts.threadPath(opts.forumIdHex, opts.slug, opts.threadNum, num) : `#post-${num}`
       return (
         <PostRefLink
@@ -150,11 +149,10 @@ function renderPart(p: PostPartInput, opts: RenderOpts, renderNested: RenderNest
         target={target}
         onClick={(e) => {
           e.preventDefault()
-          if (num === null) return
           void (async () => {
             try {
               const relay = sameForum ? opts.relayUrl : opts.resolveRelayUrl(targetForumId) ?? opts.relayUrl
-              const data = await opts.resolvePost(relay, postHex)
+              const data = await opts.resolvePost(relay, p.ReplyTo.board, num)
               const slug = data.board.slug
               const threadNum = data.thread.number
               opts.navigate({ page: 'thread', forumId: targetForumId, slug, threadNum, postNum: num })
@@ -228,8 +226,7 @@ export function PostContent(props: {
   hasPost: (id: string) => boolean
   relayUrl: string
   forumId: string
-  boardId: string
-  slug?: string
+  slug: string
   threadNum?: number
 }) {
   const nav = useNav()
@@ -243,7 +240,6 @@ export function PostContent(props: {
       hasPost: props.hasPost,
       relayUrl: props.relayUrl,
       forumId: props.forumId,
-      boardId: props.boardId,
       slug: props.slug,
       threadNum: props.threadNum,
     }),
@@ -255,7 +251,6 @@ export function PostContent(props: {
         a.author === b.author &&
         a.relayUrl === b.relayUrl &&
         a.forumId === b.forumId &&
-        a.boardId === b.boardId &&
         a.slug === b.slug &&
         a.threadNum === b.threadNum,
     },
@@ -264,6 +259,7 @@ export function PostContent(props: {
     const current = inputs()
     const opts: RenderOpts = {
       resolvePost: controller.resolvePost,
+      postId: read.postId,
       threadPath,
       author: current.author,
       resolveRelayUrl: read.relayUrl,
@@ -271,7 +267,6 @@ export function PostContent(props: {
       relayUrl: current.relayUrl,
       navigate: nav.navigate,
       forumIdHex: current.forumId,
-      boardId: current.boardId,
       slug: current.slug,
       threadNum: current.threadNum,
     }

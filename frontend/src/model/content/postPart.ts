@@ -3,7 +3,7 @@ export type PostPart =
   | { Bold: PostPart[] }
   | { Italic: PostPart[] }
   | { Code: PostPart[] }
-  | { ReplyTo: { forum: Uint8Array; board: Uint8Array; post: Uint8Array; hint: string } }
+  | { ReplyTo: { forum: Uint8Array; board: string; post: number } }
   | { Secret: { data_nonce: Uint8Array; data_ct: Uint8Array; encrypted_keys: { nonce: Uint8Array; ct: Uint8Array; tag: Uint8Array }[] } }
   | { Underline: PostPart[] }
   | { Overline: PostPart[] }
