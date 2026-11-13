@@ -60,6 +60,8 @@ const PostV1Schema = struct('PostV1', {
   reacted: bigMap('BigMap<Sid, Hash>'),
   mod_note_hash: bcs.option(Hash),
   banned: bcs.option(EsidSchema),
+  postcount: bcs.option(bcs.u64()),
+  threadcount: bcs.option(bcs.u64()),
 })
 
 const ThreadKeySchema = struct('ThreadKey', {
@@ -171,6 +173,7 @@ export const TripcodeSchema = struct('Tripcode', {
 export const UserRequestsSchema = struct('UserRequests', {
   geo: bcs.bool(),
   trip: bcs.bool(),
+  postcount: bcs.bool(),
 })
 
 export type UserRequests = typeof UserRequestsSchema.$inferType

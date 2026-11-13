@@ -117,6 +117,7 @@ export const en: Dict = {
   'ui.settingsDetailText': 'Selected settings section content appears here.',
   'post.anon': 'Anonymous',
   'post.deleted': 'deleted',
+  'post.postcount': 'Author’s counts at the time of publication: {n} posts, {threads} threads created',
   'post.authorBanned': 'The author of this post was banned',
   'post.expand': 'Show full - {n} lines',
   'post.collapse': 'Collapse post',

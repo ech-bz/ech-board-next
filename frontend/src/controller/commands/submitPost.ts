@@ -1,4 +1,5 @@
 import { blake2b } from '@noble/hashes/blake2'
+import { requestsPostcount } from '../../model/content/requests'
 import type { RoleOption } from '../../model/rules/roles'
 import type { ComposerDraft } from '../../model/state/composer'
 import type { ForumState } from '../../model/state/forum'
@@ -76,7 +77,7 @@ async function prepare(
   form: PostFormState,
   onProgress: Progress,
   tweak: Uint8Array,
-): Promise<{ textHash: string | null; media: string[]; nameHash: string | null; trip: string | null; blobs: Uint8Array[] }> {
+): Promise<{ textHash: string | null; media: string[]; nameHash: string | null; trip: string | null; postcount: boolean; blobs: Uint8Array[] }> {
   const api = await ctx.gateway.connect(ctx.relayUrl)
   const parsed = await parseBbCode(
     form.text,
@@ -104,7 +105,7 @@ async function prepare(
   const name = splitName(form.name)
   const blob = textBlob(name.name)
   if (blob) blobs.push(blob.blob)
-  return { textHash: hash, media: media.hashes, nameHash: blob ? blob.hash : null, trip: name.trip, blobs }
+  return { textHash: hash, media: media.hashes, nameHash: blob ? blob.hash : null, trip: name.trip, postcount: requestsPostcount(parts), blobs }
 }
 
 function serialize(parts: unknown): Uint8Array {
@@ -119,7 +120,7 @@ export async function submitNewThread(
   _signal?: AbortSignal,
 ): Promise<{ thread: number } | null> {
   const tweak = postTweak(ctx.role)
-  const { textHash: hash, media, nameHash, trip, blobs } = await prepare(ctx, form, onProgress, tweak)
+  const { textHash: hash, media, nameHash, trip, postcount, blobs } = await prepare(ctx, form, onProgress, tweak)
   const api = await ctx.gateway.connect(ctx.relayUrl)
   const topic = textBlob(subject)
   if (topic) blobs.push(topic.blob)
@@ -128,7 +129,7 @@ export async function submitNewThread(
     blobs.map((bytes) => ({ hash: '', bytes })),
     tweak,
     undefined,
-    { geo: form.withFlag, trip: trip !== null },
+    { geo: form.withFlag, trip: trip !== null, postcount },
     trip,
   )
   return { thread: Number(ThreadEntitySchema.parse(result.result).key.number) }
@@ -141,14 +142,14 @@ export async function submitReply(
   _signal?: AbortSignal,
 ): Promise<{ post: number } | null> {
   const tweak = postTweak(ctx.role)
-  const { textHash: hash, media, nameHash, trip, blobs } = await prepare(ctx, form, onProgress, tweak)
+  const { textHash: hash, media, nameHash, trip, postcount, blobs } = await prepare(ctx, form, onProgress, tweak)
   const api = await ctx.gateway.connect(ctx.relayUrl)
   const result = await api.append(
     Calls.post.create(ctx.boardId, EntityId.thread(ctx.slug, ctx.threadNumber), hash, media, nameHash, [], false),
     blobs.map((bytes) => ({ hash: '', bytes })),
     tweak,
     undefined,
-    { geo: form.withFlag, trip: trip !== null },
+    { geo: form.withFlag, trip: trip !== null, postcount },
     trip,
   )
   return { post: Number(PostEntitySchema.parse(result.result).key.number) }

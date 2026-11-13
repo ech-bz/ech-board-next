@@ -115,6 +115,7 @@ export const ru = {
   'ui.settingsDetailText': 'Содержимое выбранного раздела появится здесь.',
   'post.anon': 'Аноним',
   'post.deleted': 'удалён',
+  'post.postcount': 'На момент публикации у автора постов: {n}, созданных тредов: {threads}',
   'post.authorBanned': 'Автор этого поста был забанен',
   'post.expand': 'Показать полностью - {n} строк',
   'post.collapse': 'Свернуть пост',
