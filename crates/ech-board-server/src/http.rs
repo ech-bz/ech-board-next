@@ -18,6 +18,7 @@ use ech_board_program::entity::{
     Board, BoardKey, BoardPage, Forum, ForumPage, PostPage, Thread, ThreadMeta, ThreadPage,
 };
 use ech_board_program::types::{Esid, Hash};
+use ech_db_protocol::id::Txid;
 use ech_db_protocol::value::{Author, UserPart};
 
 use crate::assets;
@@ -54,6 +55,7 @@ pub fn routes(config: &mut web::ServiceConfig) {
             "/api/debug/history/{namespace}/{id}",
             web::get().to(debug_history),
         )
+        .route("/api/history/author/{esid}", web::get().to(author_history))
         .route("/api/content", web::post().to(assets::content_put))
         .route("/api/content/{hash}", web::get().to(assets::content_get))
         .route("/api/media", web::post().to(assets::media_put))
@@ -84,6 +86,12 @@ struct SubmitForm {
 #[derive(Deserialize)]
 struct History {
     before: Option<u64>,
+    limit: u32,
+}
+
+#[derive(Deserialize)]
+struct AuthorHistory {
+    from: Option<String>,
     limit: u32,
 }
 
@@ -499,6 +507,23 @@ async fn debug_history(
         )
         .await?;
     Ok(encoded(&result))
+}
+
+async fn author_history(
+    app: web::Data<App>,
+    path: web::Path<String>,
+    query: web::Query<AuthorHistory>,
+) -> Result<HttpResponse, DomainError> {
+    if query.limit == 0 || query.limit >= HISTORY_LIMIT {
+        return Err(DomainError::BadRequest(format!(
+            "limit must be between 1 and {}",
+            HISTORY_LIMIT - 1
+        )));
+    }
+    let esid = parse_esid(&path)?;
+    let from = query.from.as_deref().map(str::parse::<Txid>).transpose()?;
+    let page = app.forum.author_history(&esid, from, query.limit).await?;
+    Ok(encoded(&to_bytes(&page)?))
 }
 
 fn client_ip(req: &HttpRequest) -> Option<IpAddr> {

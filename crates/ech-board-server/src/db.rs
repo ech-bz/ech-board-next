@@ -7,7 +7,7 @@ use tracing::Instrument;
 
 use ech_db_protocol::error::Reject;
 use ech_db_protocol::id::{Root, Txid};
-use ech_db_protocol::value::{Outcome, Record, Request};
+use ech_db_protocol::value::{Esid, Outcome, Record, Request};
 
 use crate::timing::{self, Timer};
 
@@ -115,10 +115,14 @@ impl DbClient {
         dir: &str,
         from: Option<Txid>,
         limit: u64,
+        esid: Option<&Esid>,
     ) -> Result<Vec<Record>, DbError> {
         let mut url = format!("{}/{}/tx?dir={}&limit={}", self.base, root, dir, limit);
         if let Some(txid) = from {
             url.push_str(&format!("&from={txid}"));
+        }
+        if let Some(esid) = esid {
+            url.push_str(&format!("&esid={}", hex::encode(to_bytes(esid)?)));
         }
         let response = self.http.get(url).send().await?;
         Self::decode(response).await
