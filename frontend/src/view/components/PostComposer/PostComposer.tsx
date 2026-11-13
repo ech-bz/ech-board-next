@@ -3,7 +3,7 @@ import { createEffect, createMemo, createSignal, onCleanup, Show, type JSX } fro
 import { type RoleKind } from '../../../model/rules/roles'
 import { useForumController, useForumModel, useForumQueries } from '../../bindings/forum'
 import { useComposerBridge } from '../../composerBridge'
-import { reportError } from '../../errors'
+import { useErrors } from '../../errors'
 import { useI18n } from '../../i18n'
 import { ChevronDownIcon } from '../../icons/ChevronDownIcon'
 import { ChevronUpIcon } from '../../icons/ChevronUpIcon'
@@ -40,6 +40,7 @@ function isAllowedMedia(type: string): boolean {
 
 export function PostComposer(props: { mode?: 'reply' | 'thread'; slug?: string; nav?: JSX.Element }) {
   const { t } = useI18n()
+  const { reportError } = useErrors()
   const store = useForumController()
   const read = useForumQueries()
   const model = useForumModel()

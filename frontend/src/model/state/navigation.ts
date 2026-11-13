@@ -1,3 +1,4 @@
+import type { Failure } from '../errors'
 export type SettingSlug = 'key' | 'appearance'
 export type SettingKey = 'Master Key' | 'Appearance'
 
@@ -32,6 +33,6 @@ export interface NavigationState {
   loading: boolean
   refreshing: boolean
   reconnecting: boolean
-  error: string | null
+  error: Failure | null
   collapsed: boolean
 }

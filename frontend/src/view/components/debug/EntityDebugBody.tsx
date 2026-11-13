@@ -1,3 +1,4 @@
+import { useErrors } from '../../errors'
 import { cva } from 'class-variance-authority'
 import { createEffect, Show } from 'solid-js'
 import { type EntityObject } from '../../../model/entities/entity'
@@ -18,6 +19,7 @@ export function EntityDebugBody(props: {
   relayUrl: string
 }) {
   const { t } = useI18n()
+  const { errorMessage } = useErrors()
   const controller = useForumController()
   const model = useForumModel()
   const state = () => model.resources.snapshots[resourceKey(props.relayUrl, props.object.kind, props.object.id)]
@@ -27,7 +29,7 @@ export function EntityDebugBody(props: {
     <>
       <div class={sectionVariants()}>
         <Show when={state()?.error}>
-          <div class="my-1 text-md text-danger">{String(state()?.error)}</div>
+          <div class="my-1 text-md text-danger">{errorMessage(state()?.error ?? '')}</div>
         </Show>
         <Show when={state()?.loading && !snapshot()}>
           <p class="my-1 text-md text-secondary">{t('common.loading')}</p>

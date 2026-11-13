@@ -1,3 +1,4 @@
+import type { Failure } from '../errors'
 import type { PostPart } from '../content/postPart'
 import type { Board, BoardCursor } from '../entities/board'
 import type { Forum } from '../entities/forum'
@@ -78,7 +79,7 @@ export interface ForumState {
   drafts: Record<'reply' | 'thread', ComposerDraft>
   operations: OperationsState
   resources: ResourceState
-  notifications: { id: number; message: string }[]
+  notifications: { id: number; message: Failure }[]
   navigation: NavigationState
   scopes: Record<string, ForumScope>
   references: Record<string, PostReferences>

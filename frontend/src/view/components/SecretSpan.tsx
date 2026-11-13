@@ -3,7 +3,7 @@ import { Show, type JSX } from 'solid-js'
 import type { PostPart } from '../../model/content/postPart'
 import { secretKey, type SecretContent } from '../../model/content/secrets'
 import { useForumController, useForumModel } from '../bindings/forum'
-import { reportError } from '../errors'
+import { useErrors } from '../errors'
 import { useI18n } from '../i18n'
 
 const secretSpanVariants = cva('cursor-pointer font-mono text-accent')
@@ -15,6 +15,7 @@ export function SecretSpan(props: {
   renderNested: (parts: PostPart[]) => JSX.Element
 }) {
   const { t } = useI18n()
+  const { reportError } = useErrors()
   const controller = useForumController()
   const model = useForumModel()
   const state = () => props.author === null ? undefined : model.resources.secrets[secretKey(props.forumId, props.author, props.secret)]

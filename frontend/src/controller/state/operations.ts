@@ -24,7 +24,7 @@ interface OperationValues {
   'secret.set': { key: string; value: SecretState }
   'reactionUpload.set': { key: string; value: ForumState['resources']['reactions'][string] }
   'reactionUpload.release': string[]
-  'notification.add': { id: number; message: string }
+  'notification.add': ForumState['notifications'][number]
   'notification.remove': number
   'page.patch': Partial<ForumState['page']>
   'preview.close': readonly number[]

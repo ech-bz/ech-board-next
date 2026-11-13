@@ -1,7 +1,7 @@
 import { cva } from 'class-variance-authority'
 import { createSignal, Show } from 'solid-js'
 import { useForumController } from '../bindings/forum'
-import { reportError } from '../errors'
+import { useErrors } from '../errors'
 import { useI18n } from '../i18n'
 import { Button } from './Button'
 import { Field } from './Field'
@@ -15,6 +15,7 @@ const actionRowVariants = cva('flex items-center gap-2')
 
 export function MasterKeyView() {
   const { t } = useI18n()
+  const { reportError } = useErrors()
   const [importing, setImporting] = createSignal(false)
   const [value, setValue] = createSignal('')
   const [status, setStatus] = createSignal<'' | 'copied' | 'imported' | 'error'>('')
