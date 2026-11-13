@@ -57,16 +57,23 @@ pub fn routes(config: &mut web::ServiceConfig) {
         )
         .route("/api/history/author/{esid}", web::get().to(author_history))
         .route("/api/content", web::post().to(assets::content_put))
-        .route("/api/content/{hash}", web::get().to(assets::content_get))
         .route("/api/media", web::post().to(assets::media_put))
         .route(
-            "/api/media/{hash}/meta",
-            web::get().to(assets::metadata_get),
+            "/content/forum/{hash}",
+            web::get().to(assets::forum_content_get),
         )
-        .route("/api/media/{hash}", web::get().to(assets::media_get))
-        .route("/content/{hash}", web::get().to(assets::media_get))
-        .route("/thumbnail/{hash}", web::get().to(assets::thumbnail_get))
-        .route("/reaction/{hash}", web::get().to(assets::reaction_get));
+        .route(
+            "/content/{board}/{hash}",
+            web::get().to(assets::content_get),
+        )
+        .route(
+            "/content/{board}/{thread}/{hash}",
+            web::get().to(assets::content_get),
+        )
+        .route(
+            "/content/{board}/{thread}/{post}/{hash}",
+            web::get().to(assets::content_get),
+        );
 }
 
 #[derive(Serialize, Deserialize)]
@@ -465,7 +472,7 @@ where
             .in_scope(|| from_bytes(result))?;
     drop(decode);
     let load = Timer::new("resources");
-    let resources = WithResources::load(&app.content, view)
+    let resources = WithResources::load(&app.content, &app.forum, view)
         .instrument(tracing::debug_span!(target: "latency", "query.resources"))
         .await?;
     drop(load);
