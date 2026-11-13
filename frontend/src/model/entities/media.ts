@@ -19,6 +19,7 @@ export interface MediaInfo {
   threadId: string
   hash: string
   banned: boolean
+  missing: boolean
 }
 
 export interface MediaReference {

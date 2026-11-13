@@ -1,3 +1,4 @@
+import type { ContentPath } from '../../../model/content/url'
 import { bcs } from '@mysten/bcs'
 
 import type { SessionState } from '../../../model/state/session'
@@ -388,14 +389,14 @@ export class ForumApi {
     )
   }
 
-  async loadContent(hash: string | Uint8Array): Promise<Uint8Array | null> {
+  async loadContent(hash: string | Uint8Array, path: ContentPath): Promise<Uint8Array | null> {
     const key = typeof hash === 'string' ? clean(hash) : relay.hex(hash)
-    return relay.getContent(this.relay, key)
+    return relay.getContent(this.relay, key, path)
   }
 
-  async loadAttachment(hash: string | Uint8Array): Promise<Media | null> {
+  async loadAttachment(hash: string | Uint8Array, path: ContentPath): Promise<Media | null> {
     const key = typeof hash === 'string' ? clean(hash) : relay.hex(hash)
-    return relay.getMediaMeta(this.relay, key)
+    return relay.getMediaMeta(this.relay, key, path)
   }
 
   metadata(board?: string, thread?: number) {

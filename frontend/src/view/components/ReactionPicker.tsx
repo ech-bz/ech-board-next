@@ -120,7 +120,7 @@ export function ReactionPicker(props: {
                             props.onPick(hex)
                           }}
                         >
-                          <img src={reactionUrl(props.relayUrl, hex)} alt="" class="size-5" />
+                          <img src={reactionUrl(props.relayUrl, hex, props.boardId)} alt="" class="size-5" />
                         </button>
                       )
                     }}

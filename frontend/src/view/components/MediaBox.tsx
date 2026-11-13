@@ -1,5 +1,5 @@
 import { cva } from 'class-variance-authority'
-import { Show } from 'solid-js'
+import { createSignal, Show } from 'solid-js'
 import { fromHex } from '../../model/content/hex'
 import type { MediaInfo } from '../../model/entities/media'
 import type { Post } from '../../model/entities/post'
@@ -60,18 +60,20 @@ function formatMime(mime: string): string {
 export function MediaBox(props: { m: MediaInfo; post: Post; onOpen: (m: MediaInfo, rect?: SourceRect) => void }) {
   const { t } = useI18n()
   const actions = useEntityActions()
+  const [failedThumbnail, setFailedThumbnail] = createSignal<string | null>(null)
+  const unavailable = () => props.m.banned || props.m.missing || failedThumbnail() === props.m.thumbUrl
   const isVideo = () => props.m.mime.startsWith('video/')
   const isAudio = () => props.m.mime.startsWith('audio/')
   const isDocument = () => props.m.mime === 'application/pdf'
   const isGif = () => props.m.mime === 'image/gif'
   const isImage = () => props.m.mime.startsWith('image/')
   const thumbnailWidth = () => {
-    const { width, height, banned } = props.m
-    if (banned || !isImage() && !isVideo() || width <= 0 || height <= 0) return undefined
+    const { width, height } = props.m
+    if (unavailable() || !isImage() && !isVideo() || width <= 0 || height <= 0) return undefined
     return `${Math.max(1, Math.round(Math.min(width, 220, width * 220 / height)))}px`
   }
   const searchItems = (): MenuItem[] =>
-    isImage() && !props.m.banned
+    isImage() && !unavailable()
       ? [
         { label: t('media.searchGoogle'), href: `https://lens.google.com/uploadbyurl?url=${encodeURIComponent(props.m.fullUrl)}` },
         { label: t('media.searchYandex'), href: `https://yandex.ru/images/search?rpt=imageview&url=${encodeURIComponent(props.m.fullUrl)}` },
@@ -85,13 +87,13 @@ export function MediaBox(props: { m: MediaInfo; post: Post; onOpen: (m: MediaInf
     <a
       data-media=""
       draggable={false}
-      class={mediaCardVariants({ banned: props.m.banned, borderedUnbanned: (isVideo() || isGif() || isAudio() || isDocument()) && !props.m.banned })}
-      href={props.m.banned ? undefined : props.m.fullUrl}
+      class={mediaCardVariants({ banned: unavailable(), borderedUnbanned: (isVideo() || isGif() || isAudio() || isDocument()) && !unavailable() })}
+      href={unavailable() ? undefined : props.m.fullUrl}
       target={isDocument() ? '_blank' : undefined}
       rel={isDocument() ? 'noopener noreferrer' : undefined}
       style={{ '--nat-w': thumbnailWidth() }}
       onClick={(e) => {
-        if (props.m.banned) {
+        if (unavailable()) {
           e.preventDefault()
           return
         }
@@ -102,7 +104,7 @@ export function MediaBox(props: { m: MediaInfo; post: Post; onOpen: (m: MediaInf
       }}
     >
       <Show
-        when={!props.m.banned}
+        when={!unavailable()}
         fallback={<img class={mediaBannedVariants()} src="/static/banned_media.png" alt="" />}
       >
         <Show
@@ -120,16 +122,17 @@ export function MediaBox(props: { m: MediaInfo; post: Post; onOpen: (m: MediaInf
             class={mediaThumbVariants()}
             src={props.m.thumbUrl}
             alt=""
+            onError={() => setFailedThumbnail(props.m.thumbUrl)}
             loading="lazy"
             decoding="async"
             draggable={false}
           />
         </Show>
       </Show>
-      <Show when={!props.m.banned && (isVideo() || isAudio()) && props.m.durationMs != null}>
+      <Show when={!unavailable() && (isVideo() || isAudio()) && props.m.durationMs != null}>
         <span class={mediaDurationVariants()}>{formatDuration(props.m.durationMs!)}</span>
       </Show>
-      <Show when={!props.m.banned && searchItems().length > 0}>
+      <Show when={!unavailable() && searchItems().length > 0}>
         <div class={mediaSearchVariants()}>
           <DropdownMenu
             icon={<SearchIcon width={12} height={12} />}
@@ -169,7 +172,7 @@ export function MediaBox(props: { m: MediaInfo; post: Post; onOpen: (m: MediaInf
           ↺
         </button>
       </Show>
-      <Show when={!props.m.banned}>
+      <Show when={!unavailable()}>
         <div class={mediaInfoVariants()}>
           <span>
             {formatMime(props.m.mime)}

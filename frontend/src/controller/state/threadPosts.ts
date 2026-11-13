@@ -22,7 +22,7 @@ export function createThreadPostUpdates(model: ForumState, write: SetStoreFuncti
     for (let position = start; position < list.ids.length; position++) {
       const id = list.ids[position]
       const post = scope.entities.posts[id]
-      const contribution = postContribution(scope, post)
+      const contribution = postContribution(post)
       if (contribution.counted) ordinal++
       for (const reference of contribution.media) {
         write('scopes', root, 'threadPosts', threadId, 'media', mediaCount++, reference)
@@ -68,7 +68,7 @@ export function createThreadPostUpdates(model: ForumState, write: SetStoreFuncti
       const entry = list?.positions[id]
       if (!entry || starts.get(threadId) === 0) continue
       const previous = entry.position ? list.positions[list.ids[entry.position - 1]] : null
-      const contribution = postContribution(scope, post)
+      const contribution = postContribution(post)
       const media = contribution.media
       const offset = previous?.mediaCount ?? 0
       const sameMedia = entry.mediaCount - offset === media.length && media.every((item, index) => list.media[offset + index].hash === item.hash)

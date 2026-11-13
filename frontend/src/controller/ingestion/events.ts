@@ -54,12 +54,12 @@ export async function eventChanges(model: ForumState, gateway: ForumGateway, rel
   for (const hash of contents.keys()) if (!contentHashes.has(hash)) contents.delete(hash)
   for (const hash of attachments.keys()) if (!attachmentHashes.has(hash)) attachments.delete(hash)
   await Promise.allSettled([
-    ...[...contentHashes].filter((hash) => !contents.has(hash) && !scope?.contents[hash]).map(async (hash) => {
-      const bytes = await api.loadContent(hash)
+    ...[...contentHashes].filter(([hash]) => !contents.has(hash) && !scope?.contents[hash]).map(async ([hash, owner]) => {
+      const bytes = await api.loadContent(hash, owner)
       if (bytes) contents.set(hash, bytes)
     }),
-    ...[...attachmentHashes].filter((hash) => !attachments.has(hash) && !scope?.attachments[hash]).map(async (hash) => {
-      const media = await api.loadAttachment(hash)
+    ...[...attachmentHashes].filter(([hash]) => !attachments.has(hash) && !scope?.attachments[hash]).map(async ([hash, owner]) => {
+      const media = await api.loadAttachment(hash, owner)
       if (media) attachments.set(hash, media)
     }),
   ])
