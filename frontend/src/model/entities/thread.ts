@@ -12,6 +12,7 @@ export interface Thread extends Entity {
   readonly pinned: boolean
   readonly deleted: boolean
   readonly postCount: number
+  readonly deletedCount: number
   readonly bump: bigint
   readonly lastPosts: number[]
   readonly admin: Identity | null

@@ -31,6 +31,6 @@ export function threadFields(model: ForumState, root: string, id: string) {
     title: () => thread().topic || op()?.plain.split('\n').find((line) => line.trim()) || '',
     isPinned: () => thread().pinned || (scope().entities.boards[scope().boardIds[thread().board]]?.pinned.includes(thread().number) ?? false),
     opAdmin: () => optionalIdentityKey(thread().admin) !== null && optionalIdentityKey(thread().admin) === op()?.author,
-    skipped: () => Math.max(0, thread().postCount - 1 - thread().replyIds.length),
+    skipped: () => Math.max(0, thread().postCount - thread().deletedCount - 1 - thread().replyIds.length),
   }
 }
