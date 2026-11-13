@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
@@ -10,7 +10,7 @@ use ech_db_guest::Bind;
 use crate::component::bans::{BanValue, Bans};
 use crate::component::board_index::BoardOrderKey;
 use crate::context::{Context, ServerContext};
-use crate::entity::{Board, Forum, Post, PostKey, Read, Write};
+use crate::entity::{Board, Forum, Post, PostKey, Read, User, Write};
 use crate::error::{ForumError, Result};
 use crate::types::{Esid, Hash, EDIT_WINDOW_MS};
 
@@ -63,22 +63,6 @@ pub struct ThreadPreview {
 }
 
 impl Thread {
-    pub(crate) fn new(bump: u64, topic_hash: Option<Hash>, admin: Option<Esid>) -> Thread {
-        Thread::from(ThreadV1 {
-            topic_hash,
-            closed: false,
-            pinned: false,
-            deleted: false,
-            post_count: 1,
-            bump,
-            last_posts: Vec::new(),
-            admin,
-            moderators: Vec::new(),
-            posts: BigMap::new(),
-            bans: Bans::default(),
-        })
-    }
-
     pub(crate) fn is_moderator(&self, forum: &Forum, board: &Board) -> Result<bool> {
         let value = match self {
             Self::V1(value) => value,
@@ -142,58 +126,38 @@ impl Thread {
         multi_vote: bool,
         self_admin: bool,
     ) -> Result<Entity<Thread>> {
-        Board::gate(board)?;
-        let forum = Forum::current()?;
-        if board.readonly && !board.is_moderator(&forum)? {
-            return Err(ForumError::BoardReadOnly);
-        }
-        if media_hashes.len() > board.max_media as usize {
-            return Err(ForumError::TooManyAttachments);
-        }
+        User::record_thread()?;
         if board.max_media != 0 && media_hashes.is_empty() {
             return Err(ForumError::PostRequiresMedia);
-        }
-        if !vote_keys.is_empty() && !(2..=16).contains(&vote_keys.len()) {
-            return Err(ForumError::InvalidPollSize);
-        }
-        if vote_keys.iter().collect::<HashSet<_>>().len() != vote_keys.len() {
-            return Err(ForumError::DuplicatePollChoice);
-        }
-        if text_hash.is_none() && media_hashes.is_empty() {
-            return Err(ForumError::EmptyPost);
         }
         let admin = if self_admin {
             Some(Context::esid()?)
         } else {
             None
         };
-        board.post_count = board
+        let number = board
             .post_count
             .checked_add(1)
             .ok_or(ForumError::CounterOverflow)?;
-        let number = board.post_count;
-        let thread = Entity::<Self>::insert(
+        let mut thread = Write::from(Entity::<Self>::insert(
             ThreadKey {
                 board: board.key.slug.clone(),
                 number,
             },
-            Thread::new(number, topic_hash, admin),
-        )?;
-        thread.posts.insert(&1, &number)?;
-        Entity::<Post>::insert(
-            PostKey {
-                board: board.key.slug.clone(),
-                number,
-            },
-            Post::new(
-                number,
-                text_hash,
-                media_hashes,
-                name_hash,
-                multi_vote,
-                vote_keys,
-            ),
-        )?;
+            Thread::from(ThreadV1 {
+                topic_hash,
+                closed: false,
+                pinned: false,
+                deleted: false,
+                post_count: 0,
+                bump: number,
+                last_posts: Vec::new(),
+                admin,
+                moderators: Vec::new(),
+                posts: BigMap::new(),
+                bans: Bans::default(),
+            }),
+        )?);
         board.thread_count = board
             .thread_count
             .checked_add(1)
@@ -201,8 +165,16 @@ impl Thread {
         board
             .order
             .replace(None, BoardOrderKey::new(number, number))?;
-        board.save()?;
-        Ok(thread)
+        Post::create(
+            board,
+            &mut thread,
+            text_hash,
+            media_hashes,
+            name_hash,
+            vote_keys,
+            multi_vote,
+        )?;
+        Ok(thread.into_inner())
     }
 
     pub(crate) fn previews(threads: Vec<Entity<Thread>>) -> Result<Vec<ThreadPreview>> {

@@ -267,7 +267,7 @@ async fn submit_core(
             ))
         }
     };
-    let content = submit_content(&app, &form, &signed).await;
+    let content = submit_content(&app, &form, &signed, requests).await;
     let content_ms = started.elapsed().as_secs_f64() * 1000.0;
     if let Err(error) = content {
         tracing::warn!(%error, %function, content_ms, "submit content rejected");
@@ -301,7 +301,12 @@ async fn submit_core(
         .body(output.result))
 }
 
-async fn submit_content(app: &App, form: &SubmitForm, signed: &Signed) -> Result<(), DomainError> {
+async fn submit_content(
+    app: &App,
+    form: &SubmitForm,
+    signed: &Signed,
+    requests: UserRequests,
+) -> Result<(), DomainError> {
     let expected = postpart::expected(&signed.user.call.function, &signed.user.call.args);
     let mut received = std::collections::BTreeSet::new();
     for part in &form.blob {
@@ -321,7 +326,8 @@ async fn submit_content(app: &App, form: &SubmitForm, signed: &Signed) -> Result
             }
         }
     }
-    for key in expected.keys {
+    for key in &expected.keys {
+        let key = *key;
         if received.contains(&key) {
             continue;
         }
@@ -333,6 +339,24 @@ async fn submit_content(app: &App, form: &SubmitForm, signed: &Signed) -> Result
         };
         if !ready {
             return Err(DomainError::BadRequest("missing content".to_string()));
+        }
+    }
+    if matches!(
+        signed.user.call.function.as_str(),
+        "thread.create" | "post.create"
+    ) {
+        let text = expected
+            .keys
+            .iter()
+            .find(|key| key.kind == crate::content::Kind::Text);
+        let requested = match text {
+            Some(key) => postpart::requests_postcount(&app.content.get(*key).await?)?,
+            None => false,
+        };
+        if requested != requests.postcount {
+            return Err(DomainError::BadRequest(
+                "postcount request does not match the post text".to_string(),
+            ));
         }
     }
     Ok(())
