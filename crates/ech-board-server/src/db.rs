@@ -2,8 +2,8 @@ use std::time::Instant;
 
 use bcs::{from_bytes, to_bytes};
 use reqwest::Client;
-use serde::Serialize;
 use serde::de::DeserializeOwned;
+use serde::Serialize;
 use tracing::Instrument;
 
 use ech_db_protocol::error::Reject;

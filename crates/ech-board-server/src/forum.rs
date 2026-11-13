@@ -43,7 +43,7 @@ impl Forum {
             author: Author::Server,
         };
         let program = domain
-            .sign(upload.clone(), Self::context(None, None))?
+            .sign(upload.clone(), Self::context(None, None, now()))?
             .txid(&domain.root())?;
         Ok(Self {
             db,
@@ -76,7 +76,7 @@ impl Forum {
     }
 
     pub async fn deploy(&self) -> Result<(), DomainError> {
-        let request = self.request(self.upload.clone(), Vec::new(), None, None)?;
+        let request = self.request(self.upload.clone(), Vec::new(), None, None, now())?;
         match self.db.append(&self.root(), &request).await {
             Ok(_) => Ok(()),
             Err(DbError::Reject(Reject::Duplicate)) => Ok(()),
@@ -140,9 +140,21 @@ impl Forum {
         country: Option<u32>,
         trip: Option<Tripcode>,
     ) -> Result<Output, DomainError> {
+        self.submit_at(user, decryptions, country, trip, now())
+            .await
+    }
+
+    pub async fn submit_at(
+        &self,
+        user: UserPart,
+        decryptions: Vec<Esid>,
+        country: Option<u32>,
+        trip: Option<Tripcode>,
+        time: u64,
+    ) -> Result<Output, DomainError> {
         self.check_program(&user)?;
         let started = Instant::now();
-        let request = self.request(user, decryptions, country, trip)?;
+        let request = self.request(user, decryptions, country, trip, time)?;
         let txid = request.tx.txid(&self.root())?;
         let prepare_ms = started.elapsed().as_secs_f64() * 1000.0;
         let append_started = Instant::now();
@@ -174,7 +186,9 @@ impl Forum {
     ) -> Result<Output, DomainError> {
         let _database = Timer::new("database");
         self.check_program(&user)?;
-        let request = timing::measure("prepare", || self.request(user, decryptions, None, None))?;
+        let request = timing::measure("prepare", || {
+            self.request(user, decryptions, None, None, now())
+        })?;
         if tracing::enabled!(target: "latency", tracing::Level::DEBUG) {
             let txid = request.tx.txid(&self.root())?;
             tracing::Span::current().record("txid", tracing::field::display(txid));
@@ -273,8 +287,9 @@ impl Forum {
         decryptions: Vec<Esid>,
         country: Option<u32>,
         trip: Option<Tripcode>,
+        time: u64,
     ) -> Result<Request, DomainError> {
-        let tx = self.domain.sign(user, Self::context(country, trip))?;
+        let tx = self.domain.sign(user, Self::context(country, trip, time))?;
         let mut resolved = BTreeMap::new();
         for esid in decryptions {
             resolved.insert(esid, self.domain.decrypt(&esid)?);
@@ -297,9 +312,32 @@ impl Forum {
         }
     }
 
-    fn context(country: Option<u32>, trip: Option<Tripcode>) -> Vec<u8> {
+    pub fn import_part(
+        &self,
+        function: String,
+        args: Vec<u8>,
+        country: Option<u32>,
+        trip: Option<Tripcode>,
+    ) -> UserPart {
+        UserPart {
+            ctx: UserRequests {
+                geo: country.is_some(),
+                trip: trip.is_some(),
+                postcount: false,
+            }
+            .encode(),
+            call: Call {
+                program: Program::Txid(self.program),
+                function,
+                args,
+            },
+            author: Author::Server,
+        }
+    }
+
+    fn context(country: Option<u32>, trip: Option<Tripcode>, time: u64) -> Vec<u8> {
         ServerContext {
-            time: now(),
+            time,
             country,
             trip,
         }

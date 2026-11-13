@@ -34,6 +34,7 @@ pub fn registry() -> Functions<ForumError> {
     functions.add("board.set_pinned", Board::set_pinned);
 
     functions.add("thread.create", Thread::create);
+    functions.add("thread.import", Thread::import);
     functions.add("thread.meta", Thread::meta);
     functions.add("thread.page", Thread::page);
     functions.add("thread.set_closed", Thread::set_closed);
@@ -48,6 +49,7 @@ pub fn registry() -> Functions<ForumError> {
     functions.add("thread.ban_list", Thread::ban_list);
 
     functions.add("post.create", Post::create);
+    functions.add("post.import", Post::import);
     functions.add("post.get", Post::get);
     functions.add("post.set_text", Post::set_text);
     functions.add("post.set_deleted", Post::set_deleted);

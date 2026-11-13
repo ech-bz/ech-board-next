@@ -10,6 +10,15 @@ type ThreadArgs = (
     bool,
 );
 type ThreadPostArgs = (Option<Hash>, Vec<Hash>, Option<Hash>, Vec<Hash>, bool);
+type ThreadImportArgs = (
+    Option<Hash>,
+    Option<Hash>,
+    Vec<Hash>,
+    Option<Hash>,
+    bool,
+    bool,
+);
+type PostImportArgs = (Option<Hash>, Vec<Hash>, Option<Hash>, bool, bool);
 
 #[allow(dead_code)]
 #[derive(Deserialize)]
@@ -88,6 +97,19 @@ fn decode_expected(function: &str, args: &[u8]) -> Option<Expected> {
             let (topic, text, media, name, votes, _, _): ThreadArgs = bcs::from_bytes(rest).ok()?;
             expected.add(Kind::Text, text);
             expected.add(Kind::Plaintext, topic.into_iter().chain(name).chain(votes));
+            expected.add(Kind::Media, media);
+        }
+        "post.import" => {
+            let (text, media, name, _, _): PostImportArgs =
+                bcs::from_bytes(args.get(64..)?).ok()?;
+            expected.add(Kind::Text, text);
+            expected.add(Kind::Plaintext, name);
+            expected.add(Kind::Media, media);
+        }
+        "thread.import" => {
+            let (topic, text, media, name, _, _): ThreadImportArgs = bcs::from_bytes(rest).ok()?;
+            expected.add(Kind::Text, text);
+            expected.add(Kind::Plaintext, topic.into_iter().chain(name));
             expected.add(Kind::Media, media);
         }
         "post.set_text" => {

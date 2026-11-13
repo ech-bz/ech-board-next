@@ -1,8 +1,8 @@
-use actix_web::HttpResponse;
 use actix_web::dev::ServiceResponse;
 use actix_web::error::ResponseError;
-use actix_web::http::{StatusCode, header};
+use actix_web::http::{header, StatusCode};
 use actix_web::middleware::ErrorHandlerResponse;
+use actix_web::HttpResponse;
 use serde::Serialize;
 
 use ech_db_protocol::error::{ProtocolError, Reject};
