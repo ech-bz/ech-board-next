@@ -1,22 +1,18 @@
-use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use crate::call::{invalid, Func, Prepare};
+use crate::call::{invalid, Arguments, Func};
 use crate::EntityError;
 
 type Entry<E> = Box<dyn Fn(&[u8]) -> Result<Vec<u8>, E>>;
 
-fn route<F, Ps, T, E>(function: F) -> impl Fn(&[u8]) -> Result<T, E>
-where
-    F: Func<Ps>,
-    Ps: DeserializeOwned + Prepare,
-    E: From<EntityError>,
-    F::Output: Into<Result<T, E>>,
-{
-    move |args| {
-        let mut params: Ps = bcs::from_bytes(args).map_err(|_| invalid())?;
-        params.prepare()?;
-        function.call(params).into()
+pub trait Encode<E> {
+    fn encode(self) -> Result<Vec<u8>, E>;
+}
+
+impl<T: Serialize, E> Encode<E> for Result<T, E> {
+    fn encode(self) -> Result<Vec<u8>, E> {
+        let value = self?;
+        Ok(bcs::to_bytes(&value).expect("output encodes"))
     }
 }
 
@@ -33,31 +29,35 @@ impl<E> Functions<E> {
 }
 
 impl<E: From<EntityError> + 'static> Functions<E> {
-    pub fn add<F, Ps, T>(&mut self, name: &'static str, function: F)
+    pub fn add<F, Ps>(&mut self, name: &'static str, function: F)
     where
-        F: Func<Ps> + 'static,
-        Ps: DeserializeOwned + Prepare + 'static,
-        T: Serialize + 'static,
-        F::Output: Into<Result<T, E>>,
+        Ps: Arguments,
+        F: Func<Ps> + for<'a> Func<Ps::Values<'a>> + 'static,
+        for<'a> <F as Func<Ps::Values<'a>>>::Output: Encode<E>,
     {
-        let call = route(function);
         self.entries.push((
             name,
             Box::new(move |args| {
-                let value = call(args)?;
-                Ok(bcs::to_bytes(&value).expect("output encodes"))
+                let input: Ps::Input = bcs::from_bytes(args).map_err(|_| invalid())?;
+                let mut params = Ps::prepare(input)?;
+                function.call(Ps::get(&mut params)).encode()
             }),
         ));
     }
 
     pub fn add_raw<F, Ps>(&mut self, name: &'static str, function: F)
     where
-        F: Func<Ps> + 'static,
-        Ps: DeserializeOwned + Prepare + 'static,
-        F::Output: Into<Result<Vec<u8>, E>>,
+        Ps: Arguments,
+        F: Func<Ps> + for<'a> Func<Ps::Values<'a>, Output = Result<Vec<u8>, E>> + 'static,
     {
-        let call = route(function);
-        self.entries.push((name, Box::new(call)));
+        self.entries.push((
+            name,
+            Box::new(move |args| {
+                let input: Ps::Input = bcs::from_bytes(args).map_err(|_| invalid())?;
+                let mut params = Ps::prepare(input)?;
+                function.call(Ps::get(&mut params))
+            }),
+        ));
     }
 
     pub fn call(&self, name: &str, args: &[u8]) -> Result<Vec<u8>, E> {

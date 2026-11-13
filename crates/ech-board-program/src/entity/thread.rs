@@ -51,8 +51,8 @@ pub struct ThreadPage {
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct ThreadMeta {
-    pub thread: Entity<Thread>,
+pub struct ThreadMeta<T = Entity<Thread>> {
+    pub thread: T,
     pub page_size: u64,
 }
 
@@ -133,7 +133,7 @@ impl Thread {
     }
 
     pub(crate) fn create(
-        mut board: Write<Board>,
+        board: &mut Write<Board>,
         topic_hash: Option<Hash>,
         text_hash: Option<Hash>,
         media_hashes: Vec<Hash>,
@@ -142,7 +142,7 @@ impl Thread {
         multi_vote: bool,
         self_admin: bool,
     ) -> Result<Entity<Thread>> {
-        Board::gate(&board)?;
+        Board::gate(board)?;
         let forum = Forum::current()?;
         if board.readonly && !board.is_moderator(&forum)? {
             return Err(ForumError::BoardReadOnly);
@@ -241,9 +241,9 @@ impl Thread {
         Bans::gate(&bans)
     }
 
-    pub(crate) fn meta(thread: Read<Thread>) -> Result<ThreadMeta> {
+    pub(crate) fn meta(thread: &Read<Thread>) -> Result<ThreadMeta<&Entity<Thread>>> {
         Ok(ThreadMeta {
-            thread: thread.into_inner(),
+            thread: &**thread,
             page_size: PAGE_POSTS,
         })
     }
@@ -252,7 +252,7 @@ impl Thread {
         Ok(Entity::<Self>::load(&ThreadKey { board, number })?)
     }
 
-    pub(crate) fn page(thread: Read<Thread>, after: u64) -> Result<ThreadPage> {
+    pub(crate) fn page(thread: &Read<Thread>, after: u64) -> Result<ThreadPage> {
         let end = thread.post_count.min(after.saturating_add(PAGE_POSTS));
         let count = end.saturating_sub(after) as usize;
         let before = end.checked_add(1);
@@ -287,8 +287,8 @@ impl Thread {
         };
         Ok(page)
     }
-    pub(crate) fn set_closed(mut thread: Write<Thread>, value: bool) -> Result<Entity<Thread>> {
-        Self::gate(&thread)?;
+    pub(crate) fn set_closed(thread: &mut Write<Thread>, value: bool) -> Result<&Entity<Thread>> {
+        Self::gate(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
         if !thread.is_moderator(&forum, &board)? {
@@ -296,11 +296,11 @@ impl Thread {
         }
         thread.closed = value;
         thread.save()?;
-        Ok(thread.into_inner())
+        Ok(thread)
     }
 
-    pub(crate) fn set_pinned(mut thread: Write<Thread>, value: bool) -> Result<Entity<Thread>> {
-        Self::gate(&thread)?;
+    pub(crate) fn set_pinned(thread: &mut Write<Thread>, value: bool) -> Result<&Entity<Thread>> {
+        Self::gate(thread)?;
         let forum = Forum::current()?;
         let mut board = Board::open(thread.key.board.clone())?;
         if !thread.is_moderator(&forum, &board)? {
@@ -314,11 +314,11 @@ impl Thread {
         thread.pinned = value;
         board.save()?;
         thread.save()?;
-        Ok(thread.into_inner())
+        Ok(thread)
     }
 
-    pub(crate) fn set_deleted(mut thread: Write<Thread>, value: bool) -> Result<Entity<Thread>> {
-        Self::gate(&thread)?;
+    pub(crate) fn set_deleted(thread: &mut Write<Thread>, value: bool) -> Result<&Entity<Thread>> {
+        Self::gate(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
         if !thread.is_moderator(&forum, &board)? {
@@ -326,14 +326,14 @@ impl Thread {
         }
         thread.deleted = value;
         thread.save()?;
-        Ok(thread.into_inner())
+        Ok(thread)
     }
 
     pub(crate) fn set_topic(
-        mut thread: Write<Thread>,
+        thread: &mut Write<Thread>,
         value: Option<Hash>,
-    ) -> Result<Entity<Thread>> {
-        Self::gate(&thread)?;
+    ) -> Result<&Entity<Thread>> {
+        Self::gate(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
         if !thread.is_moderator(&forum, &board)? {
@@ -341,14 +341,14 @@ impl Thread {
         }
         thread.topic_hash = value;
         thread.save()?;
-        Ok(thread.into_inner())
+        Ok(thread)
     }
 
     pub(crate) fn set_admin(
-        mut thread: Write<Thread>,
+        thread: &mut Write<Thread>,
         value: Option<Esid>,
-    ) -> Result<Entity<Thread>> {
-        Self::gate(&thread)?;
+    ) -> Result<&Entity<Thread>> {
+        Self::gate(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
         if !thread.is_admin(&forum, &board)? {
@@ -356,11 +356,14 @@ impl Thread {
         }
         thread.admin = value;
         thread.save()?;
-        Ok(thread.into_inner())
+        Ok(thread)
     }
 
-    pub(crate) fn add_moderator(mut thread: Write<Thread>, member: Esid) -> Result<Entity<Thread>> {
-        Self::gate(&thread)?;
+    pub(crate) fn add_moderator(
+        thread: &mut Write<Thread>,
+        member: Esid,
+    ) -> Result<&Entity<Thread>> {
+        Self::gate(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
         if !thread.is_admin(&forum, &board)? {
@@ -370,14 +373,14 @@ impl Thread {
             thread.moderators.push(member);
         }
         thread.save()?;
-        Ok(thread.into_inner())
+        Ok(thread)
     }
 
     pub(crate) fn remove_moderator(
-        mut thread: Write<Thread>,
+        thread: &mut Write<Thread>,
         member: Esid,
-    ) -> Result<Entity<Thread>> {
-        Self::gate(&thread)?;
+    ) -> Result<&Entity<Thread>> {
+        Self::gate(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
         if !thread.is_admin(&forum, &board)? {
@@ -385,16 +388,16 @@ impl Thread {
         }
         thread.moderators.retain(|entry| *entry != member);
         thread.save()?;
-        Ok(thread.into_inner())
+        Ok(thread)
     }
 
     pub(crate) fn ban(
-        thread: Write<Thread>,
+        thread: &mut Write<Thread>,
         target: Esid,
         reason_hash: Option<Hash>,
         expires: u64,
     ) -> Result<Vec<(Esid, BanValue)>> {
-        Self::gate(&thread)?;
+        Self::gate(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
         if !thread.is_moderator(&forum, &board)? {
@@ -415,8 +418,8 @@ impl Thread {
         thread.bans.entries(None, 32)
     }
 
-    pub(crate) fn unban(thread: Write<Thread>, target: Esid) -> Result<Vec<(Esid, BanValue)>> {
-        Self::gate(&thread)?;
+    pub(crate) fn unban(thread: &mut Write<Thread>, target: Esid) -> Result<Vec<(Esid, BanValue)>> {
+        Self::gate(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
         if !thread.is_moderator(&forum, &board)? {
@@ -428,7 +431,7 @@ impl Thread {
     }
 
     pub(crate) fn ban_list(
-        thread: Read<Thread>,
+        thread: &Read<Thread>,
         after: Option<Esid>,
         limit: u32,
     ) -> Result<Vec<(Esid, BanValue)>> {

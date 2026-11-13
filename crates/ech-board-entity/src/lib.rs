@@ -11,7 +11,7 @@ pub mod profile;
 mod error;
 mod functions;
 
-pub use call::{Func, Prepare};
+pub use call::Func;
 pub use error::EntityError;
 pub use functions::Functions;
 
