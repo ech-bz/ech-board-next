@@ -5,17 +5,29 @@ use syn::{ItemEnum, LitStr, Type};
 
 struct Args {
     key: Type,
+    private: bool,
 }
 
 impl Parse for Args {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let key = input.parse()?;
-        Ok(Self { key })
+        let private = if input.is_empty() {
+            false
+        } else {
+            input.parse::<syn::Token![,]>()?;
+            let option: syn::Ident = input.parse()?;
+            if option != "private" {
+                return Err(syn::Error::new_spanned(option, "expected `private`"));
+            }
+            true
+        };
+        Ok(Self { key, private })
     }
 }
 
 pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> {
-    let Args { key } = syn::parse::Parser::parse2(Args::parse, args)?;
+    let Args { key, private } = syn::parse::Parser::parse2(Args::parse, args)?;
+    let public = !private;
     let structure: ItemEnum = syn::parse2(item)?;
     let name = structure.ident.clone();
     let namespace = LitStr::new(&name.to_string().to_lowercase(), name.span());
@@ -155,6 +167,7 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
 
             const NAMESPACE: &'static str = #namespace;
             const CURRENT: u32 = #current;
+            const PUBLIC: bool = #public;
 
             fn version(&self) -> u32 {
                 match self {
