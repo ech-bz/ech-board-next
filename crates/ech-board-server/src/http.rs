@@ -13,6 +13,7 @@ use tokio::sync::broadcast;
 use tracing::Instrument;
 
 use ech_board_entity::{Entity, Stored};
+use ech_board_program::context::Tripcode;
 use ech_board_program::context::UserRequests;
 use ech_board_program::entity::{
     Board, BoardKey, BoardPage, Forum, ForumPage, PostPage, Thread, ThreadMeta, ThreadPage,
@@ -88,6 +89,22 @@ struct SubmitForm {
     #[multipart(limit = "200mb")]
     blob: Vec<MultipartBytes>,
     trip: Option<Text<String>>,
+}
+
+#[derive(MultipartForm)]
+struct ImportForm {
+    request: MultipartBytes,
+    #[multipart(limit = "200mb")]
+    blob: Vec<MultipartBytes>,
+}
+
+#[derive(Deserialize, Serialize)]
+struct ImportRequest {
+    function: String,
+    args: Vec<u8>,
+    time: u64,
+    country: Option<u32>,
+    trip: Option<Tripcode>,
 }
 
 #[derive(Deserialize)]
@@ -253,6 +270,33 @@ async fn submit_admin(
     submit_core(app, req, form, signed).await
 }
 
+async fn import_admin(
+    app: web::Data<App>,
+    form: MultipartForm<ImportForm>,
+) -> Result<HttpResponse, DomainError> {
+    let request: ImportRequest = from_bytes(&form.request.data)?;
+    let user = app.forum.import_part(
+        request.function,
+        request.args,
+        request.country,
+        request.trip.clone(),
+    );
+    submit_content(&app, &form.blob, &user, false).await?;
+    let output = app
+        .forum
+        .submit_at(
+            user,
+            Vec::new(),
+            request.country,
+            request.trip,
+            request.time,
+        )
+        .await?;
+    Ok(HttpResponse::Ok()
+        .content_type(CONTENT_TYPE)
+        .body(output.result))
+}
+
 async fn submit_core(
     app: web::Data<App>,
     req: HttpRequest,
@@ -282,7 +326,7 @@ async fn submit_core(
             ))
         }
     };
-    let content = submit_content(&app, &form, &signed, requests).await;
+    let content = submit_content(&app, &form.blob, &signed.user, requests.postcount).await;
     let content_ms = started.elapsed().as_secs_f64() * 1000.0;
     if let Err(error) = content {
         tracing::warn!(%error, %function, content_ms, "submit content rejected");
@@ -318,13 +362,13 @@ async fn submit_core(
 
 async fn submit_content(
     app: &App,
-    form: &SubmitForm,
-    signed: &Signed,
-    requests: UserRequests,
+    blobs: &[MultipartBytes],
+    user: &UserPart,
+    postcount: bool,
 ) -> Result<(), DomainError> {
-    let expected = postpart::expected(&signed.user.call.function, &signed.user.call.args);
+    let expected = postpart::expected(&user.call.function, &user.call.args);
     let mut received = std::collections::BTreeSet::new();
-    for part in &form.blob {
+    for part in blobs {
         let hash = crate::content::hash(&part.data);
         let keys: Vec<_> = expected
             .keys
@@ -356,10 +400,7 @@ async fn submit_content(
             return Err(DomainError::BadRequest("missing content".to_string()));
         }
     }
-    if matches!(
-        signed.user.call.function.as_str(),
-        "thread.create" | "post.create"
-    ) {
+    if matches!(user.call.function.as_str(), "thread.create" | "post.create") {
         let text = expected
             .keys
             .iter()
@@ -368,7 +409,7 @@ async fn submit_content(
             Some(key) => postpart::requests_postcount(&app.content.get(*key).await?)?,
             None => false,
         };
-        if requested != requests.postcount {
+        if requested != postcount {
             return Err(DomainError::BadRequest(
                 "postcount request does not match the post text".to_string(),
             ));
@@ -561,6 +602,7 @@ pub fn admin_routes(config: &mut web::ServiceConfig) {
     config
         .app_data(web::PayloadConfig::new(BODY_LIMIT))
         .route("/api/submit", web::post().to(submit_admin))
+        .route("/api/import", web::post().to(import_admin))
         .route("/api/query", web::post().to(query_admin))
         .route("/moderators", web::get().to(admin_moderators))
         .route("/moderators", web::post().to(admin_add_moderator))

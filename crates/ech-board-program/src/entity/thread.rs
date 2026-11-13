@@ -177,6 +177,60 @@ impl Thread {
         Ok(thread.into_inner())
     }
 
+    pub(crate) fn import(
+        board: &mut Write<Board>,
+        topic_hash: Option<Hash>,
+        text_hash: Option<Hash>,
+        media_hashes: Vec<Hash>,
+        name_hash: Option<Hash>,
+        closed: bool,
+        deleted: bool,
+    ) -> Result<Entity<Thread>> {
+        if !Context::is_server()? {
+            return Err(ForumError::NotAuthorized);
+        }
+        let number = board
+            .post_count
+            .checked_add(1)
+            .ok_or(ForumError::CounterOverflow)?;
+        let mut thread = Write::from(Entity::<Self>::insert(
+            ThreadKey {
+                board: board.key.slug.clone(),
+                number,
+            },
+            Thread::from(ThreadV1 {
+                topic_hash,
+                closed,
+                pinned: false,
+                deleted,
+                post_count: 0,
+                bump: number,
+                last_posts: Vec::new(),
+                admin: None,
+                moderators: Vec::new(),
+                posts: BigMap::new(),
+                bans: Bans::default(),
+            }),
+        )?);
+        board.thread_count = board
+            .thread_count
+            .checked_add(1)
+            .ok_or(ForumError::CounterOverflow)?;
+        board
+            .order
+            .replace(None, BoardOrderKey::new(number, number))?;
+        Post::import(
+            board,
+            &mut thread,
+            text_hash,
+            media_hashes,
+            name_hash,
+            deleted,
+            false,
+        )?;
+        Ok(thread.into_inner())
+    }
+
     pub(crate) fn previews(threads: Vec<Entity<Thread>>) -> Result<Vec<ThreadPreview>> {
         let keys: Vec<PostKey> = threads
             .iter()

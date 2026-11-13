@@ -131,6 +131,65 @@ impl Post {
         Ok(post)
     }
 
+    pub(crate) fn import(
+        board: &mut Write<Board>,
+        thread: &mut Write<Thread>,
+        text_hash: Option<Hash>,
+        media_hashes: Vec<Hash>,
+        name_hash: Option<Hash>,
+        deleted: bool,
+        edited: bool,
+    ) -> Result<Entity<Post>> {
+        if !Context::is_server()? {
+            return Err(ForumError::NotAuthorized);
+        }
+        let number = thread.key.number;
+        let bump = thread.post_count < board.bump_limit as u64;
+        let post_number = board.allocate_post(number, thread.bump, bump)?;
+        if bump {
+            thread.bump = post_number;
+        }
+        let mut writes = WriteBatch::new()?;
+        let post = writes.insert(
+            PostKey {
+                board: board.key.slug.clone(),
+                number: post_number,
+            },
+            Post::from(PostV1 {
+                thread: number,
+                text_hash,
+                media_hashes,
+                name_hash,
+                deleted,
+                banned_media: Vec::new(),
+                edited,
+                multi_vote: false,
+                votes: Vec::new(),
+                reactions: Vec::new(),
+                voted: BigMap::new(),
+                reacted: BigMap::new(),
+                mod_note_hash: None,
+                banned: None,
+                postcount: None,
+                threadcount: None,
+            }),
+        )?;
+        thread.post_count = thread
+            .post_count
+            .checked_add(1)
+            .ok_or(ForumError::CounterOverflow)?;
+        thread.posts.insert(&thread.post_count, &post_number)?;
+        if post_number != number {
+            thread.last_posts.push(post_number);
+            if thread.last_posts.len() > 3 {
+                thread.last_posts.remove(0);
+            }
+        }
+        writes.save(thread)?;
+        writes.save(board)?;
+        Ok(post)
+    }
+
     pub(crate) fn my_reactions<'a>(
         posts: impl IntoIterator<Item = &'a Entity<Post>>,
     ) -> Result<BTreeMap<Hash, Hash>> {
