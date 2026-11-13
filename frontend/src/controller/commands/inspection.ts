@@ -1,6 +1,7 @@
 import { untrack } from 'solid-js'
 import { toHex } from '../../model/content/hex'
 import { type EntityKind } from '../../model/entities/entity'
+import { describeError } from '../../model/errors'
 import { identityKey } from '../../model/rules/identity'
 import type { ForumState } from '../../model/state/forum'
 import type { HistoryKind } from '../../model/state/inspection'
@@ -10,8 +11,6 @@ import { formatDebugValue } from '../convert/debug'
 import type { ForumGateway } from '../forumGateway'
 import { fetchBans, fetchEntitySnapshot, fetchHistory } from '../io/ech/admin'
 import { convertHistory } from '../convert/history'
-
-const message = (error: unknown) => error instanceof Error ? error.message : String(error)
 
 export function createInspectionCommands(model: ForumState, commit: Commit, gateway: ForumGateway) {
   const requests = new Map<string, { id: number; page: number }>()
@@ -33,7 +32,7 @@ export function createInspectionCommands(model: ForumState, commit: Commit, gate
         const items = entries.map(([author, value]) => ({ author: identityKey(author), reason: value.reason_hash ? toHex(value.reason_hash) : null, expires: Number(value.expires) }))
         commit({ type: 'bans.set', value: { key, value: { items, loading: false, error: null } } })
       } catch (error) {
-        if (current(`bans:${key}`, request)) commit({ type: 'bans.set', value: { key, value: { items: [], loading: false, error: message(error) } } })
+        if (current(`bans:${key}`, request)) commit({ type: 'bans.set', value: { key, value: { items: [], loading: false, error: describeError(error) } } })
       } finally {
         finish(`bans:${key}`, request)
       }
@@ -47,7 +46,7 @@ export function createInspectionCommands(model: ForumState, commit: Commit, gate
         if (!current(`snapshot:${key}`, request)) return
         commit({ type: 'snapshot.set', value: { key, value: { data: { id: snapshot.id, hex: toHex(snapshot.bytes), entity: formatDebugValue(snapshot.entity) }, loading: false, error: null } } })
       } catch (error) {
-        if (current(`snapshot:${key}`, request)) commit({ type: 'snapshot.set', value: { key, value: { data: null, loading: false, error: message(error) } } })
+        if (current(`snapshot:${key}`, request)) commit({ type: 'snapshot.set', value: { key, value: { data: null, loading: false, error: describeError(error) } } })
       } finally {
         finish(`snapshot:${key}`, request)
       }
@@ -67,7 +66,7 @@ export function createInspectionCommands(model: ForumState, commit: Commit, gate
         const entries = page.entries.map((tx, index) => convertHistory(tx, firstNumber === null ? null : firstNumber - BigInt(index)))
         commit({ type: 'history.set', value: { key, value: { items: [...items, ...entries], next: page.next, loading: false, loadingMore: false, error: null } } })
       } catch (error) {
-        if (current(`history:${key}`, request)) commit({ type: 'history.set', value: { key, value: { items, next: more ? previous.next : null, loading: false, loadingMore: false, error: message(error) } } })
+        if (current(`history:${key}`, request)) commit({ type: 'history.set', value: { key, value: { items, next: more ? previous.next : null, loading: false, loadingMore: false, error: describeError(error) } } })
       } finally {
         finish(`history:${key}`, request)
       }

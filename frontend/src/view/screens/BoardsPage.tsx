@@ -10,7 +10,7 @@ import { DropdownMenu, type MenuItem } from '../components/Menu/DropdownMenu'
 import { PageHeader } from '../components/PageHeader'
 import { TabBar } from '../components/TabBar'
 import { useEntityActions } from '../entityActions'
-import { reportError } from '../errors'
+import { useErrors } from '../errors'
 import { useI18n } from '../i18n'
 import { ChevronRightIcon } from '../icons/ChevronRightIcon'
 import { useMobileTabs } from '../interactions/mobileNav'
@@ -45,6 +45,7 @@ export function BoardsPage(props: {
 }) {
   const { boardPath } = useRoutes()
   const { t } = useI18n()
+  const { reportError } = useErrors()
   const ea = useEntityActions()
   const controller = useForumController()
   const read = useForumQueries()

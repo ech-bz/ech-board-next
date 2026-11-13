@@ -8,7 +8,7 @@ import { resourceKey } from '../../model/state/resources'
 import { useForumController, useForumModel, useForumQueries, usePostModel, useStaticInfo } from '../bindings/forum'
 import { useComposerBridge } from '../composerBridge'
 import { observePostGrowth } from '../effects/postGrowth'
-import { reportError } from '../errors'
+import { useErrors } from '../errors'
 import { useI18n } from '../i18n'
 import { BroomIcon } from '../icons/BroomIcon'
 import { LockIcon } from '../icons/LockIcon'
@@ -97,6 +97,7 @@ export function PostBody(props: {
   const staticInfo = useStaticInfo()
   const nav = useNav()
   const { t, months, expandFolds } = useI18n()
+  const { reportError } = useErrors()
   const { openMedia } = useGallery(() => props.ctx.forumId)
   const selection = usePostSelection()
   const composer = useComposerBridge()

@@ -12,7 +12,7 @@ import { StatusPill } from './components/StatusPill'
 import { ComposerBridgeProvider } from './composerBridge'
 import { createHeldPageHeight } from './effects/heldPageHeight'
 import { EntityActionsProvider } from './entityActions'
-import { reportError } from './errors'
+import { errorMessage } from './errors'
 import { I18nProvider } from './i18n'
 import { IconSprite } from './icons/IconSprite'
 import { ModalsProvider } from './modals'
@@ -67,7 +67,7 @@ function Shell() {
   createEffect(() => {
     for (const item of model.notifications) {
       store.dismissNotification(item.id)
-      reportError(item.message)
+      window.alert(errorMessage(item.message, model.preferences.lang))
     }
   })
 

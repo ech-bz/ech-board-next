@@ -1,3 +1,4 @@
+import { responseError } from './errors'
 import { contentUrl, type ContentPath } from '../../../model/content/url'
 import type { BcsType } from '@mysten/bcs'
 import { bcs, toHex as hex, fromHex as unhex } from '@mysten/bcs'
@@ -64,7 +65,7 @@ export function connectionInfo(base: string, value: unknown): Relay {
 export async function connect(base = BASE): Promise<Relay> {
   base = base.replace(/\/$/, '')
   const response = await fetch(`${base}/root`)
-  if (!response.ok) throw new Error(`${response.status} /root`)
+  if (!response.ok) throw await responseError(response)
   return connectionInfo(base, await response.json())
 }
 
@@ -97,8 +98,8 @@ export async function submit(
   }
   onPrepared?.(txid)
   const response = await fetch(`${relay.base}/submit`, { method: 'POST', body: form })
+  if (!response.ok) throw await responseError(response)
   const bytes = new Uint8Array(await response.arrayBuffer())
-  if (!response.ok) throw new Error(message(bytes))
   return { txid, result: bytes }
 }
 
@@ -117,20 +118,9 @@ async function post(relay: Relay, endpoint: string, payload: Uint8Array): Promis
     method: 'POST',
     body: payload.slice().buffer,
   })
+  if (!response.ok) throw await responseError(response)
   const bytes = new Uint8Array(await response.arrayBuffer())
-  if (!response.ok) throw new Error(message(bytes))
   return bytes
-}
-
-function message(bytes: Uint8Array): string {
-  const text = new TextDecoder().decode(bytes)
-  try {
-    const parsed = JSON.parse(text) as { error?: string }
-    if (parsed.error) return parsed.error
-  } catch {
-    return text
-  }
-  return text
 }
 
 async function read<T>(
@@ -254,14 +244,14 @@ export async function getContent(
 ): Promise<Uint8Array | null> {
   const response = await fetch(contentUrl(relay.base.replace(/\/api$/, ''), path, hash))
   if (response.status === 404) return null
-  if (!response.ok) throw new Error(await response.text())
+  if (!response.ok) throw await responseError(response)
   return new Uint8Array(await response.arrayBuffer())
 }
 
 export async function getMediaMeta(relay: Relay, hash: string, path: ContentPath): Promise<Media | null> {
   const response = await fetch(contentUrl(relay.base.replace(/\/api$/, ''), path, hash, 'metadata'))
   if (response.status === 404) return null
-  if (!response.ok) throw new Error(await response.text())
+  if (!response.ok) throw await responseError(response)
   return MediaMetaSchema.parse(new Uint8Array(await response.arrayBuffer()))
 }
 
@@ -288,7 +278,7 @@ async function putBlob(
     method: 'POST',
     body: bytes.slice().buffer,
   })
-  if (!response.ok) throw new Error(await response.text())
+  if (!response.ok) throw await responseError(response)
   return hex(new Uint8Array(await response.arrayBuffer()))
 }
 

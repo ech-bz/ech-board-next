@@ -3,7 +3,7 @@ import { createEffect, createSignal, For, Show } from 'solid-js'
 import { reactionUrl } from '../../model/content/reactions'
 import { resourceKey } from '../../model/state/resources'
 import { useForumController, useForumModel } from '../bindings/forum'
-import { reportError } from '../errors'
+import { useErrors } from '../errors'
 import { useI18n } from '../i18n'
 
 import { fromHex, toHex } from '../../model/content/hex'
@@ -57,6 +57,7 @@ export function BoardSettingsModal(props: {
   mod: BoardModActions
 }) {
   const { t } = useI18n()
+  const { reportError } = useErrors()
   const controller = useForumController()
   const model = useForumModel()
   const [desc, setDesc] = createSignal('')

@@ -1,3 +1,4 @@
+import { useErrors } from '../../errors'
 import { cva } from 'class-variance-authority'
 import { createEffect, createSignal, For, onCleanup, Show } from 'solid-js'
 import type { HistoryKind } from '../../../model/state/inspection'
@@ -17,6 +18,7 @@ const bodyVariants = cva('border-t border-separator px-1.5 py-1.5 font-mono text
 
 export function HistoryView(props: { entityId: string; kind: HistoryKind; relayUrl: string }) {
   const { t } = useI18n()
+  const { errorMessage } = useErrors()
   const controller = useForumController()
   const model = useForumModel()
   const state = () => model.resources.history[resourceKey(props.relayUrl, props.kind, props.entityId)]
@@ -56,7 +58,7 @@ export function HistoryView(props: { entityId: string; kind: HistoryKind; relayU
       <Show when={loading()}>
         <p class={statusVariants()}>{t('history.loading')}</p>
       </Show>
-      <Show when={error()}>{(message) => <div class={errorVariants()}>{message()}</div>}</Show>
+      <Show when={error()}>{(message) => <div class={errorVariants()}>{errorMessage(message())}</div>}</Show>
       <Show when={!loading() && !error() && items().length === 0}>
         <p class={statusVariants()}>{t('history.noEvents')}</p>
       </Show>

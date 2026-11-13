@@ -1,3 +1,4 @@
+import { useErrors } from '../errors'
 import { cva } from 'class-variance-authority'
 import { createEffect, For, Show } from 'solid-js'
 import { resourceKey } from '../../model/state/resources'
@@ -13,6 +14,7 @@ const tdVariants = cva('border-b border-separator px-2.5 py-2 text-left align-to
 
 export function BansModal(props: { title: string; relayUrl: string; kind: 'forum' | 'board' | 'thread'; id: string; onClose: () => void }) {
   const { t } = useI18n()
+  const { errorMessage } = useErrors()
   const controller = useForumController()
   const model = useForumModel()
   const state = () => model.resources.bans[resourceKey(props.relayUrl, props.kind, props.id)]
@@ -25,7 +27,7 @@ export function BansModal(props: { title: string; relayUrl: string; kind: 'forum
 
   return (
     <Modal title={props.title} onClose={props.onClose}>
-      <Show when={error()}>{(message) => <div class={errorVariants()}>{message()}</div>}</Show>
+      <Show when={error()}>{(message) => <div class={errorVariants()}>{errorMessage(message())}</div>}</Show>
       <Show when={bans().length === 0 && !loading()}>
         <p class={emptyVariants()}>{t('bans.empty')}</p>
       </Show>
