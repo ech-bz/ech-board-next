@@ -26,7 +26,14 @@ use ech_db_guest::BigLog;
 use ech_db_guest::BigMap;
 #[cfg(target_arch = "wasm32")]
 use ech_db_guest::BigSet;
+use std::collections::HashMap;
+use std::rc::Rc;
+
+#[cfg(target_arch = "wasm32")]
+use ech_db_guest::load_transaction;
+
 use ech_db_protocol::hash::Blake2b256;
+use ech_db_protocol::id::Txid;
 use ech_db_protocol::value::Tx;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -61,6 +68,8 @@ pub trait Stored: Bind + Serialize + DeserializeOwned + Clone + Sized {
 thread_local! {
     static CURRENT: std::cell::RefCell<Option<Write>> = const { std::cell::RefCell::new(None) };
     static CHANGES: std::cell::RefCell<Vec<Changed>> = const { std::cell::RefCell::new(Vec::new()) };
+    static TRANSACTIONS: std::cell::RefCell<HashMap<[u8; 32], Rc<Tx>>> =
+        std::cell::RefCell::new(HashMap::new());
 }
 
 pub struct Session;
@@ -69,6 +78,7 @@ impl Session {
     pub fn begin_write(write: Write) {
         CURRENT.with(|current| *current.borrow_mut() = Some(write));
         CHANGES.with(|changes| changes.borrow_mut().clear());
+        TRANSACTIONS.with(|transactions| transactions.borrow_mut().clear());
     }
 
     pub fn current_write() -> Option<Write> {
@@ -137,7 +147,7 @@ fn change(namespace: &str, id: [u8; 32]) {
 #[serde(bound = "")]
 pub struct Entity<T: Stored> {
     pub history: BigLog<[u8; 32]>,
-    pub genesis: Tx,
+    pub genesis: Txid,
     pub key: T::Key,
     pub value: T,
 }
@@ -193,6 +203,17 @@ impl<T: Stored> Entity<T> {
         WriteBatch::new()?.insert(key, value)
     }
 
+    pub fn genesis(&self) -> Result<Rc<Tx>> {
+        let key = *self.genesis.as_array();
+        if let Some(tx) = TRANSACTIONS.with(|transactions| transactions.borrow().get(&key).cloned())
+        {
+            return Ok(tx);
+        }
+        let tx = Rc::new(load_transaction(&self.genesis)?);
+        TRANSACTIONS.with(|transactions| transactions.borrow_mut().insert(key, Rc::clone(&tx)));
+        Ok(tx)
+    }
+
     pub fn save(&mut self) -> Result<()> {
         if self.needs_migration() {
             self.value = self.value.migrate()?;
@@ -206,6 +227,10 @@ impl<T: Stored> Entity<T> {
 #[cfg(not(target_arch = "wasm32"))]
 impl<T: Stored> Entity<T> {
     pub fn insert(_key: T::Key, _value: T) -> Result<Self> {
+        unimplemented!("entity objects require the wasm runtime")
+    }
+
+    pub fn genesis(&self) -> Result<Rc<Tx>> {
         unimplemented!("entity objects require the wasm runtime")
     }
 

@@ -62,6 +62,7 @@ pub fn registry() -> Functions<ForumError> {
 
     functions.add_raw("debug.entity", Debug::entity);
     functions.add_raw("debug.entities", Debug::entities);
+    functions.add("debug.transactions", Debug::transactions);
     functions.add("debug.history", Debug::history);
     functions.add("debug.forum", Debug::forum);
 
