@@ -116,7 +116,7 @@ impl DbClient {
         from: Option<Txid>,
         limit: u64,
         esid: Option<&Esid>,
-    ) -> Result<Vec<Record>, DbError> {
+    ) -> Result<(Vec<Record>, Option<u64>), DbError> {
         let mut url = format!("{}/{}/tx?dir={}&limit={}", self.base, root, dir, limit);
         if let Some(txid) = from {
             url.push_str(&format!("&from={txid}"));
@@ -125,7 +125,22 @@ impl DbClient {
             url.push_str(&format!("&esid={}", hex::encode(to_bytes(esid)?)));
         }
         let response = self.http.get(url).send().await?;
-        Self::decode(response).await
+        let length = response
+            .headers()
+            .get("x-history-length")
+            .map(|value| {
+                value
+                    .to_str()
+                    .ok()
+                    .and_then(|value| value.parse().ok())
+                    .ok_or(DbError::Reject(Reject::Integrity))
+            })
+            .transpose()?;
+        let records = Self::decode(response).await?;
+        if esid.is_some() && from.is_none() && length.is_none() {
+            return Err(DbError::Reject(Reject::Integrity));
+        }
+        Ok((records, length))
     }
 
     async fn decode<T: DeserializeOwned>(response: reqwest::Response) -> Result<T, DbError> {
