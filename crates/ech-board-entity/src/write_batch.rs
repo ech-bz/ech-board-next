@@ -4,6 +4,8 @@ use crate::{Entity, Result, Stored};
 use crate::Bind;
 #[cfg(target_arch = "wasm32")]
 use ech_db_guest::BigLog;
+#[cfg(target_arch = "wasm32")]
+use ech_db_protocol::id::Txid;
 
 pub struct WriteBatch {
     #[cfg(target_arch = "wasm32")]
@@ -21,7 +23,7 @@ impl WriteBatch {
         let id = T::id(&key);
         let mut entity = Entity {
             history: BigLog::default(),
-            genesis: self.write.tx.clone(),
+            genesis: Txid::new(self.write.txid),
             key,
             value,
         };

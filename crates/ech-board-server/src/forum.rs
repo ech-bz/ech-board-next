@@ -1,10 +1,11 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use ech_board_entity::{Changed, Entity, Output};
 use ech_board_program::context::{ServerContext, Tripcode, UserRequests};
 use ech_board_program::entity::Forum as ForumEntity;
 use ech_board_program::error::ForumError;
+use ech_board_program::types::Hash;
 use ech_db_protocol::error::Reject;
 use ech_db_protocol::id::{Root, Txid};
 use ech_db_protocol::value::{Author, Call, Esid, Program, Record, Request, Tx, UserPart};
@@ -98,6 +99,21 @@ impl Forum {
             .collect();
         let bytes = self.call("debug.entities", bcs::to_bytes(&input)?).await?;
         Ok(bcs::from_bytes(&bytes)?)
+    }
+
+    pub async fn transactions(
+        &self,
+        txids: BTreeSet<Hash>,
+    ) -> Result<BTreeMap<Hash, Tx>, DomainError> {
+        if txids.is_empty() {
+            return Ok(BTreeMap::new());
+        }
+        let list: Vec<Hash> = txids.into_iter().collect();
+        let bytes = self
+            .call("debug.transactions", bcs::to_bytes(&list)?)
+            .await?;
+        let values: Vec<Tx> = bcs::from_bytes(&bytes)?;
+        Ok(list.into_iter().zip(values).collect())
     }
 
     pub async fn ensure(&self) -> Result<(), DomainError> {

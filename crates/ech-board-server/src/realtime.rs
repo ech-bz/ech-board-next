@@ -74,6 +74,7 @@ pub struct Event {
     pub entities: Vec<EntityPayload>,
     pub contents: Vec<BlobPayload>,
     pub attachments: Vec<BlobPayload>,
+    pub transactions: Vec<BlobPayload>,
 }
 
 pub struct Hub {
@@ -105,7 +106,7 @@ impl Hub {
         store: &Store,
         forum: &ForumApi,
         entities: &[EntityPayload],
-    ) -> Result<(Vec<BlobPayload>, Vec<BlobPayload>), DomainError> {
+    ) -> Result<(Vec<BlobPayload>, Vec<BlobPayload>, Vec<BlobPayload>), DomainError> {
         let mut resources = Resources::default();
         let owners: Vec<_> = entities
             .iter()
@@ -146,7 +147,14 @@ impl Hub {
                 })
             })
             .collect::<Result<_, DomainError>>()?;
-        Ok((contents, attachments))
+        let mut transactions = Vec::with_capacity(loaded.transactions.len());
+        for (hash, tx) in loaded.transactions {
+            transactions.push(BlobPayload {
+                hash: hex::encode(hash),
+                value: hex::encode(to_bytes(&tx)?),
+            });
+        }
+        Ok((contents, attachments, transactions))
     }
 
     fn scope(&self, entities: &[EntityPayload]) -> Result<(String, String), DomainError> {
@@ -218,7 +226,7 @@ impl Hub {
                             };
                             let scope_ms = scope_started.elapsed().as_secs_f64() * 1000.0;
                             let resources_started = Instant::now();
-                            let (contents, attachments) = match hub
+                            let (contents, attachments, transactions) = match hub
                                 .resources(&content, &forum, &entities)
                                 .await
                             {
@@ -256,6 +264,7 @@ impl Hub {
                                 entities,
                                 contents,
                                 attachments,
+                                transactions,
                             });
                         }
                         if idle {

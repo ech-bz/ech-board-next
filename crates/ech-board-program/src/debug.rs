@@ -1,5 +1,5 @@
 use ech_board_entity::{Entity, HistoryPage, Store, Stored};
-use ech_db_guest::{load_transaction, Txid};
+use ech_db_guest::{load_transaction, load_transactions, Tx, Txid};
 
 use crate::entity::{Board, Forum, ForumKey, Post, Thread};
 use crate::error::{ForumError, Result};
@@ -18,6 +18,11 @@ impl Debug {
             values.push(Store::record(&namespace, &id)?.ok_or(ForumError::NotFound)?);
         }
         Ok(bcs::to_bytes(&values).expect("entities encode"))
+    }
+
+    pub(crate) fn transactions(txids: Vec<Hash>) -> Result<Vec<Tx>> {
+        let txids: Vec<Txid> = txids.into_iter().map(Txid::new).collect();
+        Ok(load_transactions(&txids)?)
     }
 
     pub(crate) fn history(

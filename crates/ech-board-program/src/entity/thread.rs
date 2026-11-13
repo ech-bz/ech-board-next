@@ -108,11 +108,12 @@ impl Thread {
     }
 
     pub(crate) fn is_author(&self, post: &Entity<Post>) -> Result<bool> {
-        let author = match &post.genesis.user.author {
+        let genesis = post.genesis()?;
+        let author = match &genesis.user.author {
             Author::User { esid, .. } => *esid,
             Author::Server => return Ok(false),
         };
-        let created = ServerContext::decode(&post.genesis.server.ctx)?.time;
+        let created = ServerContext::decode(&genesis.server.ctx)?.time;
         let time = Context::time()?;
         Ok(Context::is_author(&author)? && time >= created && time - created <= EDIT_WINDOW_MS)
     }

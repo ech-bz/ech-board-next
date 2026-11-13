@@ -11,6 +11,8 @@ use ech_board_program::entity::{
 use ech_board_program::error::ForumError;
 use ech_board_program::types::Hash;
 use ech_db_protocol::error::Reject;
+use ech_db_protocol::id::Txid;
+use ech_db_protocol::value::Tx;
 
 use crate::content::{Key, Kind, Store};
 use crate::db::DbError;
@@ -23,12 +25,14 @@ pub struct WithResources<T> {
     pub view: T,
     pub contents: BTreeMap<Hash, Option<Vec<u8>>>,
     pub attachments: BTreeMap<Hash, Option<MediaMeta>>,
+    pub transactions: BTreeMap<Hash, Tx>,
 }
 
 #[derive(Default)]
 pub struct Resources {
     pub contents: BTreeSet<Key>,
     pub media: BTreeSet<Key>,
+    pub transactions: BTreeSet<Hash>,
     threads: BTreeMap<Hash, Resources>,
 }
 
@@ -36,9 +40,14 @@ impl Resources {
     pub fn extend(&mut self, other: Self) {
         self.contents.extend(other.contents);
         self.media.extend(other.media);
+        self.transactions.extend(other.transactions);
         for (id, resources) in other.threads {
             self.threads.entry(id).or_default().extend(resources);
         }
+    }
+
+    fn transaction(&mut self, txid: Txid) {
+        self.transactions.insert(*txid.as_array());
     }
 
     fn text(&mut self, kind: Kind, hashes: impl IntoIterator<Item = Hash>) {
@@ -127,6 +136,7 @@ impl Resources {
         forum: &ForumApi,
     ) -> Result<WithResources<()>, DomainError> {
         let resources = self.resolve(forum).await?;
+        let transactions = forum.transactions(resources.transactions).await?;
         let contents = stream::iter(resources.contents)
             .map(|key| async move {
                 Ok::<_, DomainError>((
@@ -145,6 +155,7 @@ impl Resources {
             view: (),
             contents,
             attachments,
+            transactions,
         })
     }
 }
@@ -156,6 +167,7 @@ pub trait PageResources {
 impl PageResources for Entity<Forum> {
     fn resources(&self) -> Resources {
         let mut resources = Resources::default();
+        resources.transaction(self.genesis);
         resources.text(Kind::Plaintext, self.title_hash);
         resources
     }
@@ -164,6 +176,7 @@ impl PageResources for Entity<Forum> {
 impl PageResources for Entity<Board> {
     fn resources(&self) -> Resources {
         let mut resources = Resources::default();
+        resources.transaction(self.genesis);
         resources.text(Kind::Plaintext, self.description_hash);
         resources.media(Kind::Reaction, self.reactions.iter().copied());
         resources
@@ -173,6 +186,7 @@ impl PageResources for Entity<Board> {
 impl PageResources for Entity<Thread> {
     fn resources(&self) -> Resources {
         let mut resources = Resources::default();
+        resources.transaction(self.genesis);
         if !self.deleted {
             resources.text(Kind::Plaintext, self.topic_hash);
         }
@@ -191,8 +205,7 @@ impl PageResources for ThreadPreview {
         let mut resources = self.thread.resources();
         if !self.thread.deleted {
             for post in self.posts.values() {
-                let Post::V1(value) = &post.value;
-                resources.extend(value.resources());
+                resources.extend(post.resources());
             }
         }
         resources
@@ -259,6 +272,7 @@ impl PageResources for PostPage {
 impl PageResources for Entity<Post> {
     fn resources(&self) -> Resources {
         let mut resources = Resources::default();
+        resources.transaction(self.genesis);
         if !self.deleted {
             let thread = Thread::id(&ThreadKey {
                 board: self.key.board.clone(),
@@ -278,6 +292,7 @@ impl<T: PageResources> WithResources<T> {
             view,
             contents: resources.contents,
             attachments: resources.attachments,
+            transactions: resources.transactions,
         })
     }
 }
