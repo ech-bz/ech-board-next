@@ -20,9 +20,8 @@ enum PostPart {
     Code(Vec<PostPart>),
     ReplyTo {
         forum: Hash,
-        board: Hash,
-        post: Hash,
-        hint: String,
+        board: String,
+        post: u64,
     },
     Secret {
         data_nonce: [u8; 12],
