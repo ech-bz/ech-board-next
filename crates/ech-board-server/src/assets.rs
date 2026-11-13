@@ -8,34 +8,104 @@ use serde::Deserialize;
 use crate::content::{self, Key, Kind};
 use crate::error::DomainError;
 use crate::realtime::App;
+use crate::resources::Resources;
 
 #[derive(Deserialize)]
 pub struct ContentQuery {
     kind: Option<Kind>,
 }
 
+#[derive(Deserialize)]
+pub struct ContentPath {
+    board: String,
+    thread: Option<String>,
+    post: Option<String>,
+    hash: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ContentVariant {
+    Thumbnail,
+    Metadata,
+}
+
+#[derive(Deserialize)]
+pub struct ContentGetQuery {
+    variant: Option<ContentVariant>,
+}
+
 pub async fn content_get(
     app: web::Data<App>,
-    hash: web::Path<String>,
-    query: web::Query<ContentQuery>,
+    path: web::Path<ContentPath>,
+    query: web::Query<ContentGetQuery>,
     req: HttpRequest,
 ) -> Result<HttpResponse, DomainError> {
-    let hash = parse_hash(&hash)?;
-    let kind = query.kind.unwrap_or(Kind::Text);
-    if !matches!(kind, Kind::Text | Kind::Plaintext) {
-        return Err(DomainError::BadRequest("invalid content kind".into()));
-    }
-    let bytes = match app.content.optional(Key::new(kind, hash)).await? {
-        Some(bytes) => bytes,
-        None if query.kind.is_none() => app.content.get(Key::new(Kind::Plaintext, hash)).await?,
-        None => return Err(DomainError::NotFound),
-    };
+    let hash = parse_hash(&path.hash)?;
     let etag = etag(&hash);
     if not_modified(&req, &etag) {
         return Ok(response(StatusCode::NOT_MODIFIED, &etag).finish());
     }
+    let resources = Resources::path(
+        &app.forum,
+        parse_hash(&path.board)?,
+        path.thread.as_deref().map(parse_hash).transpose()?,
+        path.post.as_deref().map(parse_hash).transpose()?,
+    )
+    .await?;
+    serve(&app, resources, hash, query.into_inner(), &req).await
+}
+
+pub async fn forum_content_get(
+    app: web::Data<App>,
+    hash: web::Path<String>,
+    query: web::Query<ContentGetQuery>,
+    req: HttpRequest,
+) -> Result<HttpResponse, DomainError> {
+    let hash = parse_hash(&hash)?;
+    let etag = etag(&hash);
+    if not_modified(&req, &etag) {
+        return Ok(response(StatusCode::NOT_MODIFIED, &etag).finish());
+    }
+    let resources = Resources::forum(&app.forum).await?;
+    serve(&app, resources, hash, query.into_inner(), &req).await
+}
+
+async fn serve(
+    app: &App,
+    resources: Resources,
+    hash: [u8; 32],
+    query: ContentGetQuery,
+    req: &HttpRequest,
+) -> Result<HttpResponse, DomainError> {
+    let media_key = resources.media.iter().find(|key| key.hash == hash).copied();
+    let (key, mime) = match query.variant {
+        Some(variant) => {
+            media_key.ok_or(DomainError::NotFound)?;
+            match variant {
+                ContentVariant::Thumbnail => (Key::new(Kind::Thumb, hash), "image/jpeg"),
+                ContentVariant::Metadata => {
+                    (Key::new(Kind::MediaMeta, hash), "application/octet-stream")
+                }
+            }
+        }
+        None => {
+            if let Some(key) = media_key {
+                return media(app, key, req).await;
+            }
+            let key = resources
+                .contents
+                .iter()
+                .find(|key| key.hash == hash)
+                .copied()
+                .ok_or(DomainError::NotFound)?;
+            (key, "application/octet-stream")
+        }
+    };
+    let bytes = app.content.get(key).await?;
+    let etag = etag(&hash);
     Ok(response(StatusCode::OK, &etag)
-        .content_type("application/octet-stream")
+        .content_type(mime)
         .body(bytes))
 }
 
@@ -63,54 +133,6 @@ async fn upload(app: &App, kind: Kind, bytes: web::Bytes) -> Result<HttpResponse
         .body(hash.to_vec()))
 }
 
-pub async fn media_get(
-    app: web::Data<App>,
-    hash: web::Path<String>,
-    req: HttpRequest,
-) -> Result<HttpResponse, DomainError> {
-    media(&app, Key::new(Kind::Media, parse_hash(&hash)?), &req).await
-}
-
-pub async fn reaction_get(
-    app: web::Data<App>,
-    hash: web::Path<String>,
-    req: HttpRequest,
-) -> Result<HttpResponse, DomainError> {
-    media(&app, Key::new(Kind::Reaction, parse_hash(&hash)?), &req).await
-}
-
-pub async fn metadata_get(
-    app: web::Data<App>,
-    hash: web::Path<String>,
-    req: HttpRequest,
-) -> Result<HttpResponse, DomainError> {
-    let hash = parse_hash(&hash)?;
-    let bytes = app.content.get(Key::new(Kind::MediaMeta, hash)).await?;
-    let etag = etag(&hash);
-    if not_modified(&req, &etag) {
-        return Ok(response(StatusCode::NOT_MODIFIED, &etag).finish());
-    }
-    Ok(response(StatusCode::OK, &etag)
-        .content_type("application/octet-stream")
-        .body(bytes))
-}
-
-pub async fn thumbnail_get(
-    app: web::Data<App>,
-    hash: web::Path<String>,
-    req: HttpRequest,
-) -> Result<HttpResponse, DomainError> {
-    let hash = parse_hash(&hash)?;
-    let bytes = app.content.get(Key::new(Kind::Thumb, hash)).await?;
-    let etag = etag(&hash);
-    if not_modified(&req, &etag) {
-        return Ok(response(StatusCode::NOT_MODIFIED, &etag).finish());
-    }
-    Ok(response(StatusCode::OK, &etag)
-        .content_type("image/jpeg")
-        .body(bytes))
-}
-
 async fn media(app: &App, key: Key, req: &HttpRequest) -> Result<HttpResponse, DomainError> {
     let meta = app
         .content
@@ -118,9 +140,6 @@ async fn media(app: &App, key: Key, req: &HttpRequest) -> Result<HttpResponse, D
         .await?
         .ok_or(DomainError::NotFound)?;
     let etag = etag(&key.hash);
-    if not_modified(req, &etag) {
-        return Ok(response(StatusCode::NOT_MODIFIED, &etag).finish());
-    }
     let range = match requested_range(req, meta.size, &etag) {
         Ok(range) => range,
         Err(()) => {
@@ -222,9 +241,9 @@ fn not_modified(req: &HttpRequest, etag: &str) -> bool {
         .get(header::IF_NONE_MATCH)
         .and_then(|value| value.to_str().ok())
         .is_some_and(|value| {
-            value.split(',').any(|value| {
-                matches!(value.trim(), "*") || value.trim().trim_start_matches("W/") == etag
-            })
+            value
+                .split(',')
+                .any(|value| value.trim().trim_start_matches("W/") == etag)
         })
 }
 
@@ -232,7 +251,7 @@ fn response(status: StatusCode, etag: &str) -> HttpResponseBuilder {
     let mut response = HttpResponse::build(status);
     response
         .insert_header((header::ETAG, etag))
-        .insert_header((header::CACHE_CONTROL, "public, max-age=31536000, immutable"));
+        .insert_header((header::CACHE_CONTROL, "private, no-cache"));
     response
 }
 

@@ -1,12 +1,13 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use futures_util::{StreamExt, TryStreamExt};
 use serde::Serialize;
 use tokio::sync::broadcast;
 
 use bcs::to_bytes;
 use ech_board_entity::{Entity, Output, Stored};
-use ech_board_program::entity::{Board, BoardKey, Forum, Post, Thread, ThreadKey};
+use ech_board_program::entity::{Board, BoardKey, Post, Thread, ThreadKey};
 use ech_board_program::types::Hash;
 use ech_db_protocol::value::{Author, UserPart};
 
@@ -14,7 +15,7 @@ use crate::content::Store;
 use crate::error::DomainError;
 use crate::forum::Forum as ForumApi;
 use crate::geo::Geo;
-use crate::resources::{PageResources, Resources};
+use crate::resources::Resources;
 use crate::tripcode::Trips;
 
 pub struct App {
@@ -102,22 +103,27 @@ impl Hub {
     async fn resources(
         &self,
         store: &Store,
+        forum: &ForumApi,
         entities: &[EntityPayload],
     ) -> Result<(Vec<BlobPayload>, Vec<BlobPayload>), DomainError> {
         let mut resources = Resources::default();
-        for entity in entities {
-            let value = hex::decode(&entity.value)
-                .map_err(|error| DomainError::Store(error.to_string()))?;
-            let next = match entity.kind.as_str() {
-                "post" => bcs::from_bytes::<Entity<Post>>(&value)?.resources(),
-                "thread" => bcs::from_bytes::<Entity<Thread>>(&value)?.resources(),
-                "board" => bcs::from_bytes::<Entity<Board>>(&value)?.resources(),
-                "forum" => bcs::from_bytes::<Entity<Forum>>(&value)?.resources(),
-                _ => continue,
-            };
+        let owners: Vec<_> = entities
+            .iter()
+            .map(|entity| (entity.kind.clone(), entity.id.clone()))
+            .collect();
+        let mut reads = futures_util::stream::iter(owners)
+            .map(|(kind, id)| async move {
+                let id = hex::decode(id)
+                    .ok()
+                    .and_then(|bytes| bytes.try_into().ok())
+                    .ok_or_else(|| DomainError::BadRequest("invalid entity id".into()))?;
+                Resources::entity(forum, &kind, id).await
+            })
+            .buffer_unordered(32);
+        while let Some(next) = reads.try_next().await? {
             resources.extend(next);
         }
-        let loaded = resources.load(store).await?;
+        let loaded = resources.load(store, forum).await?;
         let contents = loaded
             .contents
             .into_iter()
@@ -213,7 +219,7 @@ impl Hub {
                             let scope_ms = scope_started.elapsed().as_secs_f64() * 1000.0;
                             let resources_started = Instant::now();
                             let (contents, attachments) = match hub
-                                .resources(&content, &entities)
+                                .resources(&content, &forum, &entities)
                                 .await
                             {
                                 Ok(resources) => resources,
