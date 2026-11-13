@@ -10,7 +10,6 @@ import type { ForumGateway } from '../forumGateway'
 import { forumChanges } from '../ingestion/pages'
 import type { Receive } from '../ingestion/receive'
 import { Calls } from '../io/ech/forumApi'
-import { BoardEntitySchema } from '../io/ech/protocol/entities'
 
 export function createForumCommands(model: ForumState, commit: Commit, gateway: ForumGateway, receive: Receive, onError: (error: unknown) => void) {
   const moderator = () => {
@@ -62,11 +61,10 @@ export function createForumCommands(model: ForumState, commit: Commit, gateway: 
         const bytes = new TextEncoder().encode(description.trim())
         const hash = bytes.length ? toHex(blake2b(bytes, { dkLen: 32 })) : null
         const api = await gateway.connect(scope.relayUrl)
-        const { result } = await api.append(Calls.board.create(slug, hash), hash ? [{ hash, bytes }] : [], roleTweak(role))
+        await api.append(Calls.board.create(slug, hash), hash ? [{ hash, bytes }] : [], roleTweak(role))
         if (model.page.revision !== revision || currentScope(model) !== scope) return
         receive({
           scope: { forumId, relayUrl: scope.relayUrl },
-          boards: [BoardEntitySchema.parse(result)],
           contents: hash ? [[hash, bytes]] : [],
         }, { type: 'dialogs.patch', value: { createBoard: null } })
       } catch (error) {

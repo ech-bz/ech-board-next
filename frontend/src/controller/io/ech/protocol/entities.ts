@@ -40,7 +40,7 @@ const BansSchema = struct('Bans', {
   private: bigMap('BigMap<Sid, Esid>'),
 })
 
-const PostKeySchema = struct('PostKey', {
+export const PostKeySchema = struct('PostKey', {
   number: bcs.u64(),
   board: bcs.string(),
 })
@@ -64,7 +64,7 @@ const PostV1Schema = struct('PostV1', {
   threadcount: bcs.option(bcs.u64()),
 })
 
-const ThreadKeySchema = struct('ThreadKey', {
+export const ThreadKeySchema = struct('ThreadKey', {
   number: bcs.u64(),
   board: bcs.string(),
 })
