@@ -35,6 +35,7 @@ pub struct ThreadV1 {
     pub pinned: bool,
     pub deleted: bool,
     pub post_count: u64,
+    pub deleted_count: u64,
     pub bump: u64,
     pub last_posts: Vec<u64>,
     pub admin: Option<Esid>,
@@ -150,6 +151,7 @@ impl Thread {
                 pinned: false,
                 deleted: false,
                 post_count: 0,
+                deleted_count: 0,
                 bump: number,
                 last_posts: Vec::new(),
                 admin,
@@ -204,6 +206,7 @@ impl Thread {
                 pinned: false,
                 deleted,
                 post_count: 0,
+                deleted_count: 0,
                 bump: number,
                 last_posts: Vec::new(),
                 admin: None,
@@ -276,6 +279,28 @@ impl Thread {
 
     pub(crate) fn open(board: String, number: u64) -> Result<Entity<Thread>> {
         Ok(Entity::<Self>::load(&ThreadKey { board, number })?)
+    }
+
+    pub(crate) fn live_posts(&self) -> Result<u64> {
+        self.post_count
+            .checked_sub(self.deleted_count)
+            .ok_or(ForumError::CounterOverflow)
+    }
+
+    pub(crate) fn add_deleted(&mut self) -> Result<()> {
+        self.deleted_count = self
+            .deleted_count
+            .checked_add(1)
+            .ok_or(ForumError::CounterOverflow)?;
+        Ok(())
+    }
+
+    pub(crate) fn remove_deleted(&mut self) -> Result<()> {
+        self.deleted_count = self
+            .deleted_count
+            .checked_sub(1)
+            .ok_or(ForumError::CounterOverflow)?;
+        Ok(())
     }
 
     pub(crate) fn page(thread: &Read<Thread>, after: u64) -> Result<ThreadPage> {

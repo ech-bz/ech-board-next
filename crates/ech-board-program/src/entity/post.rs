@@ -84,7 +84,7 @@ impl Post {
         if text_hash.is_none() && media_hashes.is_empty() {
             return Err(ForumError::EmptyPost);
         }
-        let bump = thread.post_count < board.bump_limit as u64;
+        let bump = thread.live_posts()? < board.bump_limit as u64 && !thread.pinned;
         let post_number = board.allocate_post(number, thread.bump, bump)?;
         if bump {
             thread.bump = post_number;
@@ -144,7 +144,7 @@ impl Post {
             return Err(ForumError::NotAuthorized);
         }
         let number = thread.key.number;
-        let bump = thread.post_count < board.bump_limit as u64;
+        let bump = thread.live_posts()? < board.bump_limit as u64 && !thread.pinned;
         let post_number = board.allocate_post(number, thread.bump, bump)?;
         if bump {
             thread.bump = post_number;
@@ -178,6 +178,9 @@ impl Post {
             .post_count
             .checked_add(1)
             .ok_or(ForumError::CounterOverflow)?;
+        if deleted {
+            thread.add_deleted()?;
+        }
         thread.posts.insert(&thread.post_count, &post_number)?;
         if post_number != number {
             thread.last_posts.push(post_number);
@@ -280,7 +283,11 @@ impl Post {
         }
         post.text_hash = text_hash;
         post.edited = true;
-        post.save()?;
+        if post.text_hash.is_none() && post.media_hashes.is_empty() && !post.deleted {
+            Self::set_deleted(post, true)?;
+        } else {
+            post.save()?;
+        }
         Ok(post)
     }
 
@@ -288,14 +295,23 @@ impl Post {
         Self::gate(post)?;
         let forum = Forum::current()?;
         let board = Board::open(post.key.board.clone())?;
-        let thread = Thread::open(post.key.board.clone(), post.thread)?;
+        let mut thread = Thread::open(post.key.board.clone(), post.thread)?;
         let empty = post.text_hash.is_none() && post.media_hashes.is_empty();
         let authorized =
             thread.is_moderator(&forum, &board)? || thread.is_author(post)? || (deleted && empty);
         if !authorized {
             return Err(ForumError::NotAuthorized);
         }
+        if post.deleted == deleted {
+            return Err(ForumError::NoChange);
+        }
         post.deleted = deleted;
+        if deleted {
+            thread.add_deleted()?;
+        } else {
+            thread.remove_deleted()?;
+        }
+        thread.save()?;
         post.save()?;
         Ok(post)
     }
