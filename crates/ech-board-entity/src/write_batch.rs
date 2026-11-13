@@ -26,9 +26,13 @@ impl WriteBatch {
             value,
         };
         entity.bind(&id);
-        entity.history.push(&self.write.txid)?;
+        if T::PUBLIC {
+            entity.history.push(&self.write.txid)?;
+        }
         self.store(&id, &entity)?;
-        crate::types(T::NAMESPACE).insert(&id)?;
+        if T::PUBLIC {
+            crate::types(T::NAMESPACE).insert(&id)?;
+        }
         Ok(entity)
     }
 
@@ -37,7 +41,9 @@ impl WriteBatch {
             return Err(crate::EntityError::Outdated);
         }
         let id = entity.id();
-        entity.history.push(&self.write.txid)?;
+        if T::PUBLIC {
+            entity.history.push(&self.write.txid)?;
+        }
         self.store(&id, entity)
     }
 
@@ -46,7 +52,9 @@ impl WriteBatch {
             bcs::to_bytes(entity).map_err(|error| crate::EntityError::Encode(error.to_string()))?,
         );
         crate::payloads().insert(id, &raw)?;
-        crate::change(T::NAMESPACE, *id, raw.into_vec());
+        if T::PUBLIC {
+            crate::change(T::NAMESPACE, *id, raw.into_vec());
+        }
         Ok(())
     }
 }

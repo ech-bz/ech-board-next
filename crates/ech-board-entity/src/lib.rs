@@ -47,6 +47,7 @@ pub trait Stored: Bind + Serialize + DeserializeOwned + Clone + Sized {
 
     const NAMESPACE: &'static str;
     const CURRENT: u32;
+    const PUBLIC: bool = true;
 
     fn id(key: &Self::Key) -> [u8; 32] {
         entity_id(Self::NAMESPACE, key)
