@@ -30,7 +30,7 @@ use crate::timing::{self, Timer};
 
 const CONTENT_TYPE: &str = "application/octet-stream";
 const HISTORY_LIMIT: u32 = 64;
-const BODY_LIMIT: usize = 64 * 1024 * 1024;
+const BODY_LIMIT: usize = 200 * 1024 * 1024;
 const QUERY_CONCURRENCY: usize = 8;
 
 pub fn routes(config: &mut web::ServiceConfig) {
@@ -85,7 +85,7 @@ pub struct Signed {
 #[derive(MultipartForm)]
 struct SubmitForm {
     signed: MultipartBytes,
-    #[multipart(limit = "64mb")]
+    #[multipart(limit = "200mb")]
     blob: Vec<MultipartBytes>,
     trip: Option<Text<String>>,
 }
