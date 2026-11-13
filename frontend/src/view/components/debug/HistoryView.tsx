@@ -90,7 +90,7 @@ export function HistoryView(props: { entityId: string; kind: HistoryKind; relayU
           )
         }}
       </For>
-      <div ref={sentinel} style={{ height: '1px' }} />
+      <div ref={sentinel} class="h-px flex-none" />
       <Show when={loadingMore()}>
         <p class={statusVariants()}>{t('history.loadingMore')}</p>
       </Show>
