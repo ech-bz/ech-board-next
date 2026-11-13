@@ -13,7 +13,8 @@ import type { Receive } from '../ingestion/receive'
 export function createPostCommands(model: ForumState, commit: Commit, gateway: ForumGateway, receive: Receive) {
   const { readPost, connect } = gateway
   return {
-    async resolvePost(relayUrl: string, id: string) {
+    async resolvePost(relayUrl: string, board: string, number: number) {
+      const id = EntityId.post(board, number)
       const revision = model.page.revision
       const data = await readPost(relayUrl, id)
       if (model.page.revision !== revision) throw new Error('Page changed')

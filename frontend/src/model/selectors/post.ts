@@ -43,10 +43,10 @@ export function postFields(model: ForumState, root: string, id: string) {
     },
     plain: () => {
       const parts = post().parts
-      return partsToPlainText(parts, true, { forumId: root, boardId: boardId() })
+      return partsToPlainText(parts, true, { forumId: root, board: post().board })
     },
-    refs: () => model.references[referenceKey(root, id)]?.items ?? [],
-    refsRevision: () => model.references[referenceKey(root, id)]?.revision ?? 0,
+    refs: () => model.references[referenceKey(root, numberKey(post().board, post().number))]?.items ?? [],
+    refsRevision: () => model.references[referenceKey(root, numberKey(post().board, post().number))]?.revision ?? 0,
     media: () => postMedia(post(), scope()),
     reactions: () => {
       const available = new Set((board()?.reactions ?? []).map(toHex))

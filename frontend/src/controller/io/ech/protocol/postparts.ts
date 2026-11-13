@@ -34,9 +34,8 @@ export const PostPart: BcsType<PostPartInput> = bcs.enum('PostPart', {
   Code: bcs.vector(lazy(() => PostPart as unknown as BcsType<PostPartInput>)),
   ReplyTo: bcs.struct('ReplyTo', {
     forum: Address,
-    board: Address,
-    post: Address,
-    hint: bcs.string(),
+    board: bcs.string(),
+    post: bcs.u64().transform({ input: (value: number) => value, output: (value) => Number(value) }),
   }),
   Secret: bcs.struct('Secret', {
     data_nonce: bcs.bytes(12),

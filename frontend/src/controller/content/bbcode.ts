@@ -17,7 +17,7 @@ const TAG_MAP: Record<string, VariantName> = {
 }
 
 export type PostRef = { forum?: string; board?: string; postNum: number }
-export type ResolvedReply = { forum: Uint8Array; board: Uint8Array; post: Uint8Array; hint: string; author?: Uint8Array }
+export type ResolvedReply = { forum: Uint8Array; board: string; post: number; author?: Uint8Array }
 export type PostResolver = (ref: PostRef) => Promise<ResolvedReply | null>
 
 function parsePostRef(raw: string): PostRef | null {
@@ -49,7 +49,7 @@ export type ParsedPart =
   | { kind: 'secretRef'; index: number }
   | { kind: 'link'; url: string; children: ParsedPart[] }
   | { kind: 'fold'; title: string; children: ParsedPart[] }
-  | { kind: 'reply'; forum: Uint8Array; board: Uint8Array; post: Uint8Array; hint: string; author?: Uint8Array }
+  | { kind: 'reply'; forum: Uint8Array; board: string; post: number; author?: Uint8Array }
 
 export async function parseBbCode(text: string, resolvePost?: PostResolver): Promise<ParsedPart[]> {
   const result: ParsedPart[] = []
@@ -65,7 +65,7 @@ export async function parseBbCode(text: string, resolvePost?: PostResolver): Pro
       const ref = parsePostRef(raw)
       const resolved = ref ? await resolvePost(ref) : null
       if (resolved) {
-        result.push({ kind: 'reply', forum: resolved.forum, board: resolved.board, post: resolved.post, hint: resolved.hint, author: resolved.author })
+        result.push({ kind: 'reply', forum: resolved.forum, board: resolved.board, post: resolved.post, author: resolved.author })
         i = end
         continue
       }
@@ -273,7 +273,7 @@ async function convertParts(
     if (p.kind === 'plain') {
       out.push({ Plain: p.text })
     } else if (p.kind === 'reply') {
-      out.push({ ReplyTo: { forum: p.forum, board: p.board, post: p.post, hint: p.hint } })
+      out.push({ ReplyTo: { forum: p.forum, board: p.board, post: p.post } })
     } else if (p.kind === 'secretRef') {
       const orig = secretRefs?.get(p.index)
       if (orig) out.push(orig)

@@ -10,8 +10,6 @@ import type { EntityUpdate } from '../state/entities.types'
 import type { ForumGateway } from '../forumGateway'
 import type { PostResolver } from './bbcode'
 
-const clean = (value: string) => value.replace(/^0x/, '')
-
 export function makePostResolver(ctx: {
   gateway: ForumGateway
   model: ForumState
@@ -31,14 +29,11 @@ export function makePostResolver(ctx: {
       targetForumId = known.forumId
       targetRelay = known.relayUrl
     }
-    let targetBoardId: string
     let targetSlug: string
     if (ref.board) {
-      targetBoardId = EntityId.board(ref.board)
       targetSlug = ref.board
     } else {
       if (targetForumId !== ctx.forumId || !ctx.boardId || !ctx.slug) return null
-      targetBoardId = ctx.boardId
       targetSlug = ctx.slug
     }
     const root = forumKey(targetForumId)
@@ -57,9 +52,8 @@ export function makePostResolver(ctx: {
     if (!post) return null
     return {
       forum: fromHex(targetForumId),
-      board: fromHex(targetBoardId),
-      post: fromHex(post.id),
-      hint: `${clean(targetForumId)}/${targetSlug}/${ref.postNum}`,
+      board: targetSlug,
+      post: ref.postNum,
       ...(post.author === null ? {} : { author: EsidBytes(esidFromHex(post.author)) }),
     }
   }

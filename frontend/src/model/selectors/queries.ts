@@ -37,6 +37,9 @@ export function createQueries(model: ForumState) {
   }
   return {
     boards, info, get, roles, previewPost,
+    postId(board: string, number: number, root: string): string | undefined {
+      return model.scopes[forumKey(root)]?.postIds[numberKey(board, number)]
+    },
     forumObject() {
       const scope = currentScope(model)
       return scope ? Object.values(scope.entities.forums)[0] ?? null : null
@@ -102,7 +105,10 @@ export function createQueries(model: ForumState) {
       const boardId = thread ? scope?.boardIds[thread.board] : model.page.boardId
       return scope && boardId ? (thread?.roles ?? scope.entities.boards[boardId]?.roles ?? []).filter((role) => role.kind === 'thread_admin' || role.kind === 'thread_mod') : []
     },
-    referencesTo: (id: string, root = model.page.forumId): readonly PostReference[] => root ? model.references[referenceKey(root, id)]?.items ?? [] : [],
+    referencesTo: (id: string, root = model.page.forumId): readonly PostReference[] => {
+      const post = get(id, root)
+      return root && post ? model.references[referenceKey(root, numberKey(post.board, post.number))]?.items ?? [] : []
+    },
     ordinalOf: (id: string) => model.page.mode === 'thread' && model.page.threadId ? currentScope(model)?.threadPosts[model.page.threadId]?.positions[id]?.ordinal ?? null : null,
     threadPosts: () => model.page.threadId ? currentScope(model)?.threadPosts[model.page.threadId] : undefined,
     postVisible: (id: string, showDeleted: boolean) => {

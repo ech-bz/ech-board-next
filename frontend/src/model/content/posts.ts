@@ -3,19 +3,15 @@ import type { PostPart as PostPartInput } from './postPart';
 
 export interface RefContext {
   forumId: string
-  boardId: string
+  board: string
 }
 
-export function replyLabel(reply: { forum: Uint8Array; board: Uint8Array; hint: string }, ctx?: RefContext): string {
-  const segments = reply.hint.split('/')
-  const num = segments[segments.length - 1]
-  if (!ctx) return reply.hint
+export function replyLabel(reply: { forum: Uint8Array; board: string; post: number }, ctx?: RefContext): string {
   const forum = toHex(reply.forum).replace(/^0x/, '')
-  if (forum === ctx.forumId && toHex(reply.board) === ctx.boardId) return num
-  const slug = segments.length >= 2 ? segments[segments.length - 2] : ''
-  if (forum === ctx.forumId) return `/${slug}/${num}`
-  const root = segments.length >= 3 ? segments[segments.length - 3] : ''
-  return `${root}/${slug}/${num}`
+  if (ctx && forum === ctx.forumId) {
+    return reply.board === ctx.board ? String(reply.post) : `/${reply.board}/${reply.post}`
+  }
+  return `${forum}/${reply.board}/${reply.post}`
 }
 
 export function partsToPlainText(parts: PostPartInput[], foldsExpanded: boolean, ctx?: RefContext): string {

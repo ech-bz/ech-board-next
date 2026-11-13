@@ -44,7 +44,7 @@ export function createComposerCommands(model: ForumState, read: ForumQueries, co
       if (!info || !post) return
       const current = model.drafts.reply.editing
       if (current?.forumId === info.forumId && current.postId === postId) return
-      const { text, secrets } = partsToEditText(post.parts ?? [], { forumId: info.forumId, boardId: info.boardId })
+      const { text, secrets } = partsToEditText(post.parts ?? [], { forumId: info.forumId, board: post.board })
       commit({
         type: 'draft.patch', value: {
           mode: 'reply', value: {
