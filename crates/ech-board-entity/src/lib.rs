@@ -21,6 +21,7 @@ pub use write_batch::WriteBatch;
 
 use std::ops::{Deref, DerefMut};
 
+use ech_db_guest::BigLog;
 #[cfg(target_arch = "wasm32")]
 use ech_db_guest::BigMap;
 #[cfg(target_arch = "wasm32")]
@@ -99,10 +100,10 @@ pub struct Output {
     pub entities: Vec<Changed>,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, serde::Deserialize)]
-pub struct HistoryEntry {
-    pub sequence: u64,
-    pub txid: [u8; 32],
+#[derive(Clone, Debug, Serialize, serde::Deserialize)]
+pub struct HistoryPage {
+    pub entries: Vec<Tx>,
+    pub next: Option<u64>,
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -113,16 +114,6 @@ fn payloads() -> BigMap<[u8; 32], serde_bytes::ByteBuf> {
 #[cfg(target_arch = "wasm32")]
 fn types(namespace: &str) -> BigSet<[u8; 32]> {
     BigSet::open(&("entities/types", namespace))
-}
-
-#[cfg(target_arch = "wasm32")]
-fn history_counts() -> BigMap<[u8; 32], u64> {
-    BigMap::open("entities/history/counts")
-}
-
-#[cfg(target_arch = "wasm32")]
-fn history(id: &[u8; 32]) -> BigMap<u64, [u8; 32]> {
-    BigMap::open(&("entities/history/entries", id))
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -144,10 +135,10 @@ fn change(namespace: &str, id: [u8; 32], value: Vec<u8>) {
 #[derive(Bind, Clone, Serialize, serde::Deserialize)]
 #[serde(bound = "")]
 pub struct Entity<T: Stored> {
+    pub history: BigLog<[u8; 32]>,
     pub genesis: Tx,
     pub key: T::Key,
     pub value: T,
-    pub seq: u64,
 }
 
 impl<T: Stored> Entity<T> {
@@ -167,11 +158,6 @@ impl<T: Stored> Entity<T> {
         let ids: Vec<[u8; 32]> =
             profile::measure("entity_ids", || keys.iter().map(|key| T::id(key)).collect());
         load_many::<T>(&ids)
-    }
-
-    pub fn insert(key: T::Key, value: T) -> Result<Self> {
-        let id = T::id(&key);
-        insert::<T>(key, value, &id)
     }
 
     pub fn needs_migration(&self) -> bool {
@@ -202,26 +188,29 @@ impl<T: Stored> DerefMut for Entity<T> {
 
 #[cfg(target_arch = "wasm32")]
 impl<T: Stored> Entity<T> {
+    pub fn insert(key: T::Key, value: T) -> Result<Self> {
+        WriteBatch::new()?.insert(key, value)
+    }
+
     pub fn save(&mut self) -> Result<()> {
         if self.needs_migration() {
             self.value = self.value.migrate()?;
             let id = T::id(&self.key);
             self.bind(&id);
         }
-        WriteBatch::new(&[self.id()])?.save(self)
+        WriteBatch::new()?.save(self)
     }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
 impl<T: Stored> Entity<T> {
+    pub fn insert(_key: T::Key, _value: T) -> Result<Self> {
+        unimplemented!("entity objects require the wasm runtime")
+    }
+
     pub fn save(&mut self) -> Result<()> {
         unimplemented!("entity objects require the wasm runtime")
     }
-}
-
-#[cfg(target_arch = "wasm32")]
-fn record_history(id: &[u8; 32], sequence: u64, txid: &[u8; 32]) -> Result<()> {
-    Ok(history(id).insert(&sequence, txid)?)
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -271,38 +260,10 @@ fn load_many<T: Stored>(_ids: &[[u8; 32]]) -> Result<Vec<Option<Entity<T>>>> {
     unimplemented!("entity objects require the wasm runtime")
 }
 
-#[cfg(target_arch = "wasm32")]
-fn insert<T: Stored>(key: T::Key, value: T, id: &[u8; 32]) -> Result<Entity<T>> {
-    WriteBatch::new(&[*id])?.insert(key, value)
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn insert<T: Stored>(_key: T::Key, _value: T, _id: &[u8; 32]) -> Result<Entity<T>> {
-    unimplemented!("entity objects require the wasm runtime")
-}
-
 pub struct Store;
 
 #[cfg(target_arch = "wasm32")]
 impl Store {
-    pub fn history(id: &[u8; 32], before: Option<u64>, limit: u32) -> Result<Vec<HistoryEntry>> {
-        if limit == 0 {
-            return Ok(Vec::new());
-        }
-        let count = history_counts().get(id)?.unwrap_or(0);
-        let end = before
-            .map(|before| before.saturating_sub(1).min(count))
-            .unwrap_or(count);
-        let start = end.saturating_sub(limit as u64);
-        let sequences: Vec<_> = (start + 1..=end).rev().collect();
-        let values = history(id).get_many(&sequences)?;
-        Ok(sequences
-            .into_iter()
-            .zip(values)
-            .filter_map(|(sequence, txid)| txid.map(|txid| HistoryEntry { sequence, txid }))
-            .collect())
-    }
-
     pub fn record(namespace: &str, id: &[u8; 32]) -> Result<Option<Vec<u8>>> {
         if !types(namespace).contains(id)? {
             return Ok(None);
@@ -313,10 +274,6 @@ impl Store {
 
 #[cfg(not(target_arch = "wasm32"))]
 impl Store {
-    pub fn history(_id: &[u8; 32], _before: Option<u64>, _limit: u32) -> Result<Vec<HistoryEntry>> {
-        unimplemented!("entity history requires the wasm runtime")
-    }
-
     pub fn record(_namespace: &str, _id: &[u8; 32]) -> Result<Option<Vec<u8>>> {
         unimplemented!("entity objects require the wasm runtime")
     }

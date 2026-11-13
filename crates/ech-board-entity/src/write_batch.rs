@@ -1,43 +1,32 @@
-use crate::{Bind, Entity, Result, Stored};
+use crate::{Entity, Result, Stored};
+
+#[cfg(target_arch = "wasm32")]
+use crate::Bind;
+#[cfg(target_arch = "wasm32")]
+use ech_db_guest::BigLog;
 
 pub struct WriteBatch {
     #[cfg(target_arch = "wasm32")]
     write: crate::Write,
-    #[cfg(target_arch = "wasm32")]
-    sequences: std::collections::BTreeMap<[u8; 32], u64>,
 }
 
 #[cfg(target_arch = "wasm32")]
 impl WriteBatch {
-    pub fn new(ids: &[[u8; 32]]) -> Result<Self> {
+    pub fn new() -> Result<Self> {
         let write = crate::Session::current_write().ok_or(crate::EntityError::MissingWrite)?;
-        let mut ids = ids.to_vec();
-        ids.sort_unstable();
-        ids.dedup();
-        let counts = crate::history_counts().get_many(&ids)?;
-        let sequences = ids
-            .into_iter()
-            .zip(counts)
-            .map(|(id, count)| {
-                count
-                    .unwrap_or(0)
-                    .checked_add(1)
-                    .map(|sequence| (id, sequence))
-                    .ok_or(crate::EntityError::HistoryOverflow)
-            })
-            .collect::<Result<_>>()?;
-        Ok(Self { write, sequences })
+        Ok(Self { write })
     }
 
     pub fn insert<T: Stored>(&mut self, key: T::Key, value: T) -> Result<Entity<T>> {
         let id = T::id(&key);
         let mut entity = Entity {
+            history: BigLog::default(),
             genesis: self.write.tx.clone(),
             key,
             value,
-            seq: self.sequence(&id)?,
         };
         entity.bind(&id);
+        entity.history.push(&self.write.txid)?;
         self.store(&id, &entity)?;
         crate::types(T::NAMESPACE).insert(&id)?;
         Ok(entity)
@@ -48,14 +37,8 @@ impl WriteBatch {
             return Err(crate::EntityError::Outdated);
         }
         let id = entity.id();
-        entity.seq = self.sequence(&id)?;
+        entity.history.push(&self.write.txid)?;
         self.store(&id, entity)
-    }
-
-    fn sequence(&mut self, id: &[u8; 32]) -> Result<u64> {
-        self.sequences
-            .remove(id)
-            .ok_or(crate::EntityError::NotPending)
     }
 
     fn store<T: Stored>(&self, id: &[u8; 32], entity: &Entity<T>) -> Result<()> {
@@ -63,8 +46,6 @@ impl WriteBatch {
             bcs::to_bytes(entity).map_err(|error| crate::EntityError::Encode(error.to_string()))?,
         );
         crate::payloads().insert(id, &raw)?;
-        crate::history_counts().insert(id, &entity.seq)?;
-        crate::record_history(id, entity.seq, &self.write.txid)?;
         crate::change(T::NAMESPACE, *id, raw.into_vec());
         Ok(())
     }
@@ -72,7 +53,7 @@ impl WriteBatch {
 
 #[cfg(not(target_arch = "wasm32"))]
 impl WriteBatch {
-    pub fn new(_ids: &[[u8; 32]]) -> Result<Self> {
+    pub fn new() -> Result<Self> {
         unimplemented!("entity objects require the wasm runtime")
     }
 

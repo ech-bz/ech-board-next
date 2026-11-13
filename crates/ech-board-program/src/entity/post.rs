@@ -116,7 +116,7 @@ impl Post {
             board: board.key.slug.clone(),
             number: post_number,
         };
-        let mut writes = WriteBatch::new(&[Post::id(&post_key), thread.id(), board.id()])?;
+        let mut writes = WriteBatch::new()?;
         let post = writes.insert(
             post_key,
             Post::new(

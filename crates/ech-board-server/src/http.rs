@@ -12,14 +12,12 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 use tracing::Instrument;
 
-use ech_board_entity::{Entity, HistoryEntry, Stored};
-use ech_board_program::context::ServerContext;
+use ech_board_entity::{Entity, Stored};
 use ech_board_program::context::UserRequests;
 use ech_board_program::entity::{
     Board, BoardKey, BoardPage, Forum, ForumPage, PostPage, Thread, ThreadMeta, ThreadPage,
 };
 use ech_board_program::types::{Esid, Hash};
-use ech_db_protocol::id::Txid;
 use ech_db_protocol::value::{Author, UserPart};
 
 use crate::assets;
@@ -30,7 +28,7 @@ use crate::resources::{PageResources, WithResources};
 use crate::timing::{self, Timer};
 
 const CONTENT_TYPE: &str = "application/octet-stream";
-const FEED_LIMIT: u32 = 64;
+const HISTORY_LIMIT: u32 = 64;
 const BODY_LIMIT: usize = 64 * 1024 * 1024;
 const QUERY_CONCURRENCY: usize = 8;
 
@@ -48,12 +46,14 @@ pub fn routes(config: &mut web::ServiceConfig) {
                 .wrap(actix_web::middleware::from_fn(timing::middleware))
                 .route(web::post().to(query_user)),
         )
-        .route("/api/feed/{id}", web::get().to(feed_page))
         .route(
             "/api/debug/entity/{namespace}/{id}",
             web::get().to(debug_entity),
         )
-        .route("/api/debug/history/{id}", web::get().to(debug_history))
+        .route(
+            "/api/debug/history/{namespace}/{id}",
+            web::get().to(debug_history),
+        )
         .route("/api/content", web::post().to(assets::content_put))
         .route("/api/content/{hash}", web::get().to(assets::content_get))
         .route("/api/media", web::post().to(assets::media_put))
@@ -82,7 +82,7 @@ struct SubmitForm {
 }
 
 #[derive(Deserialize)]
-struct Feed {
+struct History {
     before: Option<u64>,
     limit: u32,
 }
@@ -442,59 +442,6 @@ where
         .in_scope(|| to_bytes(&resources))?)
 }
 
-async fn feed_page(
-    app: web::Data<App>,
-    id: web::Path<String>,
-    query: web::Query<Feed>,
-) -> Result<web::Json<serde_json::Value>, DomainError> {
-    if query.limit == 0 || query.limit > FEED_LIMIT {
-        return Err(DomainError::BadRequest(format!(
-            "limit must be between 1 and {FEED_LIMIT}"
-        )));
-    }
-    let id = parse_public(&id)?;
-    let result = app
-        .forum
-        .call("debug.history", to_bytes(&(id, query.before, query.limit))?)
-        .await?;
-    let history: Vec<HistoryEntry> = from_bytes(&result)?;
-    let next = history
-        .last()
-        .filter(|entry| entry.sequence > 1)
-        .map(|entry| entry.sequence);
-    let mut entries = Vec::with_capacity(history.len());
-    for entry in &history {
-        let record = app.forum.record(Txid::new(entry.txid)).await?;
-        let time = ServerContext::decode(&record.tx.server.ctx)
-            .map_err(|_| DomainError::Internal("server context".to_string()))?
-            .time;
-        entries.push(serde_json::json!({
-            "txid": hex_of(&entry.txid),
-            "timestamp_ms": time,
-            "sender": sender(&record.tx.user.author),
-            "function": record.tx.user.call.function,
-            "args": hex_of(&record.tx.user.call.args),
-            "result": hex_of(&record.result),
-        }));
-    }
-    Ok(web::Json(serde_json::json!({
-        "entity": hex_of(&id),
-        "entries": entries,
-        "next": next.map(|sequence| sequence.to_string()),
-    })))
-}
-
-fn esid_hex(esid: &Esid) -> String {
-    hex_of(&to_bytes(esid).expect("esid encodes"))
-}
-
-fn sender(author: &Author) -> String {
-    match author {
-        Author::User { esid, .. } => esid_hex(esid),
-        Author::Server => "server".to_string(),
-    }
-}
-
 async fn debug_entity(
     app: web::Data<App>,
     path: web::Path<(String, String)>,
@@ -510,13 +457,22 @@ async fn debug_entity(
 
 async fn debug_history(
     app: web::Data<App>,
-    id: web::Path<String>,
-    query: web::Query<Feed>,
+    path: web::Path<(String, String)>,
+    query: web::Query<History>,
 ) -> Result<HttpResponse, DomainError> {
+    if query.limit == 0 || query.limit > HISTORY_LIMIT {
+        return Err(DomainError::BadRequest(format!(
+            "limit must be between 1 and {HISTORY_LIMIT}"
+        )));
+    }
+    let (namespace, id) = path.into_inner();
     let id = parse_public(&id)?;
     let result = app
         .forum
-        .call("debug.history", to_bytes(&(id, query.before, query.limit))?)
+        .call(
+            "debug.history",
+            to_bytes(&(namespace, id, query.before, query.limit))?,
+        )
         .await?;
     Ok(encoded(&result))
 }

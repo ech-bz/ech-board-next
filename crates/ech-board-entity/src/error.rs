@@ -18,12 +18,8 @@ pub enum EntityError {
     Decode(String),
     #[error("missing write context")]
     MissingWrite,
-    #[error("entity history overflow")]
-    HistoryOverflow,
     #[error("entity version is not current")]
     Outdated,
-    #[error("entity is not pending in write batch")]
-    NotPending,
     #[error("entity encode: {0}")]
     Encode(String),
     #[error("{namespace}: {reason}")]
