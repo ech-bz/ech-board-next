@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use actix_cors::Cors;
+use actix_web::middleware::ErrorHandlers;
 use actix_web::web;
 use clap::Parser;
 use tracing_subscriber::EnvFilter;
@@ -9,6 +10,7 @@ use tracing_subscriber::EnvFilter;
 use ech_board_server::config::Config;
 use ech_board_server::content::Store;
 use ech_board_server::db::DbClient;
+use ech_board_server::error::http_error;
 use ech_board_server::forum::Forum;
 use ech_board_server::geo::Geo;
 use ech_board_server::http;
@@ -64,6 +66,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let admin_server = actix_web::HttpServer::new(move || {
         actix_web::App::new()
             .app_data(admin_data.clone())
+            .wrap(ErrorHandlers::new().default_handler(http_error))
             .configure(http::admin_routes)
     })
     .bind(admin)?
@@ -73,6 +76,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         actix_web::App::new()
             .app_data(data.clone())
             .wrap(Cors::permissive())
+            .wrap(ErrorHandlers::new().default_handler(http_error))
             .configure(http::routes)
     })
     .bind_auto_h2c(listen)?
