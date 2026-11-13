@@ -2,6 +2,7 @@ use std::time::Instant;
 
 use bcs::{from_bytes, to_bytes};
 use reqwest::Client;
+use serde::Serialize;
 use serde::de::DeserializeOwned;
 use tracing::Instrument;
 
@@ -11,16 +12,28 @@ use ech_db_protocol::value::{Esid, Outcome, Record, Request};
 
 use crate::timing::{self, Timer};
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Serialize, thiserror::Error)]
 pub enum DbError {
     #[error("reject: {0:?}")]
     Reject(Reject),
     #[error("status {0}")]
     Status(u16),
     #[error("transport: {0}")]
-    Transport(#[from] reqwest::Error),
+    Transport(String),
     #[error("codec: {0}")]
-    Codec(#[from] bcs::Error),
+    Codec(String),
+}
+
+impl From<reqwest::Error> for DbError {
+    fn from(error: reqwest::Error) -> Self {
+        Self::Transport(error.to_string())
+    }
+}
+
+impl From<bcs::Error> for DbError {
+    fn from(error: bcs::Error) -> Self {
+        Self::Codec(error.to_string())
+    }
 }
 
 pub struct DbClient {

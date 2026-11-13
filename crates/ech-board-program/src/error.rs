@@ -5,6 +5,10 @@ use ech_db_guest::GuestError;
 
 #[derive(Serialize, Deserialize, Debug, thiserror::Error)]
 pub enum ForumError {
+    #[error(transparent)]
+    Entity(#[from] EntityError),
+    #[error(transparent)]
+    Guest(#[from] GuestError),
     #[error("root owner required")]
     RootOwnerRequired,
     #[error("not authorized")]
@@ -75,10 +79,6 @@ pub enum ForumError {
     InvalidContentHash,
     #[error("invalid board cursor")]
     InvalidBoardCursor,
-    #[error(transparent)]
-    Entity(#[from] EntityError),
-    #[error(transparent)]
-    Guest(#[from] GuestError),
 }
 
 pub type Result<T> = std::result::Result<T, ForumError>;

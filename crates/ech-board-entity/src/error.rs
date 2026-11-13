@@ -4,14 +4,20 @@ use ech_db_guest::GuestError;
 
 #[derive(Serialize, Deserialize, Debug, thiserror::Error)]
 pub enum EntityError {
+    #[error(transparent)]
+    Guest(#[from] GuestError),
+    #[error("unsupported version {stored} is newer than {current}")]
+    UnsupportedVersion { stored: u32, current: u32 },
+    #[error("{namespace}: {reason}")]
+    Message { namespace: String, reason: String },
+    #[error("{namespace}: unknown function {function}")]
+    UnknownFunction { namespace: String, function: String },
     #[error("not found")]
     NotFound,
     #[error("invalid arguments")]
     InvalidArguments,
     #[error("missing root context")]
     MissingRoot,
-    #[error("unsupported version {stored} is newer than {current}")]
-    UnsupportedVersion { stored: u32, current: u32 },
     #[error("entity key changed")]
     KeyChanged,
     #[error("entity decode: {0}")]
@@ -22,10 +28,4 @@ pub enum EntityError {
     Outdated,
     #[error("entity encode: {0}")]
     Encode(String),
-    #[error("{namespace}: {reason}")]
-    Message { namespace: String, reason: String },
-    #[error("{namespace}: unknown function {function}")]
-    UnknownFunction { namespace: String, function: String },
-    #[error(transparent)]
-    Guest(#[from] GuestError),
 }
