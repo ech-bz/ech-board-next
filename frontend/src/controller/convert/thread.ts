@@ -22,6 +22,7 @@ export function convertThread(entity: ThreadEntity, model: ForumState, root: str
     pinned: value.pinned,
     deleted: value.deleted,
     postCount: Number(value.post_count),
+    deletedCount: Number(value.deleted_count),
     bump: BigInt(value.bump),
     lastPosts: value.last_posts.map(Number),
     admin: value.admin ? convertIdentity(value.admin, previous?.admin) : null,

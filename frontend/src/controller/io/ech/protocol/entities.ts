@@ -75,6 +75,7 @@ const ThreadV1Schema = struct('ThreadV1', {
   pinned: bcs.bool(),
   deleted: bcs.bool(),
   post_count: bcs.u64(),
+  deleted_count: bcs.u64(),
   bump: bcs.u64(),
   last_posts: bcs.vector(bcs.u64()),
   admin: bcs.option(EsidSchema),
