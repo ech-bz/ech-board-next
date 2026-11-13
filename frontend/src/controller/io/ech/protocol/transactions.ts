@@ -77,7 +77,7 @@ export const HistoryEntrySchema = bcs.struct('HistoryEntry', {
   txid: Hash,
 })
 
-export const UserContext = bcs.tuple([Hash, bcs.byteVector(), CallSchema])
+export const UserContext = bcs.tuple([Hash, Hash, bcs.byteVector(), CallSchema])
 
 export const ChallengePayload = bcs.tuple([StatementSchema, bcs.byteVector(), hashList])
 
