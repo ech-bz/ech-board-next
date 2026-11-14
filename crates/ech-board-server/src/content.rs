@@ -169,7 +169,7 @@ impl Store {
     pub async fn upload_file(&self, key: Key, path: &Path) -> Result<(), DomainError> {
         match key.kind {
             Kind::Media | Kind::Reaction => {
-                let _permit = self
+                let permit = self
                     .processing
                     .acquire()
                     .await
@@ -179,6 +179,7 @@ impl Store {
                     .map_err(|error| DomainError::Store(error.to_string()))?
                     .len();
                 let prepared = media::prepare(path, key.kind == Kind::Reaction).await?;
+                drop(permit);
                 let meta = Bytes::from(bcs::to_bytes(&prepared.meta)?);
                 let mut writes: Vec<
                     Pin<Box<dyn Future<Output = Result<(), DomainError>> + Send + '_>>,
