@@ -75,6 +75,9 @@ export function createQueries(model: ForumState) {
       const selected = model.gallery
       return selected && reference ? model.scopes[selected.forumId]?.entities.posts[reference.postId]?.media.find((item) => item.hash === reference.hash && !item.banned && !item.missing) : undefined
     },
+    galleryMediaFor(forumId: string, reference: MediaReference) {
+      return model.scopes[forumKey(forumId)]?.entities.posts[reference.postId]?.media.find((item) => item.hash === reference.hash && !item.banned && !item.missing)
+    },
     forumModerators() {
       const scope = currentScope(model)
       return scope ? scopeModerators(scope, '') : null

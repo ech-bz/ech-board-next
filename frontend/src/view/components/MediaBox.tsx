@@ -6,6 +6,7 @@ import type { Post } from '../../model/entities/post'
 import { useEntityActions } from '../entityActions'
 import { useI18n } from '../i18n'
 import { MusicIcon } from '../icons/MusicIcon'
+import { PlayIcon } from '../icons/PlayIcon'
 import { SearchIcon } from '../icons/SearchIcon'
 import { XIcon } from '../icons/XIcon'
 import type { SourceRect } from './Gallery/context'
@@ -61,7 +62,8 @@ export function MediaBox(props: { m: MediaInfo; post: Post; onOpen: (m: MediaInf
   const { t } = useI18n()
   const actions = useEntityActions()
   const [failedThumbnail, setFailedThumbnail] = createSignal<string | null>(null)
-  const unavailable = () => props.m.banned || props.m.missing || failedThumbnail() === props.m.thumbUrl
+  const unavailable = () => props.m.banned || props.m.missing
+  const thumbnailFailed = () => failedThumbnail() === props.m.thumbUrl
   const isVideo = () => props.m.mime.startsWith('video/')
   const isAudio = () => props.m.mime.startsWith('audio/')
   const isDocument = () => props.m.mime === 'application/pdf'
@@ -69,7 +71,7 @@ export function MediaBox(props: { m: MediaInfo; post: Post; onOpen: (m: MediaInf
   const isImage = () => props.m.mime.startsWith('image/')
   const thumbnailWidth = () => {
     const { width, height } = props.m
-    if (unavailable() || !isImage() && !isVideo() || width <= 0 || height <= 0) return undefined
+    if (unavailable() || thumbnailFailed() || !isImage() && !isVideo() || width <= 0 || height <= 0) return undefined
     return `${Math.max(1, Math.round(Math.min(width, 220, width * 220 / height)))}px`
   }
   const searchItems = (): MenuItem[] =>
@@ -108,10 +110,12 @@ export function MediaBox(props: { m: MediaInfo; post: Post; onOpen: (m: MediaInf
         fallback={<img class={mediaBannedVariants()} src="/static/banned_media.png" alt="" />}
       >
         <Show
-          when={!isAudio() && !isDocument()}
+          when={!isAudio() && !isDocument() && !thumbnailFailed()}
           fallback={
             <div class={mediaAudioThumbVariants()}>
-              <Show when={isDocument()} fallback={<MusicIcon width={40} height={40} />}>
+              <Show when={isDocument()} fallback={<Show when={isAudio()} fallback={<PlayIcon width={40} height={40} />}>
+                <MusicIcon width={40} height={40} />
+              </Show>}>
                 <span class={mediaPdfLabelVariants()}>PDF</span>
               </Show>
             </div>
