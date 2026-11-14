@@ -127,7 +127,9 @@ pub async fn media_put(app: web::Data<App>, body: web::Bytes) -> Result<HttpResp
 
 async fn upload(app: &App, kind: Kind, bytes: web::Bytes) -> Result<HttpResponse, DomainError> {
     let hash = content::hash(&bytes);
-    app.content.upload(Key::new(kind, hash), bytes).await?;
+    app.content
+        .upload_bytes(Key::new(kind, hash), bytes)
+        .await?;
     Ok(HttpResponse::Ok()
         .content_type("application/octet-stream")
         .body(hash.to_vec()))
@@ -170,21 +172,6 @@ async fn media(app: &App, key: Key, req: &HttpRequest) -> Result<HttpResponse, D
         None => meta.size,
     };
     response.insert_header((header::CONTENT_LENGTH, length.to_string()));
-    if app.content.cacheable(meta.size) {
-        let bytes = app.content.get(key).await?;
-        let bytes = match range {
-            Some(range) if range.end <= bytes.len() as u64 => {
-                bytes.slice(range.start as usize..range.end as usize)
-            }
-            Some(_) => {
-                return Err(DomainError::Store(
-                    "media size does not match metadata".into(),
-                ))
-            }
-            None => bytes,
-        };
-        return Ok(response.body(bytes));
-    }
     Ok(response.streaming(
         app.content
             .stream(key, range.map(GetRange::Bounded))
