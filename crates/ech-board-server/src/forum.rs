@@ -8,6 +8,7 @@ use ech_board_program::entity::Forum as ForumEntity;
 use ech_board_program::error::ForumError;
 use ech_board_program::types::Hash;
 use ech_db_protocol::error::Reject;
+use ech_db_protocol::hash::Blake2b256;
 use ech_db_protocol::id::{Root, Txid};
 use ech_db_protocol::value::{Author, Call, Esid, Program, Record, Request, Tx, UserPart};
 use ech_db_sdk::Domain;
@@ -48,6 +49,7 @@ impl Forum {
 
     pub fn new(db: DbClient, domain: Domain, wasm: &[u8]) -> Result<Self, DomainError> {
         let upload = UserPart {
+            nonce: [0u8; 32],
             ctx: Vec::new(),
             call: Call {
                 program: Program::Native,
@@ -342,6 +344,7 @@ impl Forum {
 
     fn server_part(&self, function: &str, args: Vec<u8>) -> UserPart {
         UserPart {
+            nonce: [0u8; 32],
             ctx: UserRequests::default().encode(),
             call: Call {
                 program: Program::Txid(self.program),
@@ -358,8 +361,10 @@ impl Forum {
         args: Vec<u8>,
         country: Option<u32>,
         trip: Option<Tripcode>,
+        source: [u8; 32],
     ) -> UserPart {
         UserPart {
+            nonce: Blake2b256::hash(&[function.as_bytes(), args.as_slice(), &source]),
             ctx: UserRequests {
                 geo: country.is_some(),
                 trip: trip.is_some(),

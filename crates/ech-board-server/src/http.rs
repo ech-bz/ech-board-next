@@ -107,6 +107,7 @@ struct ImportRequest {
     time: u64,
     country: Option<u32>,
     trip: Option<Tripcode>,
+    source: [u8; 32],
 }
 
 #[derive(Deserialize)]
@@ -291,6 +292,7 @@ async fn import_admin(
         request.args,
         request.country,
         request.trip.clone(),
+        request.source,
     );
     submit_content(&app, &form.blob, &[user.clone()], &[false]).await?;
     let mut outputs = app
