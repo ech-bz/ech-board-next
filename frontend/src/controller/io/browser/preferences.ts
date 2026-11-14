@@ -1,9 +1,9 @@
-import { APPEARANCES, initialPreferences, type Preferences } from '../../../model/state/preferences'
+import { APPEARANCES, clampPipWidth, initialPreferences, type Preferences } from '../../../model/state/preferences'
 
 const keys: Record<keyof Preferences, string> = {
   lang: 'ech-board-lang', theme: 'ech-board-theme', appearance: 'ech-board-appearance',
   showDeleted: 'ech-board-show-deleted', hideThreadsCompletely: 'ech-board-hide-threads', expandFolds: 'ech-board-expand-folds',
-  muted: 'ech-board-video-muted', volume: 'ech-board-video-volume', hiddenThreads: 'ech-board-hidden-threads',
+  muted: 'ech-board-video-muted', volume: 'ech-board-video-volume', pipWidth: 'ech-board-pip-width', hiddenThreads: 'ech-board-hidden-threads',
 }
 
 function read(key: keyof Preferences): string | null {
@@ -23,6 +23,8 @@ export function loadPreferences(): Preferences {
   }
   const volume = read('volume')
   if (volume !== null && Number.isFinite(Number(volume))) preferences.volume = Math.max(0, Math.min(1, Number(volume)))
+  const pipWidth = read('pipWidth')
+  if (pipWidth !== null && Number.isFinite(Number(pipWidth)) && Number(pipWidth) > 0) preferences.pipWidth = clampPipWidth(Number(pipWidth))
   try {
     const hidden: unknown = JSON.parse(read('hiddenThreads') ?? '[]')
     if (Array.isArray(hidden)) preferences.hiddenThreads = hidden.filter((value): value is string => typeof value === 'string')

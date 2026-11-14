@@ -18,6 +18,12 @@ export const APPEARANCES: { id: string; label: string; file?: string; theme: The
   { id: 'sosaka_dark', label: 'Sosaka Dark', file: 'sosaka dark.css', theme: 'dark', enabled: false },
 ]
 
+export const PIP_MIN_WIDTH = 240
+export const PIP_MAX_WIDTH = 640
+export const PIP_DEFAULT_WIDTH = 320
+
+export const clampPipWidth = (width: number): number => Math.min(Math.max(width, PIP_MIN_WIDTH), PIP_MAX_WIDTH)
+
 export interface Preferences {
   lang: Lang
   theme: Theme
@@ -27,7 +33,8 @@ export interface Preferences {
   expandFolds: boolean
   muted: boolean
   volume: number
+  pipWidth: number
   hiddenThreads: string[]
 }
 
-export const initialPreferences = (): Preferences => ({ lang: 'ru', theme: 'dark', appearance: 'default_dark', showDeleted: false, hideThreadsCompletely: false, expandFolds: false, muted: true, volume: 1, hiddenThreads: [] })
+export const initialPreferences = (): Preferences => ({ lang: 'ru', theme: 'dark', appearance: 'default_dark', showDeleted: false, hideThreadsCompletely: false, expandFolds: false, muted: true, volume: 1, pipWidth: PIP_DEFAULT_WIDTH, hiddenThreads: [] })
