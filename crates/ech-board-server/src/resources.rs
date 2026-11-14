@@ -60,17 +60,6 @@ impl Resources {
             .extend(hashes.into_iter().map(|hash| Key::new(kind, hash)));
     }
 
-    pub async fn entity(forum: &ForumApi, namespace: &str, id: Hash) -> Result<Self, DomainError> {
-        let resources = match namespace {
-            "post" => entity::<Post>(forum, id).await?.resources(),
-            "thread" => entity::<Thread>(forum, id).await?.resources(),
-            "board" => entity::<Board>(forum, id).await?.resources(),
-            "forum" => entity::<Forum>(forum, id).await?.resources(),
-            _ => return Err(DomainError::NotFound),
-        };
-        resources.resolve(forum).await
-    }
-
     pub async fn path(
         forum: &ForumApi,
         board_id: Hash,
@@ -130,14 +119,59 @@ impl Resources {
         Ok(self)
     }
 
+    pub fn decode(namespace: &str, bytes: &[u8]) -> Result<Self, DomainError> {
+        Ok(match namespace {
+            "post" => bcs::from_bytes::<Entity<Post>>(bytes)?.resources(),
+            "thread" => bcs::from_bytes::<Entity<Thread>>(bytes)?.resources(),
+            "board" => bcs::from_bytes::<Entity<Board>>(bytes)?.resources(),
+            "forum" => bcs::from_bytes::<Entity<Forum>>(bytes)?.resources(),
+            _ => return Err(DomainError::NotFound),
+        })
+    }
+
+    fn resolve_values(mut self, threads: &BTreeMap<Hash, Vec<u8>>) -> Result<Self, DomainError> {
+        let pending = std::mem::take(&mut self.threads);
+        for (id, resources) in pending {
+            let bytes = threads.get(&id).ok_or(DomainError::NotFound)?;
+            let thread: Entity<Thread> = bcs::from_bytes(bytes)?;
+            if !thread.deleted {
+                self.extend(resources);
+            }
+        }
+        Ok(self)
+    }
+
     pub async fn load(
         self,
         store: &Store,
         forum: &ForumApi,
     ) -> Result<WithResources<()>, DomainError> {
         let resources = self.resolve(forum).await?;
-        let transactions = forum.transactions(resources.transactions).await?;
-        let contents = stream::iter(resources.contents)
+        let transactions = forum.transactions(resources.transactions.clone()).await?;
+        resources.load_ready(store, &transactions).await
+    }
+
+    pub async fn load_page(
+        self,
+        store: &Store,
+        threads: &BTreeMap<Hash, Vec<u8>>,
+        transactions: &BTreeMap<Hash, Tx>,
+    ) -> Result<WithResources<()>, DomainError> {
+        let resources = self.resolve_values(threads)?;
+        resources.load_ready(store, transactions).await
+    }
+
+    async fn load_ready(
+        self,
+        store: &Store,
+        transactions: &BTreeMap<Hash, Tx>,
+    ) -> Result<WithResources<()>, DomainError> {
+        let transactions = self
+            .transactions
+            .iter()
+            .filter_map(|hash| transactions.get(hash).map(|tx| (*hash, tx.clone())))
+            .collect();
+        let contents = stream::iter(self.contents)
             .map(|key| async move {
                 Ok::<_, DomainError>((
                     key.hash,
@@ -146,7 +180,7 @@ impl Resources {
             })
             .buffer_unordered(32)
             .try_collect();
-        let attachments = stream::iter(resources.media)
+        let attachments = stream::iter(self.media)
             .map(|key| async move { Ok::<_, DomainError>((key.hash, store.metadata(key).await?)) })
             .buffer_unordered(32)
             .try_collect();

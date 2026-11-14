@@ -1,15 +1,16 @@
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use futures_util::{StreamExt, TryStreamExt};
 use serde::Serialize;
 use tokio::sync::broadcast;
 
 use bcs::to_bytes;
-use ech_board_entity::{Entity, Output, Stored};
+use ech_board_entity::{Changed, Entity, Output, Stored};
 use ech_board_program::entity::{Board, BoardKey, Post, Thread, ThreadKey};
 use ech_board_program::types::Hash;
-use ech_db_protocol::value::{Author, UserPart};
+use ech_db_protocol::id::Txid;
+use ech_db_protocol::value::{Author, Tx, UserPart};
 
 use crate::content::Store;
 use crate::error::DomainError;
@@ -104,27 +105,15 @@ impl Hub {
     async fn resources(
         &self,
         store: &Store,
-        forum: &ForumApi,
-        entities: &[EntityPayload],
+        values: &[(String, [u8; 32], Vec<u8>)],
+        threads: &BTreeMap<[u8; 32], Vec<u8>>,
+        transactions: &BTreeMap<[u8; 32], Tx>,
     ) -> Result<(Vec<BlobPayload>, Vec<BlobPayload>, Vec<BlobPayload>), DomainError> {
         let mut resources = Resources::default();
-        let owners: Vec<_> = entities
-            .iter()
-            .map(|entity| (entity.kind.clone(), entity.id.clone()))
-            .collect();
-        let mut reads = futures_util::stream::iter(owners)
-            .map(|(kind, id)| async move {
-                let id = hex::decode(id)
-                    .ok()
-                    .and_then(|bytes| bytes.try_into().ok())
-                    .ok_or_else(|| DomainError::BadRequest("invalid entity id".into()))?;
-                Resources::entity(forum, &kind, id).await
-            })
-            .buffer_unordered(32);
-        while let Some(next) = reads.try_next().await? {
-            resources.extend(next);
+        for (namespace, _, bytes) in values {
+            resources.extend(Resources::decode(namespace, bytes)?);
         }
-        let loaded = resources.load(store, forum).await?;
+        let loaded = resources.load_page(store, threads, transactions).await?;
         let contents = loaded
             .contents
             .into_iter()
@@ -203,7 +192,10 @@ impl Hub {
                     Ok(records) => {
                         let history_ms = history_started.elapsed().as_secs_f64() * 1000.0;
                         let received = Instant::now();
-                        let mut idle = true;
+                        let mut pending = Vec::new();
+                        let mut next = cursor;
+                        let mut keys: Vec<(String, Hash)> = Vec::new();
+                        let mut seen: BTreeSet<(String, Hash)> = BTreeSet::new();
                         for record in records {
                             let Ok(txid) = record.tx.txid(&forum.root()) else {
                                 continue;
@@ -211,43 +203,7 @@ impl Hub {
                             if Some(txid) == cursor {
                                 continue;
                             }
-                            idle = false;
-                            cursor = Some(txid);
-                            let queue_ms = received.elapsed().as_secs_f64() * 1000.0;
-                            let function = record.tx.user.call.function.clone();
-                            let entities = changed(&forum, &record.result).await;
-                            let scope_started = Instant::now();
-                            let (board, thread) = match hub.scope(&entities) {
-                                Ok(scope) => scope,
-                                Err(error) => {
-                                    tracing::warn!(%error, %txid, %function, "journal scope");
-                                    continue;
-                                }
-                            };
-                            let scope_ms = scope_started.elapsed().as_secs_f64() * 1000.0;
-                            let resources_started = Instant::now();
-                            let (contents, attachments, transactions) = match hub
-                                .resources(&content, &forum, &entities)
-                                .await
-                            {
-                                Ok(resources) => resources,
-                                Err(error) => {
-                                    tracing::warn!(%error, %txid, %function, "journal resources");
-                                    continue;
-                                }
-                            };
-                            let resources_ms = resources_started.elapsed().as_secs_f64() * 1000.0;
-                            if history_ms + queue_ms + scope_ms + resources_ms >= 100.0 {
-                                tracing::info!(
-                                    %txid,
-                                    %function,
-                                    history_ms,
-                                    queue_ms,
-                                    scope_ms,
-                                    resources_ms,
-                                    "slow live update"
-                                );
-                            }
+                            next = Some(txid);
                             let reaction = match ReactionEvent::from_user(&record.tx.user) {
                                 Ok(reaction) => reaction,
                                 Err(error) => {
@@ -255,21 +211,105 @@ impl Hub {
                                     continue;
                                 }
                             };
-                            hub.publish(Event {
-                                txid: txid.to_string(),
-                                function,
+                            let changes = decode_changes(&record.result);
+                            for change in &changes {
+                                let key = (change.namespace.clone(), change.id);
+                                if seen.insert(key.clone()) {
+                                    keys.push(key);
+                                }
+                            }
+                            pending.push(Pending {
+                                txid,
+                                function: record.tx.user.call.function.clone(),
                                 reaction,
-                                board,
-                                thread,
-                                entities,
-                                contents,
-                                attachments,
-                                transactions,
+                                changes,
                             });
                         }
-                        if idle {
+                        if pending.is_empty() {
                             tokio::time::sleep(Duration::from_millis(50)).await;
+                            continue;
                         }
+                        let collected = match forum.changes(keys.clone()).await {
+                            Ok(collected) => collected,
+                            Err(error) => {
+                                tracing::warn!(%error, requests = keys.len(), "journal changes");
+                                tokio::time::sleep(Duration::from_secs(1)).await;
+                                continue;
+                            }
+                        };
+                        let values: BTreeMap<(String, Hash), Vec<u8>> =
+                            keys.into_iter().zip(collected.entities).collect();
+                        let threads: BTreeMap<Hash, Vec<u8>> =
+                            collected.threads.into_iter().collect();
+                        let transactions: BTreeMap<Hash, Tx> = collected
+                            .txids
+                            .into_iter()
+                            .zip(collected.transactions)
+                            .collect();
+                        let queue_ms = received.elapsed().as_secs_f64() * 1000.0;
+                        for entry in pending {
+                            let mut payloads = Vec::with_capacity(entry.changes.len());
+                            let mut raws = Vec::with_capacity(entry.changes.len());
+                            let mut complete = true;
+                            for change in &entry.changes {
+                                let key = (change.namespace.clone(), change.id);
+                                let Some(bytes) = values.get(&key) else {
+                                    complete = false;
+                                    break;
+                                };
+                                payloads.push(EntityPayload {
+                                    kind: change.namespace.clone(),
+                                    id: hex_of(&change.id),
+                                    value: hex_of(bytes),
+                                });
+                                raws.push((change.namespace.clone(), change.id, bytes.clone()));
+                            }
+                            if !complete {
+                                tracing::warn!(txid = %entry.txid, "journal values");
+                                continue;
+                            }
+                            let (board, thread) = match hub.scope(&payloads) {
+                                Ok(scope) => scope,
+                                Err(error) => {
+                                    tracing::warn!(%error, txid = %entry.txid, "journal scope");
+                                    continue;
+                                }
+                            };
+                            let resources_started = Instant::now();
+                            let (contents, attachments, transaction_payloads) = match hub
+                                .resources(&content, &raws, &threads, &transactions)
+                                .await
+                            {
+                                Ok(resources) => resources,
+                                Err(error) => {
+                                    tracing::warn!(%error, txid = %entry.txid, "journal resources");
+                                    continue;
+                                }
+                            };
+                            let resources_ms = resources_started.elapsed().as_secs_f64() * 1000.0;
+                            if history_ms + queue_ms + resources_ms >= 100.0 {
+                                tracing::info!(
+                                    txid = %entry.txid,
+                                    function = %entry.function,
+                                    history_ms,
+                                    queue_ms,
+                                    resources_ms,
+                                    "slow live update"
+                                );
+                            }
+                            hub.publish(Event {
+                                txid: entry.txid.to_string(),
+                                function: entry.function,
+                                reaction: entry.reaction,
+                                board,
+                                thread,
+                                entities: payloads,
+                                contents,
+                                attachments,
+                                transactions: transaction_payloads,
+                            });
+                        }
+                        cursor = next;
                     }
                     Err(error) => {
                         tracing::warn!(%error, "journal polling");
@@ -304,28 +344,15 @@ fn changed_entity<T: Stored>(
     }))
 }
 
-async fn changed(forum: &ForumApi, result: &[u8]) -> Vec<EntityPayload> {
-    let Ok(output) = bcs::from_bytes::<Output>(result) else {
-        return Vec::new();
-    };
-    if output.entities.is_empty() {
-        return Vec::new();
-    }
-    let values = match forum.entities(&output.entities).await {
-        Ok(values) => values,
-        Err(error) => {
-            tracing::warn!(%error, "journal entities");
-            return Vec::new();
-        }
-    };
-    output
-        .entities
-        .into_iter()
-        .zip(values)
-        .map(|(entity, value)| EntityPayload {
-            kind: entity.namespace,
-            id: hex_of(&entity.id),
-            value: hex_of(&value),
-        })
-        .collect()
+fn decode_changes(result: &[u8]) -> Vec<Changed> {
+    bcs::from_bytes::<Output>(result)
+        .map(|output| output.entities)
+        .unwrap_or_default()
+}
+
+struct Pending {
+    txid: Txid,
+    function: String,
+    reaction: Option<ReactionEvent>,
+    changes: Vec<Changed>,
 }
