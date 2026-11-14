@@ -360,19 +360,24 @@ export class ForumApi {
     trip: string | null = null,
   ): Promise<{ txid: string; result: Uint8Array }> {
     const identity = this.identity
-    return relay.submit(
+    const [first] = await relay.submit(
       this.relay,
       identity,
-      relay.call(this.relay, operation.function, operation.args),
-      {
-        tweak,
-        decrypt: [identity.esid(this.relay.root, tweak), ...operation.decryptions],
-      },
-      requests,
-      trip,
-      blobs.map((blob) => blob.bytes),
+      [
+        {
+          request: relay.call(this.relay, operation.function, operation.args),
+          access: {
+            tweak,
+            decrypt: [identity.esid(this.relay.root, tweak), ...operation.decryptions],
+          },
+          requests,
+          trip,
+          blobs: blobs.map((blob) => blob.bytes),
+        },
+      ],
       onPrepared,
     )
+    return first
   }
 
   private access(): relay.Access {
@@ -380,12 +385,14 @@ export class ForumApi {
     return { tweak, decrypt: [this.identity.esid(this.root, tweak)] }
   }
 
-  async query(operation: Call): Promise<Uint8Array> {
+  async query(operations: Call[]): Promise<Uint8Array[]> {
     return relay.query(
       this.relay,
       this.identity,
-      relay.call(this.relay, operation.function, operation.args),
-      { decrypt: operation.decryptions },
+      operations.map((operation) => ({
+        request: relay.call(this.relay, operation.function, operation.args),
+        access: { decrypt: operation.decryptions },
+      })),
     )
   }
 

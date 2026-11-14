@@ -77,40 +77,54 @@ export function call(relay: Relay, functionName: string, args: Uint8Array): Call
   }
 }
 
+export type Submission = {
+  request: Call
+  access: Access
+  requests: UserRequests
+  trip: string | null
+  blobs?: Uint8Array[]
+}
+
 export async function submit(
   relay: Relay,
   identity: Identity,
-  request: Call,
-  access: Access,
-  requests: UserRequests,
-  trip: string | null,
-  blobs: Uint8Array[] = [],
+  entries: Submission[],
   onPrepared?: (txid: string) => void,
-): Promise<{ txid: string; result: Uint8Array }> {
-  const user = identity.sign(relay.root, UserRequestsSchema.serialize(requests).toBytes(), request, access.tweak)
-  const txid = hex(blake2b(bcs.tuple([bcs.bytes(32), UserPartSchema]).serialize([relay.root, user]).toBytes(), { dkLen: 32 }))
-  const payload = SignedSchema.serialize({ user, decryptions: access.decrypt ?? [] }).toBytes()
+): Promise<{ txid: string; result: Uint8Array }[]> {
   const form = new FormData()
-  form.append('signed', new Blob([payload.slice().buffer as ArrayBuffer], { type: CONTENT_TYPE }))
-  if (trip !== null) form.append('trip', trip)
-  for (const blob of blobs) {
-    form.append('blob', new Blob([blob.slice().buffer as ArrayBuffer], { type: CONTENT_TYPE }))
+  const txids: string[] = []
+  for (const entry of entries) {
+    const user = identity.sign(
+      relay.root,
+      UserRequestsSchema.serialize(entry.requests).toBytes(),
+      entry.request,
+      entry.access.tweak,
+    )
+    txids.push(
+      hex(
+        blake2b(
+          bcs.tuple([bcs.bytes(32), UserPartSchema]).serialize([relay.root, user]).toBytes(),
+          { dkLen: 32 },
+        ),
+      ),
+    )
+    const payload = SignedSchema.serialize({ user, decryptions: entry.access.decrypt ?? [] }).toBytes()
+    form.append('signed', new Blob([payload.slice().buffer as ArrayBuffer], { type: CONTENT_TYPE }))
   }
-  onPrepared?.(txid)
+  if (entries.some((entry) => entry.trip !== null)) {
+    for (const entry of entries) form.append('trip', entry.trip ?? '')
+  }
+  for (const entry of entries) {
+    for (const blob of entry.blobs ?? []) {
+      form.append('blob', new Blob([blob.slice().buffer as ArrayBuffer], { type: CONTENT_TYPE }))
+    }
+  }
+  for (const txid of txids) onPrepared?.(txid)
   const response = await fetch(`${relay.base}/submit`, { method: 'POST', body: form })
   if (!response.ok) throw await responseError(response)
   const bytes = new Uint8Array(await response.arrayBuffer())
-  return { txid, result: bytes }
-}
-
-export async function query(
-  relay: Relay,
-  identity: Identity,
-  request: Call,
-  access: Access,
-): Promise<Uint8Array> {
-  const [first] = await queryBatch(relay, identity, [request], access)
-  return first
+  const results = bcs.vector(bcs.byteVector()).parse(bytes)
+  return txids.map((txid, index) => ({ txid, result: results[index] }))
 }
 
 async function post(relay: Relay, endpoint: string, payload: Uint8Array): Promise<Uint8Array> {
@@ -130,7 +144,7 @@ async function read<T>(
   access: Access,
   schema: BcsType<any, any, any>,
 ): Promise<Resources<T>> {
-  const bytes = await query(relay, identity, request, access)
+  const [bytes] = await query(relay, identity, [{ request, access }])
   return parseResources<T>(bytes, schema)
 }
 
@@ -150,13 +164,17 @@ function parseResources<T>(bytes: Uint8Array, schema: BcsType<any, any, any>): R
   }
 }
 
-export async function queryBatch(
+export type Query = {
+  request: Call
+  access: Access
+}
+
+export async function query(
   relay: Relay,
   identity: Identity,
-  requests: Call[],
-  access: Access,
+  queries: Query[],
 ): Promise<Uint8Array[]> {
-  const body = requests.map((request) => ({
+  const body = queries.map(({ request, access }) => ({
     user: identity.sign(relay.root, UserRequestsSchema.serialize(NO_REQUESTS).toBytes(), request, access.tweak),
     decryptions: access.decrypt ?? [],
   }))
@@ -178,7 +196,11 @@ export async function readMetadata(
   ]
   if (board !== undefined) requests.push(call(relay, 'board.meta', unhex(EntityId.board(board))))
   if (board !== undefined && thread !== undefined) requests.push(call(relay, 'thread.meta', unhex(EntityId.thread(board, thread))))
-  const results = await queryBatch(relay, identity, requests, access)
+  const results = await query(
+    relay,
+    identity,
+    requests.map((request) => ({ request, access })),
+  )
   return {
     forum: parseResources<typeof ForumEntitySchema.$inferType>(results[0], ForumEntitySchema),
     boards: parseResources<ForumPageEntity>(results[1], ForumPageSchema),
@@ -213,7 +235,11 @@ export async function readThreadPages(
 ): Promise<Resources<ThreadPageEntity>[]> {
   if (cursors.length === 0) return []
   const requests = cursors.map((after) => call(relay, 'thread.page', threadPageArgs(id, after)))
-  const results = await queryBatch(relay, identity, requests, access)
+  const results = await query(
+    relay,
+    identity,
+    requests.map((request) => ({ request, access })),
+  )
   return results.map((bytes) => parseResources<ThreadPageEntity>(bytes, ThreadPageSchema))
 }
 
