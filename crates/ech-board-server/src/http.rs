@@ -7,7 +7,7 @@ use actix_multipart::form::MultipartForm;
 use actix_web::http::header;
 use actix_web::{web, HttpRequest, HttpResponse};
 use bcs::{from_bytes, to_bytes};
-use futures_util::stream::{self, StreamExt as _, TryStreamExt as _};
+use futures_util::stream::{self, StreamExt as _};
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 use tracing::Instrument;
@@ -24,6 +24,7 @@ use ech_db_protocol::value::{Author, UserPart};
 
 use crate::assets;
 use crate::error::DomainError;
+use crate::forum::{Query, Submission};
 use crate::postpart;
 use crate::realtime::App;
 use crate::resources::{PageResources, WithResources};
@@ -32,7 +33,6 @@ use crate::timing::{self, Timer};
 const CONTENT_TYPE: &str = "application/octet-stream";
 const HISTORY_LIMIT: u32 = 64;
 const BODY_LIMIT: usize = 200 * 1024 * 1024;
-const QUERY_CONCURRENCY: usize = 8;
 
 pub fn routes(config: &mut web::ServiceConfig) {
     config
@@ -85,10 +85,10 @@ pub struct Signed {
 
 #[derive(MultipartForm)]
 struct SubmitForm {
-    signed: MultipartBytes,
+    signed: Vec<MultipartBytes>,
     #[multipart(limit = "200mb")]
     blob: Vec<MultipartBytes>,
-    trip: Option<Text<String>>,
+    trip: Vec<Text<String>>,
 }
 
 #[derive(MultipartForm)]
@@ -256,8 +256,10 @@ async fn submit_user(
     req: HttpRequest,
     form: MultipartForm<SubmitForm>,
 ) -> Result<HttpResponse, DomainError> {
-    let signed: Signed = from_bytes(&form.signed.data)?;
-    require_user(&signed)?;
+    let signed = decode_signed(&form.signed)?;
+    for entry in &signed {
+        require_user(entry)?;
+    }
     submit_core(app, req, form, signed).await
 }
 
@@ -266,8 +268,15 @@ async fn submit_admin(
     req: HttpRequest,
     form: MultipartForm<SubmitForm>,
 ) -> Result<HttpResponse, DomainError> {
-    let signed: Signed = from_bytes(&form.signed.data)?;
+    let signed = decode_signed(&form.signed)?;
     submit_core(app, req, form, signed).await
+}
+
+fn decode_signed(parts: &[MultipartBytes]) -> Result<Vec<Signed>, DomainError> {
+    parts
+        .iter()
+        .map(|part| from_bytes(&part.data).map_err(Into::into))
+        .collect()
 }
 
 async fn import_admin(
@@ -281,74 +290,103 @@ async fn import_admin(
         request.country,
         request.trip.clone(),
     );
-    submit_content(&app, &form.blob, &user, false).await?;
-    let output = app
+    submit_content(&app, &form.blob, &[user.clone()], &[false]).await?;
+    let mut outputs = app
         .forum
-        .submit_at(
-            user,
-            Vec::new(),
-            request.country,
-            request.trip,
+        .append_at(
+            vec![Submission {
+                user,
+                decryptions: Vec::new(),
+                country: request.country,
+                trip: request.trip,
+            }],
             request.time,
         )
         .await?;
     Ok(HttpResponse::Ok()
         .content_type(CONTENT_TYPE)
-        .body(output.result))
+        .body(outputs.remove(0).result))
 }
 
 async fn submit_core(
     app: web::Data<App>,
     req: HttpRequest,
     form: MultipartForm<SubmitForm>,
-    signed: Signed,
+    signed: Vec<Signed>,
 ) -> Result<HttpResponse, DomainError> {
     let started = Instant::now();
-    let function = signed.user.call.function.clone();
-    let requests = UserRequests::decode(&signed.user.ctx)
-        .map_err(|_| DomainError::BadRequest("invalid user requests".to_string()))?;
-    let country = requests.geo.then_some(
-        client_ip(&req)
-            .and_then(|ip| app.geo.country(ip))
-            .unwrap_or(0),
-    );
-    let trip = match (&form.trip, requests.trip) {
-        (Some(raw), true) => Some(app.trips.compute(&raw.0)?),
-        (None, false) => None,
-        (Some(_), false) => {
-            return Err(DomainError::BadRequest(
-                "tripcode password without a tripcode request".to_string(),
-            ))
-        }
-        (None, true) => {
-            return Err(DomainError::BadRequest(
-                "tripcode requested without a password".to_string(),
-            ))
-        }
-    };
-    let content = submit_content(&app, &form.blob, &signed.user, requests.postcount).await;
+    if signed.is_empty() {
+        return Err(DomainError::BadRequest("empty batch".to_string()));
+    }
+    if !form.trip.is_empty() && form.trip.len() != signed.len() {
+        return Err(DomainError::BadRequest(
+            "tripcode count does not match the batch".to_string(),
+        ));
+    }
+    let geo_country = client_ip(&req)
+        .and_then(|ip| app.geo.country(ip))
+        .unwrap_or(0);
+    let mut users = Vec::with_capacity(signed.len());
+    let mut postcounts = Vec::with_capacity(signed.len());
+    let mut submissions = Vec::with_capacity(signed.len());
+    for (index, signed) in signed.into_iter().enumerate() {
+        let requests = UserRequests::decode(&signed.user.ctx)
+            .map_err(|_| DomainError::BadRequest("invalid user requests".to_string()))?;
+        let raw_trip = form
+            .trip
+            .get(index)
+            .map(|trip| trip.0.as_str())
+            .filter(|trip| !trip.is_empty());
+        let trip = match (raw_trip, requests.trip) {
+            (Some(raw), true) => Some(app.trips.compute(raw)?),
+            (None, false) => None,
+            (Some(_), false) => {
+                return Err(DomainError::BadRequest(
+                    "tripcode password without a tripcode request".to_string(),
+                ))
+            }
+            (None, true) => {
+                return Err(DomainError::BadRequest(
+                    "tripcode requested without a password".to_string(),
+                ))
+            }
+        };
+        postcounts.push(requests.postcount);
+        users.push(signed.user.clone());
+        submissions.push(Submission {
+            user: signed.user,
+            decryptions: signed.decryptions,
+            country: requests.geo.then_some(geo_country),
+            trip,
+        });
+    }
+    let content = submit_content(&app, &form.blob, &users, &postcounts).await;
     let content_ms = started.elapsed().as_secs_f64() * 1000.0;
     if let Err(error) = content {
-        tracing::warn!(%error, %function, content_ms, "submit content rejected");
+        tracing::warn!(%error, content_ms, "submit content rejected");
         return Err(error);
     }
     let transaction_started = Instant::now();
-    let output = app
-        .forum
-        .submit(signed.user, signed.decryptions, country, trip)
-        .await;
+    let outputs = app.forum.append(submissions).await;
     let transaction_ms = transaction_started.elapsed().as_secs_f64() * 1000.0;
-    let output = match output {
-        Ok(output) => output,
+    let outputs = match outputs {
+        Ok(outputs) => outputs,
         Err(error) => {
-            tracing::warn!(%error, %function, content_ms, transaction_ms, "submit rejected");
+            tracing::warn!(%error, content_ms, transaction_ms, "submit rejected");
             return Err(error);
         }
     };
     let total_ms = started.elapsed().as_secs_f64() * 1000.0;
     if total_ms >= 500.0 {
-        tracing::info!(%function, content_ms, transaction_ms, total_ms, "slow submit");
+        tracing::info!(
+            transactions = outputs.len(),
+            content_ms,
+            transaction_ms,
+            total_ms,
+            "slow submit"
+        );
     }
+    let results: Vec<Vec<u8>> = outputs.into_iter().map(|output| output.result).collect();
     Ok(HttpResponse::Ok()
         .content_type(CONTENT_TYPE)
         .insert_header((
@@ -357,51 +395,63 @@ async fn submit_core(
                 "content;dur={content_ms:.2}, transaction;dur={transaction_ms:.2}, total;dur={total_ms:.2}"
             ),
         ))
-        .body(output.result))
+        .body(to_bytes(&results)?))
 }
 
 async fn submit_content(
     app: &App,
     blobs: &[MultipartBytes],
-    user: &UserPart,
-    postcount: bool,
+    users: &[UserPart],
+    postcounts: &[bool],
 ) -> Result<(), DomainError> {
-    let expected = postpart::expected(&user.call.function, &user.call.args);
+    let expected: Vec<_> = users
+        .iter()
+        .map(|user| postpart::expected(&user.call.function, &user.call.args))
+        .collect();
     let mut received = std::collections::BTreeSet::new();
     for part in blobs {
         let hash = crate::content::hash(&part.data);
-        let keys: Vec<_> = expected
-            .keys
-            .iter()
-            .filter(|key| key.hash == hash)
-            .copied()
-            .collect();
-        if keys.is_empty() {
+        let mut matched = false;
+        for entry in &expected {
+            for key in &entry.keys {
+                if key.hash != hash {
+                    continue;
+                }
+                matched = true;
+                if received.insert(*key) {
+                    app.content.upload(*key, part.data.clone()).await?;
+                }
+            }
+        }
+        if !matched {
             return Err(DomainError::BadRequest("unexpected content".to_string()));
         }
-        for key in keys {
-            if received.insert(key) {
-                app.content.upload(key, part.data.clone()).await?;
+    }
+    for entry in &expected {
+        for key in &entry.keys {
+            let key = *key;
+            if received.contains(&key) {
+                continue;
+            }
+            let ready = match key.kind {
+                crate::content::Kind::Media | crate::content::Kind::Reaction => {
+                    app.content.exists(key).await? && app.content.exists(key.metadata()).await?
+                }
+                _ => app.content.exists(key).await?,
+            };
+            if !ready {
+                return Err(DomainError::BadRequest("missing content".to_string()));
             }
         }
     }
-    for key in &expected.keys {
-        let key = *key;
-        if received.contains(&key) {
+    for (index, entry) in expected.iter().enumerate() {
+        if !matches!(
+            users[index].call.function.as_str(),
+            "thread.create" | "post.create"
+        ) {
             continue;
         }
-        let ready = match key.kind {
-            crate::content::Kind::Media | crate::content::Kind::Reaction => {
-                app.content.exists(key).await? && app.content.exists(key.metadata()).await?
-            }
-            _ => app.content.exists(key).await?,
-        };
-        if !ready {
-            return Err(DomainError::BadRequest("missing content".to_string()));
-        }
-    }
-    if matches!(user.call.function.as_str(), "thread.create" | "post.create") {
-        let text = expected
+        let text = entry
             .keys
             .iter()
             .find(|key| key.kind == crate::content::Kind::Text);
@@ -409,7 +459,7 @@ async fn submit_content(
             Some(key) => postpart::requests_postcount(&app.content.get(*key).await?)?,
             None => false,
         };
-        if requested != postcount {
+        if requested != postcounts[index] {
             return Err(DomainError::BadRequest(
                 "postcount request does not match the post text".to_string(),
             ));
@@ -435,55 +485,32 @@ async fn query_admin(app: web::Data<App>, body: web::Bytes) -> Result<HttpRespon
     fields(queries = tracing::field::Empty))]
 async fn query_core(app: web::Data<App>, batch: Vec<Signed>) -> Result<HttpResponse, DomainError> {
     let _handler = Timer::new("board_handler");
-    let started = Instant::now();
     tracing::Span::current().record("queries", batch.len());
     let batch_wait = Timer::new("board_batch");
-    let results: Vec<Vec<u8>> = stream::iter(batch.into_iter().enumerate())
-        .map(|(index, signed)| {
-            let app = &app;
-            async move {
-                let offset = started.elapsed().as_secs_f64() * 1000.0;
-                let function: String = signed
-                    .user
-                    .call
-                    .function
-                    .chars()
-                    .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
-                    .take(64)
-                    .collect();
-                let (result, timings) = timing::collect(query_page(app, signed)).await;
-                timing::extra(format!(
-                    "q{index}_start;dur={offset:.3};desc=\"start offset: {function}\""
-                ));
-                for metric in timings.header().split(", ") {
-                    timing::extra(format!("q{index}_{metric}"));
-                }
-                result
-            }
-        })
-        .buffered(QUERY_CONCURRENCY)
-        .try_collect()
-        .await?;
+    let mut functions = Vec::with_capacity(batch.len());
+    let mut queries = Vec::with_capacity(batch.len());
+    for signed in batch {
+        functions.push(signed.user.call.function.clone());
+        queries.push(Query {
+            user: signed.user,
+            decryptions: signed.decryptions,
+        });
+    }
+    let outputs = app.forum.query(queries).await?;
     drop(batch_wait);
+    let mut results = Vec::with_capacity(outputs.len());
+    for (index, (function, output)) in functions.into_iter().zip(outputs).enumerate() {
+        let _page = Timer::new("page");
+        let (result, timings) = timing::collect(hydrate(&app, &function, output.result)).await;
+        for metric in timings.header().split(", ") {
+            timing::extra(format!("q{index}_{metric}"));
+        }
+        results.push(result?);
+    }
     let _encode = Timer::new("board_encode");
     let body = tracing::debug_span!(target: "latency", "query.encode_batch")
         .in_scope(|| to_bytes(&results))?;
     Ok(HttpResponse::Ok().content_type(CONTENT_TYPE).body(body))
-}
-
-#[tracing::instrument(target = "latency", level = "debug", name = "query.page", skip_all,
-    fields(root = %app.forum.root(), function = %signed.user.call.function))]
-async fn query_page(app: &App, signed: Signed) -> Result<Vec<u8>, DomainError> {
-    let _page = Timer::new("page");
-    let function = signed.user.call.function.clone();
-    let output = app
-        .forum
-        .query(signed.user, signed.decryptions)
-        .await
-        .inspect_err(|error| tracing::warn!(%error, %function, "query rejected"))?;
-    hydrate(app, &function, output.result)
-        .await
-        .inspect_err(|error| tracing::warn!(%error, %function, "query resources failed"))
 }
 
 #[tracing::instrument(target = "latency", level = "debug", name = "query.hydrate", skip_all)]
