@@ -46,7 +46,7 @@ export async function fetchBans(
       : kind === "board"
         ? Calls.board.ban_list(id, null, 50)
         : Calls.forum.ban_list(null, 50)
-  const bytes = await api.query(call)
+  const [bytes] = await api.query([call])
   return BanEntriesSchema.parse(bytes)
 }
 
