@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::net::IpAddr;
 use std::time::Instant;
 
@@ -16,18 +17,18 @@ use ech_board_entity::{Entity, Stored};
 use ech_board_program::context::Tripcode;
 use ech_board_program::context::UserRequests;
 use ech_board_program::entity::{
-    Board, BoardKey, BoardPage, Forum, ForumPage, PostPage, Thread, ThreadMeta, ThreadPage,
+    Board, BoardKey, BoardPage, Forum, ForumPage, Page, PostPage, Thread, ThreadMeta, ThreadPage,
 };
 use ech_board_program::types::{Esid, Hash};
 use ech_db_protocol::id::Txid;
-use ech_db_protocol::value::{Author, UserPart};
+use ech_db_protocol::value::{Author, Tx, UserPart};
 
 use crate::assets;
 use crate::error::DomainError;
 use crate::forum::{Query, Submission};
 use crate::postpart;
 use crate::realtime::App;
-use crate::resources::{PageResources, WithResources};
+use crate::resources::PageResources;
 use crate::timing::{self, Timer};
 
 const CONTENT_TYPE: &str = "application/octet-stream";
@@ -535,18 +536,23 @@ where
     T: PageResources + serde::de::DeserializeOwned + Serialize,
 {
     let decode = Timer::new("page_decode");
-    let view: T =
+    let page: Page<T> =
         tracing::debug_span!(target: "latency", "query.decode_page", bytes = result.len())
             .in_scope(|| from_bytes(result))?;
     drop(decode);
     let load = Timer::new("resources");
-    let resources = WithResources::load(&app.content, &app.forum, view)
+    let threads: BTreeMap<Hash, Vec<u8>> = page.threads.into_iter().collect();
+    let transactions: BTreeMap<Hash, Tx> = page.transactions.into_iter().collect();
+    let view = page.view;
+    let resources = view.resources();
+    let loaded = resources
+        .load_page(&app.content, &threads, &transactions, view)
         .instrument(tracing::debug_span!(target: "latency", "query.resources"))
         .await?;
     drop(load);
     let _encode = Timer::new("page_encode");
     Ok(tracing::debug_span!(target: "latency", "query.encode_page")
-        .in_scope(|| to_bytes(&resources))?)
+        .in_scope(|| to_bytes(&loaded))?)
 }
 
 async fn debug_entity(
