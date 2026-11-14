@@ -17,8 +17,8 @@ export interface ComposerDraft {
   selfAdmin: boolean
 }
 
-export function emptyDraft(mode: ComposerMode): ComposerDraft {
-  return { revision: 0, editing: null, text: '', subject: '', name: '', sendAsKind: 'anonymous', optionsOpen: mode === 'thread', files: [], withFlag: false, stripExifOn: true, selfAdmin: false }
+export function emptyDraft(_mode: ComposerMode): ComposerDraft {
+  return { revision: 0, editing: null, text: '', subject: '', name: '', sendAsKind: 'anonymous', optionsOpen: false, files: [], withFlag: false, stripExifOn: true, selfAdmin: false }
 }
 
 export type ComposerChanges = Partial<Omit<ComposerDraft, 'revision' | 'editing'>>

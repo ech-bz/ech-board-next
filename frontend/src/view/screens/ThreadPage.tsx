@@ -1,6 +1,6 @@
 import { useLocation } from '@solidjs/router'
 import { cva } from 'class-variance-authority'
-import { createMemo, Show } from 'solid-js'
+import { createEffect, createMemo, onCleanup, Show } from 'solid-js'
 import { canBanById, canPostAction } from '../../model/rules/permissions'
 import { useForumController, useForumQueries, usePage } from '../bindings/forum'
 import { useIsMobile } from '../components/Gallery/useIsMobile'
@@ -21,8 +21,8 @@ import { threadModItems } from '../threadModItems'
 const pageVariants = cva('flex min-h-screen min-w-0 flex-col')
 const screenVariants = cva('flex min-h-dvh flex-col')
 const menuTriggerVariants = cva('ml-auto px-1 py-2 hover:bg-hover')
-const listVariants = cva('pl-4 pr-3.5')
-const listMobileVariants = cva('pl-[calc(1rem+env(safe-area-inset-left,0px))] pr-[calc(1rem+env(safe-area-inset-right,0px))] pb-0 pt-2.5')
+const listVariants = cva('pl-4 pr-3.5 pb-[4.25rem]')
+const listMobileVariants = cva('pl-[calc(1rem+env(safe-area-inset-left,0px))] pr-[calc(1rem+env(safe-area-inset-right,0px))] pb-[4.25rem] pt-2.5')
 const markerVariants = cva('my-3 w-full border-t-2 border-dashed border-accent will-change-transform')
 
 export function ThreadPage(props: { forumId: string; slug: string; threadNum: number }) {
@@ -80,6 +80,21 @@ function ThreadBody(props: {
     },
     element: <div class={markerVariants()} /> as HTMLDivElement,
   }
+
+  createEffect(() => {
+    posts()
+    const composer = document.querySelector<HTMLElement>('[data-composer]')
+    const threadList = document.querySelector<HTMLElement>('[data-thread-scroll]')
+    if (!composer || !threadList) return
+    const sync = () => {
+      const padding = `${Math.ceil(composer.getBoundingClientRect().height + 8)}px`
+      if (threadList.style.paddingBottom !== padding) threadList.style.paddingBottom = padding
+    }
+    sync()
+    const observer = new ResizeObserver(sync)
+    observer.observe(composer)
+    onCleanup(() => observer.disconnect())
+  })
 
   return (
     <section class={mobile() ? screenVariants() : pageVariants()}>
