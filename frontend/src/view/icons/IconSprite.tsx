@@ -4,6 +4,18 @@ export function IconSprite() {
   return (
     <svg xmlns={NS} width="0" height="0" style={{ position: 'absolute' }} aria-hidden="true">
       <defs>
+        <g id="icon-bold"><path d="M6 4h7a4 4 0 0 1 0 8H6z"/><path d="M6 12h8a4 4 0 0 1 0 8H6z"/></g>
+        <g id="icon-italic"><path d="M19 4h-9"/><path d="M14 20H5"/><path d="M15 4 9 20"/></g>
+        <g id="icon-strikethrough"><path d="M16 4H9a3 3 0 0 0-2.83 4"/><path d="M14 12a4 4 0 0 1 0 8H6"/><line x1="4" x2="20" y1="12" y2="12"/></g>
+        <g id="icon-eye-off"><path d="M10.58 10.58a2 2 0 1 0 2.83 2.83"/><path d="M9.88 5.09A10.82 10.82 0 0 1 12 4.25c4.82 0 8.93 2.94 11 7.75a11.8 11.8 0 0 1-3.17 3.67"/><path d="M6.61 6.61C4.36 7.8 2.45 9.67 1 12c2.07 2.81 6.18 5.75 11 5.75 1.34 0 2.61-.25 3.78-.7"/><path d="m2 2 20 20"/></g>
+        <g id="icon-code"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></g>
+        <g id="icon-underline"><path d="M6 4v6a6 6 0 0 0 12 0V4"/><line x1="4" x2="20" y1="20" y2="20"/></g>
+        <g id="icon-overline"><line x1="4" x2="20" y1="4" y2="4"/><circle cx="12" cy="14" r="6"/></g>
+        <g id="icon-a-arrow-up"><path d="m14 11 4-4 4 4"/><path d="M18 16V7"/><path d="m2 16 4.039-9.69a.5.5 0 0 1 .923 0L11 16"/><path d="M3.304 13h6.392"/></g>
+        <g id="icon-a-arrow-down"><path d="m14 12 4 4 4-4"/><path d="M18 16V7"/><path d="m2 16 4.039-9.69a.5.5 0 0 1 .923 0L11 16"/><path d="M3.304 13h6.392"/></g>
+        <g id="icon-list-collapse"><path d="M10 5h11"/><path d="M10 12h11"/><path d="M10 19h11"/><path d="m3 10 3-3-3-3"/><path d="m3 20 3-3-3-3"/></g>
+        <g id="icon-venetian-mask"><path d="M18 11c-1.5 0-2.5.5-3 2"/><path d="M4 6a2 2 0 0 0-2 2v4a5 5 0 0 0 5 5 8 8 0 0 1 5 2 8 8 0 0 1 5-2 5 5 0 0 0 5-5V8a2 2 0 0 0-2-2h-3a8 8 0 0 0-5 2 8 8 0 0 0-5-2z"/><path d="M6 11c1.5 0 2.5.5 3 2"/></g>
+        <g id="icon-pencil"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" /><path d="m15 5 4 4" /></g>
         <g id="icon-send"><path d="M3.714 3.048a.498.498 0 0 0-.683.627l2.843 7.627a2 2 0 0 1 0 1.396l-2.842 7.627a.498.498 0 0 0 .682.627l18-8.5a.5.5 0 0 0 0-.904z"/><path d="M6 12h16"/></g>
         <g id="icon-clip"><path d="m16 6-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551"/></g>
         <g id="icon-square-pen"><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z"/></g>

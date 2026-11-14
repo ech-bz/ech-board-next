@@ -14,7 +14,7 @@ export function createComposerCommands(model: ForumState, read: ForumQueries, co
     commit({
       type: 'draft.patch', value: {
         mode, value: {
-          text: '', name: '', files: [], withFlag: false, optionsOpen: mode === 'thread', editing: null,
+          text: '', name: '', files: [], withFlag: false, optionsOpen: false, editing: null,
           ...(mode === 'thread' ? { subject: '', selfAdmin: false } : {}),
         }
       }

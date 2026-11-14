@@ -1,8 +1,9 @@
 import { cva } from 'class-variance-authority'
-import { Show } from 'solid-js'
+import { onCleanup, onMount, Show } from 'solid-js'
 import { useIsMobile } from '../components/Gallery/useIsMobile'
 import { IconButton } from '../components/IconButton'
 import { PageHeader } from '../components/PageHeader'
+import { closeMobileComposer, openMobileComposer } from '../composerVisibility'
 import { PostComposer } from '../components/PostComposer/PostComposer'
 import { useI18n } from '../i18n'
 import { EllipsisVerticalIcon } from '../icons/EllipsisVerticalIcon'
@@ -18,6 +19,8 @@ export function ComposePage(props: { forumId: string; slug: string; heading: str
   const nav = useNav()
   const mobile = useIsMobile()
   const back = () => nav.back()
+  onMount(openMobileComposer)
+  onCleanup(closeMobileComposer)
   return (
     <Show
       when={mobile()}
