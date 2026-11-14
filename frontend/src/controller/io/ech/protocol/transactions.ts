@@ -46,6 +46,7 @@ export const AuthorSchema = bcs.enum('Author', {
 })
 
 export const UserPartSchema = bcs.struct('UserPart', {
+  nonce: Hash,
   ctx: bcs.byteVector(),
   call: CallSchema,
   author: AuthorSchema,
@@ -90,7 +91,7 @@ export const HistoryEntrySchema = bcs.struct('HistoryEntry', {
   txid: Hash,
 })
 
-export const UserContext = bcs.tuple([Hash, Hash, bcs.byteVector(), CallSchema])
+export const UserContext = bcs.tuple([Hash, Hash, Hash, bcs.byteVector(), CallSchema])
 
 export const ChallengePayload = bcs.tuple([StatementSchema, bcs.byteVector(), hashList])
 

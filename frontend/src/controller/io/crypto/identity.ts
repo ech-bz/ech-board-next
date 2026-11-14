@@ -124,11 +124,11 @@ export class Identity {
     }
   }
 
-  sign(root: Uint8Array, ctx: Uint8Array, call: Call, tweak: Uint8Array = randomTweak()): UserPart {
+  sign(root: Uint8Array, ctx: Uint8Array, call: Call, tweak: Uint8Array = randomTweak(), nonce: Uint8Array = randomTweak()): UserPart {
     const { x, r } = this.scalars(root, tweak)
     const esid = this.esid(root, tweak)
     const statement = this.statement(root, esid)
-    const context = UserContext.serialize([root, tweak, ctx, call]).toBytes()
+    const context = UserContext.serialize([root, tweak, nonce, ctx, call]).toBytes()
     const alpha = randomScalar()
     const beta = randomScalar()
     const anchor = point(root)
@@ -138,6 +138,7 @@ export class Identity {
     const payload = ChallengePayload.serialize([statement, context, commitment]).toBytes()
     const value = challenge('user', payload)
     return {
+      nonce,
       ctx,
       call,
       author: {
