@@ -10,6 +10,7 @@ import { PaletteIcon } from '../icons/PaletteIcon'
 import { PanelLeftCloseIcon } from '../icons/PanelLeftCloseIcon'
 import { PanelLeftOpenIcon } from '../icons/PanelLeftOpenIcon'
 import { SettingsIcon } from '../icons/SettingsIcon'
+import { VolumeIcon } from '../icons/VolumeIcon'
 import type { Section } from '../nav'
 import { settingKeyToSlug, useRoutes, type SettingSlug } from '../route'
 import { settingLabel } from '../settings'
@@ -72,7 +73,7 @@ const spacerVariants = cva('flex-1')
 export type { Section }
 
 const SECURITY_SECTIONS: string[] = ['Master Key']
-const APP_SECTIONS: string[] = ['Appearance']
+const APP_SECTIONS: string[] = ['Appearance', 'Player']
 
 export function NavPanel(props: {
   collapsed: boolean
@@ -216,7 +217,9 @@ export function NavPanel(props: {
                   }}
                 >
                   <div class={navItemIconVariants()}>
-                    <PaletteIcon width={18} height={18} />
+                    <Show when={name === 'Player'} fallback={<PaletteIcon width={18} height={18} />}>
+                      <VolumeIcon width={18} height={18} />
+                    </Show>
                   </div>
                   <div class={navItemLabelVariants()}>{settingLabel(name, t)}</div>
                 </a>

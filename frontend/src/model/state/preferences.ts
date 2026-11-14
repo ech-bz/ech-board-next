@@ -34,7 +34,9 @@ export interface Preferences {
   muted: boolean
   volume: number
   pipWidth: number
+  autoPip: boolean
+  standardPlayer: boolean
   hiddenThreads: string[]
 }
 
-export const initialPreferences = (): Preferences => ({ lang: 'ru', theme: 'dark', appearance: 'default_dark', showDeleted: false, hideThreadsCompletely: false, expandFolds: false, muted: true, volume: 1, pipWidth: PIP_DEFAULT_WIDTH, hiddenThreads: [] })
+export const initialPreferences = (): Preferences => ({ lang: 'ru', theme: 'dark', appearance: 'default_dark', showDeleted: false, hideThreadsCompletely: false, expandFolds: false, muted: true, volume: 1, pipWidth: PIP_DEFAULT_WIDTH, autoPip: true, standardPlayer: false, hiddenThreads: [] })

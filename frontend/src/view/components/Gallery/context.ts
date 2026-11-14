@@ -11,7 +11,7 @@ export interface SourceRect {
 }
 
 export interface GalleryApi {
-  open: (forumId: string, postId: string, hash: string, sourceRect?: SourceRect) => void
+  open: (forumId: string, item: GalleryItem, sourceRect?: SourceRect) => void
   close: () => void
 }
 

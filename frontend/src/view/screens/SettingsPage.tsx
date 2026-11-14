@@ -4,12 +4,14 @@ import { Show } from 'solid-js'
 import { AppearanceView } from '../components/AppearanceView'
 import { useIsMobile } from '../components/Gallery/useIsMobile'
 import { MasterKeyView } from '../components/MasterKeyView'
+import { PlayerSettingsView } from '../components/PlayerSettingsView'
 import { PageHeader } from '../components/PageHeader'
 import { TabBar } from '../components/TabBar'
 import { useI18n } from '../i18n'
 import { ChevronRightIcon } from '../icons/ChevronRightIcon'
 import { KeyRoundIcon } from '../icons/KeyRoundIcon'
 import { PaletteIcon } from '../icons/PaletteIcon'
+import { VolumeIcon } from '../icons/VolumeIcon'
 import { useMobileTabs } from '../interactions/mobileNav'
 import { useNav } from '../nav'
 import { settingKeyToSlug, type SettingSlug } from '../route'
@@ -29,7 +31,7 @@ const mobileRowIconVariants = cva('text-xl font-semibold text-accent leading-non
 const mobileRowTitleVariants = cva('text-xl leading-none')
 const mobileRowChevronVariants = cva('text-3xl text-secondary leading-none')
 
-const SETTING_KEYS: Record<SettingSlug, string> = { key: 'Master Key', appearance: 'Appearance' }
+const SETTING_KEYS: Record<SettingSlug, string> = { key: 'Master Key', appearance: 'Appearance', player: 'Player' }
 
 export function SettingsPage(props: { setting: SettingSlug | null; baseHref: string }) {
   const { t } = useI18n()
@@ -38,11 +40,11 @@ export function SettingsPage(props: { setting: SettingSlug | null; baseHref: str
   const tabs = useMobileTabs()
   const key = () => (props.setting ? SETTING_KEYS[props.setting] : null)
   const label = () => (key() ? settingLabel(key()!, t) : t('ui.settings'))
-  const view = () => (
-    <Show when={key() === 'Master Key'} fallback={<AppearanceView />}>
-      <MasterKeyView />
-    </Show>
-  )
+  const view = () => {
+    if (key() === 'Master Key') return <MasterKeyView />
+    if (key() === 'Player') return <PlayerSettingsView />
+    return <AppearanceView />
+  }
   return (
     <Show
       when={mobile()}
@@ -89,6 +91,7 @@ function SettingsList(props: { baseHref: string }) {
       <div class={mobileLabelVariants()}>{t('ui.application')}</div>
       <div class={mobileListVariants()}>
         <SettingsLink name="Appearance" baseHref={props.baseHref} />
+        <SettingsLink name="Player" baseHref={props.baseHref} />
       </div>
     </div>
   )
@@ -110,7 +113,11 @@ function SettingsLink(props: { name: string; baseHref: string }) {
       }}
     >
       <div class={mobileRowIconVariants()}>
-        <Show when={props.name === 'Master Key'} fallback={<PaletteIcon width={18} height={18} />}>
+        <Show when={props.name === 'Master Key'} fallback={
+          <Show when={props.name === 'Player'} fallback={<PaletteIcon width={18} height={18} />}>
+            <VolumeIcon width={18} height={18} />
+          </Show>
+        }>
           <KeyRoundIcon width={18} height={18} />
         </Show>
       </div>

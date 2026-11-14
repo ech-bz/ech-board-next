@@ -91,6 +91,7 @@ export function GalleryOverlay(props: {
   media: (reference: MediaReference | undefined) => GalleryItem | undefined
   index: number
   sourceRect: SourceRect | null
+  autoPip: boolean
   onSelect: (index: number) => void
   onClose: () => void
   onPip: (item: GalleryItem, media: HTMLMediaElement) => void
@@ -703,6 +704,7 @@ export function GalleryOverlay(props: {
                               item={m()}
                               index={i()}
                               active={i() === cur()}
+                              autoPip={props.autoPip && !adopted}
                               adopt={adopted}
                               rootRef={(el) => {
                                 if (i() === cur()) activeMedia = el

@@ -6,6 +6,7 @@ export type { Route, SettingKey, SettingSlug } from '../model/state/navigation'
 const SETTINGS: { slug: SettingSlug; key: SettingKey }[] = [
   { slug: 'key', key: 'Master Key' },
   { slug: 'appearance', key: 'Appearance' },
+  { slug: 'player', key: 'Player' },
 ]
 
 export function settingKeyToSlug(key: string): SettingSlug | null {

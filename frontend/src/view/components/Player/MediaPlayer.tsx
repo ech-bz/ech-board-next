@@ -50,7 +50,9 @@ const spinnerVariants = cva('animate-spin rounded-full border-[3px] border-track
   },
 })
 const resizeGripVariants = cva('absolute right-0 bottom-0 z-1 size-7 cursor-nwse-resize opacity-60 hover:opacity-100 [touch-action:none] after:absolute after:right-1.5 after:bottom-1.5 after:size-2.5 after:border-r-2 after:border-b-2 after:border-scrim-fg after:content-[""]')
-const mediaVariants = cva('block size-full select-none object-contain')
+const mediaVariants = cva('relative z-1 block size-full select-none object-contain')
+const mediaBackdropVariants = cva('pointer-events-none absolute inset-0 z-0 size-full scale-[1.15] object-cover blur-[28px] brightness-[0.65]')
+const mediaBackdropShadeVariants = cva('pointer-events-none absolute inset-0 z-0 bg-black/25')
 const placeholderVariants = cva('pointer-events-none absolute inset-0 flex items-center justify-center text-scrim-fg', {
   variants: {
     dim: {
@@ -59,11 +61,10 @@ const placeholderVariants = cva('pointer-events-none absolute inset-0 flex items
   },
 })
 const toolbarVariants = cva('flex flex-none items-center gap-2 rounded-b-[9px] border-t border-separator bg-panel1 p-2')
-const ctrlBtnVariants = cva('bg-panel2 hover:bg-hover [&_svg]:size-4')
-const timelineVariants = cva('flex min-w-0 flex-1 flex-col gap-2')
-const timeRowVariants = cva('flex h-3.5 items-center justify-end')
+const ctrlBtnVariants = cva('bg-panel2 text-fg hover:bg-hover [&_svg]:size-4')
+const timelineVariants = cva('flex min-w-0 flex-1 flex-row items-center gap-2')
 const timeVariants = cva('whitespace-nowrap text-sm leading-none text-secondary [font-variant-numeric:tabular-nums]')
-const seekBarVariants = cva('relative h-1 cursor-pointer rounded-sm bg-toggle-track [touch-action:none] before:absolute before:-inset-x-2.5 before:-inset-y-2.5 before:content-[""]')
+const seekBarVariants = cva('relative h-1 min-w-0 flex-1 cursor-pointer rounded-sm bg-toggle-track [touch-action:none] before:absolute before:-inset-x-2.5 before:-inset-y-2.5 before:content-[""]')
 const seekBufferVariants = cva('pointer-events-none absolute inset-y-0 left-0 rounded-sm bg-fg/25')
 const seekFillVariants = cva('pointer-events-none absolute inset-y-0 left-0 rounded-sm bg-accent')
 const seekMarkVariants = cva('pointer-events-none absolute -top-2 size-0 -translate-x-1/2 border-x-4 border-t-[6px] border-x-transparent border-t-fg')
@@ -115,6 +116,7 @@ export interface MediaPlayerProps {
   item: GalleryItem
   index?: number
   active?: boolean
+  autoPip?: boolean
   adopt?: HTMLMediaElement
   floating?: boolean
   rootRef?: (el: HTMLDivElement) => void
@@ -131,6 +133,7 @@ export function MediaPlayer(props: MediaPlayerProps) {
   const playerPrefs = usePlayerPrefs()
   const mobile = useIsMobile()
   const isVideo = props.item.mime.startsWith('video/')
+  const browserPlayer = () => !props.floating && (mobile() || window.matchMedia('(pointer: coarse)').matches || playerPrefs.standardPlayer())
   const media: HTMLMediaElement = props.adopt ?? createMedia(props.item, props.active ?? true)
   const ratio = isVideo && props.item.width > 0 && props.item.height > 0 ? props.item.width / props.item.height : 16 / 9
 
@@ -150,6 +153,8 @@ export function MediaPlayer(props: MediaPlayerProps) {
   let screen: HTMLDivElement | undefined
   let volTrack: HTMLDivElement | undefined
   let handedOff = false
+  let autoPipRequested = false
+  let nativePipNotified = false
   let seeking = false
   let seekingVol = false
   let seekPaused = false
@@ -214,15 +219,26 @@ export function MediaPlayer(props: MediaPlayerProps) {
     props.onPip?.(props.item, media)
   }
 
+  const isNativePipActive = () => {
+    const webkit = media as HTMLVideoElement & { webkitPresentationMode?: string }
+    return document.pictureInPictureElement === media || webkit.webkitPresentationMode === 'picture-in-picture'
+  }
+
+  const notifyNativePip = () => {
+    if (!isNativePipActive() || nativePipNotified) return
+    nativePipNotified = true
+    props.onNativePip?.(media)
+  }
+
   const startPip = () => {
-    if (!canUseNativePip(media)) {
-      startCustomPip()
+    if (browserPlayer() && isVideo && canUseNativePip(media)) {
+      void enterNativePip(media as HTMLVideoElement).then((ok) => {
+        if (ok) notifyNativePip()
+        else startCustomPip()
+      })
       return
     }
-    void enterNativePip(media as HTMLVideoElement).then((ok) => {
-      if (ok) props.onNativePip?.(media)
-      else startCustomPip()
-    })
+    startCustomPip()
   }
 
   const retry = () => {
@@ -315,7 +331,7 @@ export function MediaPlayer(props: MediaPlayerProps) {
 
   const menuItems = (): MenuItem[] => {
     const items: MenuItem[] = []
-    if (!props.floating) items.push({ label: t('player.pip'), onClick: startPip })
+    if (!props.floating && !browserPlayer()) items.push({ label: t('player.pip'), onClick: startPip })
     if (props.floating && props.onToGallery) items.push({ label: t('player.toGallery'), onClick: toGallery })
     if (props.floating) items.push({ label: t('player.close'), onClick: () => props.onClose?.() })
     items.push({ label: t('player.reportBug'), onClick: reportBug })
@@ -332,6 +348,37 @@ export function MediaPlayer(props: MediaPlayerProps) {
       { defer: !!props.adopt },
     ),
   )
+
+  createEffect(() => {
+    const active = props.active ?? true
+    if (!active) {
+      autoPipRequested = false
+      return
+    }
+    if (!props.autoPip || autoPipRequested || (browserPlayer() ? !props.onNativePip : !props.onPip)) return
+    autoPipRequested = true
+    queueMicrotask(() => {
+      if ((props.active ?? true) && props.autoPip && !handedOff) startPip()
+    })
+  })
+
+  createEffect(() => {
+    const native = browserPlayer()
+    media.controls = native
+    if (media instanceof HTMLVideoElement) {
+      media.disablePictureInPicture = false
+      media.playsInline = true
+      media.className = native ? 'block max-h-[calc(100dvh-180px)] max-w-full object-contain' : mediaVariants()
+      media.style.width = native ? 'auto' : ''
+      media.style.height = native ? 'auto' : ''
+      media.style.maxHeight = native ? 'calc(100dvh - 180px)' : ''
+      media.style.maxWidth = native ? '100%' : ''
+    } else {
+      media.className = native ? 'pointer-events-auto block w-full max-w-[480px]' : ''
+      media.style.width = native ? '100%' : ''
+      media.style.maxWidth = native ? '480px' : ''
+    }
+  })
 
   createEffect(() => {
     media.muted = playerPrefs.muted()
@@ -376,14 +423,24 @@ export function MediaPlayer(props: MediaPlayerProps) {
       setDur(Number.isFinite(media.duration) ? media.duration : 0)
       syncState()
     }
+    const onNativePipChange = () => {
+      if (isNativePipActive()) notifyNativePip()
+      else nativePipNotified = false
+    }
     const stateEvents = ['play', 'pause', 'loadstart', 'loadeddata', 'canplay', 'playing', 'waiting', 'stalled', 'seeking', 'seeked', 'progress', 'emptied', 'error']
     for (const name of stateEvents) media.addEventListener(name, syncState)
+    media.addEventListener('enterpictureinpicture', onNativePipChange)
+    media.addEventListener('leavepictureinpicture', onNativePipChange)
+    media.addEventListener('webkitpresentationmodechanged', onNativePipChange)
     media.addEventListener('timeupdate', onTime)
     media.addEventListener('loadedmetadata', onMeta)
     media.addEventListener('durationchange', onMeta)
     syncState()
     onCleanup(() => {
       for (const name of stateEvents) media.removeEventListener(name, syncState)
+      media.removeEventListener('enterpictureinpicture', onNativePipChange)
+      media.removeEventListener('leavepictureinpicture', onNativePipChange)
+      media.removeEventListener('webkitpresentationmodechanged', onNativePipChange)
       media.removeEventListener('timeupdate', onTime)
       media.removeEventListener('loadedmetadata', onMeta)
       media.removeEventListener('durationchange', onMeta)
@@ -406,12 +463,9 @@ export function MediaPlayer(props: MediaPlayerProps) {
 
   onMount(() => {
     if (!props.adopt) return
-    // The live element is moved in only once this tree is attached to the page: moving it into a
-    // detached (template-owned) tree changes its document and makes the browser reset playback.
     screen?.insertBefore(media, screen.firstChild)
-    const wasPlaying = playing()
     queueMicrotask(() => {
-      if (wasPlaying && media.paused) media.play().catch(() => undefined)
+      if (media.paused && !media.ended) media.play().catch(() => undefined)
     })
   })
 
@@ -437,9 +491,20 @@ export function MediaPlayer(props: MediaPlayerProps) {
     return { 'aspect-ratio': `${ratio}` }
   }
 
+  const nativeRootStyle = (): JSX.CSSProperties =>
+    isVideo
+      ? { 'max-width': '100%', 'max-height': 'calc(100dvh - 180px)' }
+      : { width: 'min(480px, calc(100vw - 32px))' }
+
   const stopGesture = (e: Event) => e.stopPropagation()
+  const stopNativeMediaGesture = (e: Event) => {
+    if (e.target === media) e.stopPropagation()
+  }
 
   return (
+    <Show
+      when={browserPlayer()}
+      fallback={
     <div
       ref={(el) => {
         root = el
@@ -459,6 +524,10 @@ export function MediaPlayer(props: MediaPlayerProps) {
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
       >
+        <Show when={isVideo && props.item.thumbUrl}>
+          <img class={mediaBackdropVariants()} src={props.item.thumbUrl} alt="" aria-hidden="true" draggable={false} />
+          <div class={mediaBackdropShadeVariants()} />
+        </Show>
         {props.adopt ? undefined : media}
         <Show when={!isVideo}>
           <div class={placeholderVariants({ dim: loading() && !failed() })}>
@@ -504,11 +573,6 @@ export function MediaPlayer(props: MediaPlayerProps) {
           </Show>
         </IconButton>
         <div class={timelineVariants()}>
-          <div class={timeRowVariants()}>
-            <span class={timeVariants()}>
-              {fmtTime(displayTime())} / {fmtTime(duration())}
-            </span>
-          </div>
           <div
             class={seekBarVariants()}
             role="slider"
@@ -537,6 +601,9 @@ export function MediaPlayer(props: MediaPlayerProps) {
             <div class={seekFillVariants()} style={{ width: `${progress()}%` }} />
             <span class={seekMarkVariants()} style={{ left: `${progress()}%` }} />
           </div>
+          <span class={timeVariants()}>
+            {fmtTime(displayTime())} / {fmtTime(duration())}
+          </span>
         </div>
         <div
           class={volWrapVariants({ open: volOpen() })}
@@ -589,5 +656,25 @@ export function MediaPlayer(props: MediaPlayerProps) {
         <DropdownMenu items={menuItems()} triggerSize="md" class={ctrlBtnVariants()} ariaLabel={t('player.options')} />
       </div>
     </div>
+      }
+    >
+      <div
+        ref={(el) => {
+          root = el
+          screen = el
+          props.rootRef?.(el)
+        }}
+        data-index={props.index}
+        data-player=""
+        class="pointer-events-auto flex max-h-full max-w-full items-center justify-center"
+        style={nativeRootStyle()}
+        onTouchStart={stopNativeMediaGesture}
+        onTouchMove={stopNativeMediaGesture}
+        onTouchEnd={stopNativeMediaGesture}
+        onMouseDown={stopNativeMediaGesture}
+      >
+        {props.adopt ? undefined : media}
+      </div>
+    </Show>
   )
 }

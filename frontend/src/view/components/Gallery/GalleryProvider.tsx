@@ -16,6 +16,8 @@ export function GalleryProvider(props: { children: JSX.Element }) {
   const controller = useForumController()
   const read = useForumQueries()
   const [sourceRect, setSourceRect] = createSignal<SourceRect | null>(null)
+  const [directItem, setDirectItem] = createSignal<GalleryItem | null>(null)
+  const [activeForumId, setActiveForumId] = createSignal<string | null>(null)
   const [pip, setPip] = createSignal<PipState | null>(null)
   const [hidden, setHidden] = createSignal(false)
   const [resume, setResume] = createSignal<{ hash: string; media: HTMLMediaElement } | null>(null)
@@ -26,34 +28,55 @@ export function GalleryProvider(props: { children: JSX.Element }) {
     setHidden(false)
   }
   const collection = createMemo(read.galleryCollection)
-  const items = () => collection().items
+  const items = () => {
+    const current = collection().items
+    if (current.length) return current
+    const selected = model.gallery
+    const direct = directItem()
+    return selected && direct && selected.postId === direct.postId && selected.hash === direct.hash
+      ? [{ postId: direct.postId, hash: direct.hash }]
+      : current
+  }
+  const mediaFor = (reference: { postId: string; hash: string } | undefined) => {
+    const selected = model.gallery
+    const direct = directItem()
+    if (reference && selected && direct && selected.postId === reference.postId && selected.hash === reference.hash && direct.postId === reference.postId && direct.hash === reference.hash) return direct
+    return read.galleryMedia(reference)
+  }
   createEffect(() => {
     if (model.gallery && items().length === 0) controller.closeGallery()
   })
-  const index = () => collection().index
+  const index = () => collection().index >= 0 ? collection().index : 0
+  const closeGallery = () => {
+    endNativePip()
+    setDirectItem(null)
+    setActiveForumId(null)
+    setResume(null)
+    controller.closeGallery()
+  }
   const api: GalleryApi = {
-    open: (forumId, postId, hash, rect) => {
-      const item = read.galleryMedia({ postId, hash })
-      if (item && isPlayableMime(item.mime)) setPip(null)
+    open: (forumId, item, rect) => {
       endNativePip()
       setResume(null)
+      setDirectItem(item)
+      setActiveForumId(forumId)
       setSourceRect(rect ?? null)
-      controller.openGallery(forumId, postId, hash)
+      if (isPlayableMime(item.mime)) setPip(null)
+      controller.openGallery(forumId, item.postId, item.hash)
     },
-    close: () => {
-      endNativePip()
-      controller.closeGallery()
-    },
+    close: closeGallery,
   }
   const startPip = (item: GalleryItem, media: HTMLMediaElement) => {
-    const forumId = model.gallery?.forumId
+    const forumId = activeForumId() ?? model.gallery?.forumId
     if (!forumId) return
     setPip({ forumId, item, media })
     controller.closeGallery()
   }
-  const returnToGallery = (state: PipState) => {
+  const returnToGallery = (state: PipState, media: HTMLMediaElement) => {
     endNativePip()
-    setResume({ hash: state.item.hash, media: state.media })
+    setResume({ hash: state.item.hash, media })
+    setDirectItem(state.item)
+    setActiveForumId(state.forumId)
     setSourceRect(null)
     controller.openGallery(state.forumId, state.item.postId, state.item.hash)
     setPip(null)
@@ -63,6 +86,8 @@ export function GalleryProvider(props: { children: JSX.Element }) {
     setHidden(true)
     stopNativeWatch = onNativePipLeave(media, () => {
       endNativePip()
+      setDirectItem(null)
+      setActiveForumId(null)
       controller.closeGallery()
     })
   }
@@ -73,9 +98,10 @@ export function GalleryProvider(props: { children: JSX.Element }) {
         <GalleryOverlay
           items={items()}
           revision={collection().revision}
-          media={read.galleryMedia}
+          media={mediaFor}
           index={index()}
           sourceRect={sourceRect()}
+          autoPip={model.preferences.autoPip}
           hidden={hidden()}
           resume={resume()}
           onSelect={(index) => {
@@ -84,8 +110,7 @@ export function GalleryProvider(props: { children: JSX.Element }) {
           }}
           onClose={() => {
             if (hidden()) exitNativePip()
-            endNativePip()
-            controller.closeGallery()
+            closeGallery()
           }}
           onPip={startPip}
           onNativePip={startNativePip}
@@ -97,8 +122,12 @@ export function GalleryProvider(props: { children: JSX.Element }) {
             floating
             item={state.item}
             adopt={state.media}
-            onClose={() => setPip(null)}
-            onToGallery={() => returnToGallery(state)}
+            onClose={() => {
+              setPip(null)
+              setDirectItem(null)
+              setActiveForumId(null)
+            }}
+            onToGallery={(_item, media) => returnToGallery(state, media)}
           />
         )}
       </Show>
