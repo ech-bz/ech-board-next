@@ -3,11 +3,13 @@ use std::net::IpAddr;
 use std::time::Instant;
 
 use actix_multipart::form::bytes::Bytes as MultipartBytes;
+use actix_multipart::form::tempfile::TempFile;
 use actix_multipart::form::text::Text;
-use actix_multipart::form::MultipartForm;
+use actix_multipart::form::{MultipartForm, MultipartFormConfig};
 use actix_web::http::header;
 use actix_web::{web, HttpRequest, HttpResponse};
 use bcs::{from_bytes, to_bytes};
+use futures_util::future::try_join_all;
 use futures_util::stream::{self, StreamExt as _};
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
@@ -38,6 +40,7 @@ const BODY_LIMIT: usize = 200 * 1024 * 1024;
 pub fn routes(config: &mut web::ServiceConfig) {
     config
         .app_data(web::PayloadConfig::new(BODY_LIMIT))
+        .app_data(MultipartFormConfig::default().total_limit(BODY_LIMIT))
         .route("/health", web::get().to(health))
         .route("/api/root", web::get().to(root_info))
         .route("/sse/forum/{id}", web::get().to(sse_forum))
@@ -87,16 +90,14 @@ pub struct Signed {
 #[derive(MultipartForm)]
 struct SubmitForm {
     signed: Vec<MultipartBytes>,
-    #[multipart(limit = "200mb")]
-    blob: Vec<MultipartBytes>,
+    blob: Vec<TempFile>,
     trip: Vec<Text<String>>,
 }
 
 #[derive(MultipartForm)]
 struct ImportForm {
     request: MultipartBytes,
-    #[multipart(limit = "200mb")]
-    blob: Vec<MultipartBytes>,
+    blob: Vec<TempFile>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -401,7 +402,7 @@ async fn submit_core(
 
 async fn submit_content(
     app: &App,
-    blobs: &[MultipartBytes],
+    blobs: &[TempFile],
     users: &[UserPart],
     postcounts: &[bool],
 ) -> Result<(), DomainError> {
@@ -410,8 +411,10 @@ async fn submit_content(
         .map(|user| postpart::expected(&user.call.function, &user.call.args))
         .collect();
     let mut received = std::collections::BTreeSet::new();
+    let mut uploads = Vec::new();
     for part in blobs {
-        let hash = crate::content::hash(&part.data);
+        let path = part.file.path().to_path_buf();
+        let hash = crate::content::hash_file(&path).await?;
         let mut matched = false;
         for entry in &expected {
             for key in &entry.keys {
@@ -420,7 +423,7 @@ async fn submit_content(
                 }
                 matched = true;
                 if received.insert(*key) {
-                    app.content.upload(*key, part.data.clone()).await?;
+                    uploads.push((*key, path.clone()));
                 }
             }
         }
@@ -428,6 +431,12 @@ async fn submit_content(
             return Err(DomainError::BadRequest("unexpected content".to_string()));
         }
     }
+    try_join_all(
+        uploads
+            .into_iter()
+            .map(|(key, path)| async move { app.content.upload_file(key, &path).await }),
+    )
+    .await?;
     for entry in &expected {
         for key in &entry.keys {
             let key = *key;
@@ -634,6 +643,7 @@ fn encoded(bytes: &[u8]) -> HttpResponse {
 pub fn admin_routes(config: &mut web::ServiceConfig) {
     config
         .app_data(web::PayloadConfig::new(BODY_LIMIT))
+        .app_data(MultipartFormConfig::default().total_limit(BODY_LIMIT))
         .route("/api/submit", web::post().to(submit_admin))
         .route("/api/import", web::post().to(import_admin))
         .route("/api/query", web::post().to(query_admin))

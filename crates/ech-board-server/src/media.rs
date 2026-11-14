@@ -42,17 +42,22 @@ struct ProbeFormat {
     duration: Option<String>,
 }
 
-pub async fn prepare(bytes: &[u8], reaction: bool) -> Result<PreparedMedia, DomainError> {
-    let mime = mime(bytes);
+pub async fn prepare(path: &Path, reaction: bool) -> Result<PreparedMedia, DomainError> {
+    let head = head(path).await?;
+    let mime = mime(&head);
     if mime == "application/octet-stream" || reaction && !mime.starts_with("image/") {
         return Err(DomainError::BadRequest("unsupported media format".into()));
     }
+    let size = tokio::fs::metadata(path)
+        .await
+        .map_err(|error| DomainError::Store(error.to_string()))?
+        .len();
     let mut meta = MediaMeta {
         mime: mime.into(),
         width: 0,
         height: 0,
         duration_ms: None,
-        size: bytes.len() as u64,
+        size,
         thumbnail: false,
     };
     if mime == "application/pdf" {
@@ -61,12 +66,7 @@ pub async fn prepare(bytes: &[u8], reaction: bool) -> Result<PreparedMedia, Doma
             thumbnail: None,
         });
     }
-    let directory = tempfile::tempdir().map_err(|error| DomainError::Store(error.to_string()))?;
-    let path = directory.path().join("media");
-    tokio::fs::write(&path, bytes)
-        .await
-        .map_err(|error| DomainError::Store(error.to_string()))?;
-    let probe = probe(&path).await?;
+    let probe = probe(path).await?;
     let visual = probe
         .streams
         .iter()
@@ -102,6 +102,27 @@ pub async fn prepare(bytes: &[u8], reaction: bool) -> Result<PreparedMedia, Doma
     };
     meta.thumbnail = thumbnail.is_some();
     Ok(PreparedMedia { meta, thumbnail })
+}
+
+async fn head(path: &Path) -> Result<Vec<u8>, DomainError> {
+    use tokio::io::AsyncReadExt;
+    let mut file = tokio::fs::File::open(path)
+        .await
+        .map_err(|error| DomainError::Store(error.to_string()))?;
+    let mut buf = vec![0u8; 16];
+    let mut filled = 0;
+    while filled < buf.len() {
+        let read = file
+            .read(&mut buf[filled..])
+            .await
+            .map_err(|error| DomainError::Store(error.to_string()))?;
+        if read == 0 {
+            break;
+        }
+        filled += read;
+    }
+    buf.truncate(filled);
+    Ok(buf)
 }
 
 async fn probe(path: &Path) -> Result<Probe, DomainError> {
