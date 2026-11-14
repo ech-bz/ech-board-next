@@ -49,8 +49,8 @@ impl DbClient {
         })
     }
 
-    pub async fn append(&self, root: &Root, request: &Request) -> Result<Outcome, DbError> {
-        let body = to_bytes(request)?;
+    pub async fn append(&self, root: &Root, requests: &[Request]) -> Result<Vec<Outcome>, DbError> {
+        let body = to_bytes(&requests)?;
         let response = self
             .http
             .post(format!("{}/{}/append", self.base, root))
@@ -61,10 +61,10 @@ impl DbClient {
         Self::decode(response).await
     }
 
-    pub async fn query(&self, root: &Root, request: &Request) -> Result<Outcome, DbError> {
+    pub async fn query(&self, root: &Root, requests: &[Request]) -> Result<Vec<Outcome>, DbError> {
         let encode = Timer::new("request_encode");
         let body = tracing::debug_span!(target: "latency", "query.encode_request")
-            .in_scope(|| to_bytes(request))?;
+            .in_scope(|| to_bytes(&requests))?;
         let size = body.len();
         drop(encode);
         let http_started = Instant::now();

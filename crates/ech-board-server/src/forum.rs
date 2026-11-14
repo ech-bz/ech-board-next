@@ -29,6 +29,18 @@ pub struct AuthorHistoryPage {
     pub length: Option<u64>,
 }
 
+pub struct Query {
+    pub user: UserPart,
+    pub decryptions: Vec<Esid>,
+}
+
+pub struct Submission {
+    pub user: UserPart,
+    pub decryptions: Vec<Esid>,
+    pub country: Option<u32>,
+    pub trip: Option<Tripcode>,
+}
+
 impl Forum {
     pub const UPLOAD: &'static str = "upload_program";
     pub const PAGE: u64 = 64;
@@ -78,7 +90,11 @@ impl Forum {
 
     pub async fn deploy(&self) -> Result<(), DomainError> {
         let request = self.request(self.upload.clone(), Vec::new(), None, None, now())?;
-        match self.db.append(&self.root(), &request).await {
+        match self
+            .db
+            .append(&self.root(), std::slice::from_ref(&request))
+            .await
+        {
             Ok(_) => Ok(()),
             Err(DbError::Reject(Reject::Duplicate)) => Ok(()),
             Err(error) => Err(error.into()),
@@ -158,37 +174,40 @@ impl Forum {
         self.moderators().await
     }
 
-    pub async fn submit(
-        &self,
-        user: UserPart,
-        decryptions: Vec<Esid>,
-        country: Option<u32>,
-        trip: Option<Tripcode>,
-    ) -> Result<Output, DomainError> {
-        self.submit_at(user, decryptions, country, trip, now())
-            .await
+    pub async fn append(&self, submissions: Vec<Submission>) -> Result<Vec<Output>, DomainError> {
+        self.append_at(submissions, now()).await
     }
 
-    pub async fn submit_at(
+    pub async fn append_at(
         &self,
-        user: UserPart,
-        decryptions: Vec<Esid>,
-        country: Option<u32>,
-        trip: Option<Tripcode>,
+        submissions: Vec<Submission>,
         time: u64,
-    ) -> Result<Output, DomainError> {
-        self.check_program(&user)?;
+    ) -> Result<Vec<Output>, DomainError> {
+        if submissions.is_empty() {
+            return Ok(Vec::new());
+        }
         let started = Instant::now();
-        let request = self.request(user, decryptions, country, trip, time)?;
-        let txid = request.tx.txid(&self.root())?;
+        let mut requests = Vec::with_capacity(submissions.len());
+        let mut txids = Vec::with_capacity(submissions.len());
+        for submission in submissions {
+            self.check_program(&submission.user)?;
+            let request = self.request(
+                submission.user,
+                submission.decryptions,
+                submission.country,
+                submission.trip,
+                time,
+            )?;
+            txids.push(request.tx.txid(&self.root())?);
+            requests.push(request);
+        }
         let prepare_ms = started.elapsed().as_secs_f64() * 1000.0;
         let append_started = Instant::now();
-        let outcome = self.db.append(&self.root(), &request).await;
+        let outcome = self.db.append(&self.root(), &requests).await;
         let append_ms = append_started.elapsed().as_secs_f64() * 1000.0;
         if prepare_ms + append_ms >= 250.0 {
             tracing::info!(
-                %txid,
-                function = %request.tx.user.call.function,
+                transactions = requests.len(),
                 prepare_ms,
                 append_ms,
                 success = outcome.is_ok(),
@@ -196,46 +215,60 @@ impl Forum {
             );
         }
         match outcome {
-            Ok(outcome) => decode(&outcome.result),
-            Err(DbError::Reject(Reject::Duplicate)) => decode(&self.record(txid).await?.result),
+            Ok(outcomes) => outcomes
+                .iter()
+                .map(|outcome| decode(&outcome.result))
+                .collect(),
+            Err(DbError::Reject(Reject::Duplicate)) if requests.len() == 1 => {
+                decode(&self.record(txids[0]).await?.result).map(|output| vec![output])
+            }
             Err(error) => Err(error.into()),
         }
     }
 
     #[tracing::instrument(target = "latency", level = "debug", name = "query.database", skip_all,
-        fields(root = %self.root(), function = %user.call.function, txid = tracing::field::Empty))]
-    pub async fn query(
-        &self,
-        user: UserPart,
-        decryptions: Vec<Esid>,
-    ) -> Result<Output, DomainError> {
+        fields(root = %self.root(), queries = queries.len()))]
+    pub async fn query(&self, queries: Vec<Query>) -> Result<Vec<Output>, DomainError> {
+        if queries.is_empty() {
+            return Ok(Vec::new());
+        }
         let _database = Timer::new("database");
-        self.check_program(&user)?;
-        let request = timing::measure("prepare", || {
-            self.request(user, decryptions, None, None, now())
-        })?;
-        if tracing::enabled!(target: "latency", tracing::Level::DEBUG) {
-            let txid = request.tx.txid(&self.root())?;
-            tracing::Span::current().record("txid", tracing::field::display(txid));
+        let mut requests = Vec::with_capacity(queries.len());
+        for query in queries {
+            self.check_program(&query.user)?;
+            requests.push(timing::measure("prepare", || {
+                self.request(query.user, query.decryptions, None, None, now())
+            })?);
         }
-        match self.db.query(&self.root(), &request).await {
-            Ok(outcome) => timing::measure("output_decode", || decode(&outcome.result)),
-            Err(error) => Err(error.into()),
-        }
+        let outcomes = self.db.query(&self.root(), &requests).await?;
+        timing::measure("output_decode", || {
+            outcomes
+                .iter()
+                .map(|outcome| decode(&outcome.result))
+                .collect()
+        })
     }
 
     pub async fn call(&self, function: &str, args: Vec<u8>) -> Result<Vec<u8>, DomainError> {
-        Ok(self
-            .query(self.server_part(function, args), Vec::new())
-            .await?
-            .result)
+        let mut outputs = self
+            .query(vec![Query {
+                user: self.server_part(function, args),
+                decryptions: Vec::new(),
+            }])
+            .await?;
+        Ok(outputs.remove(0).result)
     }
 
     pub async fn execute(&self, function: &str, args: Vec<u8>) -> Result<Vec<u8>, DomainError> {
-        Ok(self
-            .submit(self.server_part(function, args), Vec::new(), None, None)
-            .await?
-            .result)
+        let mut outputs = self
+            .append(vec![Submission {
+                user: self.server_part(function, args),
+                decryptions: Vec::new(),
+                country: None,
+                trip: None,
+            }])
+            .await?;
+        Ok(outputs.remove(0).result)
     }
 
     pub async fn history(&self, from: Option<Txid>) -> Result<Vec<Record>, DomainError> {
