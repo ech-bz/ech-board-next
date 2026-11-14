@@ -13,7 +13,7 @@ COPY . .
 RUN RUSTFLAGS="-C target-feature=+simd128" cargo build --locked -p ech-board-program --target wasm32-unknown-unknown --profile guest
 RUN cargo build --locked --release -p ech-board-server
 
-FROM docker.io/library/debian:bookworm-slim
+FROM docker.io/library/debian:forky-slim
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates ffmpeg \
     && rm -rf /var/lib/apt/lists/*
