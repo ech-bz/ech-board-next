@@ -127,9 +127,19 @@ pub async fn media_put(app: web::Data<App>, body: web::Bytes) -> Result<HttpResp
 
 async fn upload(app: &App, kind: Kind, bytes: web::Bytes) -> Result<HttpResponse, DomainError> {
     let hash = content::hash(&bytes);
-    app.content
-        .upload_bytes(Key::new(kind, hash), bytes)
-        .await?;
+    let key = Key::new(kind, hash);
+    if app.content.exists(key).await? {
+        let derived = match kind {
+            Kind::Media | Kind::Reaction => app.content.exists(key.metadata()).await?,
+            _ => true,
+        };
+        if derived {
+            return Ok(HttpResponse::Ok()
+                .content_type("application/octet-stream")
+                .body(hash.to_vec()));
+        }
+    }
+    app.content.upload_bytes(key, bytes).await?;
     Ok(HttpResponse::Ok()
         .content_type("application/octet-stream")
         .body(hash.to_vec()))
