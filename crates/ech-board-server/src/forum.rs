@@ -1,8 +1,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
-use ech_board_entity::{Changed, Entity, Output};
+use ech_board_entity::{Entity, Output};
 use ech_board_program::context::{ServerContext, Tripcode, UserRequests};
+use ech_board_program::debug::Changes;
 use ech_board_program::entity::Forum as ForumEntity;
 use ech_board_program::error::ForumError;
 use ech_board_program::types::Hash;
@@ -43,7 +44,7 @@ pub struct Submission {
 
 impl Forum {
     pub const UPLOAD: &'static str = "upload_program";
-    pub const PAGE: u64 = 64;
+    pub const PAGE: u64 = 1024;
 
     pub fn new(db: DbClient, domain: Domain, wasm: &[u8]) -> Result<Self, DomainError> {
         let upload = UserPart {
@@ -108,12 +109,8 @@ impl Forum {
             .map_err(|_| DomainError::BadRequest("forum id".to_string()))
     }
 
-    pub async fn entities(&self, changes: &[Changed]) -> Result<Vec<Vec<u8>>, DomainError> {
-        let input: Vec<(String, [u8; 32])> = changes
-            .iter()
-            .map(|change| (change.namespace.clone(), change.id))
-            .collect();
-        let bytes = self.call("debug.entities", bcs::to_bytes(&input)?).await?;
+    pub async fn changes(&self, keys: Vec<(String, Hash)>) -> Result<Changes, DomainError> {
+        let bytes = self.call("debug.changes", bcs::to_bytes(&keys)?).await?;
         Ok(bcs::from_bytes(&bytes)?)
     }
 
