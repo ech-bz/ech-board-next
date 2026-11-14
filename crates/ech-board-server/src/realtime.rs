@@ -113,7 +113,9 @@ impl Hub {
         for (namespace, _, bytes) in values {
             resources.extend(Resources::decode(namespace, bytes)?);
         }
-        let loaded = resources.load_page(store, threads, transactions).await?;
+        let loaded = resources
+            .load_page(store, threads, transactions, ())
+            .await?;
         let contents = loaded
             .contents
             .into_iter()
@@ -136,13 +138,16 @@ impl Hub {
                 })
             })
             .collect::<Result<_, DomainError>>()?;
-        let mut transactions = Vec::with_capacity(loaded.transactions.len());
-        for (hash, tx) in loaded.transactions {
-            transactions.push(BlobPayload {
-                hash: hex::encode(hash),
-                value: hex::encode(to_bytes(&tx)?),
-            });
-        }
+        let transactions = loaded
+            .transactions
+            .into_iter()
+            .map(|(hash, tx)| {
+                Ok(BlobPayload {
+                    hash: hex::encode(hash),
+                    value: hex::encode(to_bytes(&tx)?),
+                })
+            })
+            .collect::<Result<Vec<_>, DomainError>>()?;
         Ok((contents, attachments, transactions))
     }
 

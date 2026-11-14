@@ -5,7 +5,7 @@ use ech_db_guest::{BigLog, Bind};
 
 use crate::component::bans::{BanValue, Bans};
 use crate::context::Context;
-use crate::entity::{Board, BoardKey, Read, Write};
+use crate::entity::{transactions, Board, BoardKey, Page, Read, Write};
 use crate::error::{ForumError, Result};
 use crate::types::{Esid, Hash};
 
@@ -70,18 +70,28 @@ impl Forum {
         Ok(Entity::<Self>::load(&ForumKey {})?)
     }
 
-    pub(crate) fn meta(forum: &Read<Forum>) -> Result<&Entity<Forum>> {
-        Ok(forum)
+    pub(crate) fn meta(forum: &Read<Forum>) -> Result<Page<Entity<Forum>>> {
+        let entity = (**forum).clone();
+        let transactions = transactions(vec![entity.genesis])?;
+        Ok(Page {
+            view: entity,
+            threads: Vec::new(),
+            transactions,
+        })
     }
 
-    pub(crate) fn page(forum: &Read<Forum>) -> Result<ForumPage> {
+    pub(crate) fn page(forum: &Read<Forum>) -> Result<Page<ForumPage>> {
         let entries = forum.boards.entries(None, u32::MAX as usize)?;
         let keys: Vec<BoardKey> = entries.into_iter().map(|(_, key)| key).collect();
-        Ok(ForumPage {
-            boards: Entity::<Board>::load_many(&keys)?
-                .into_iter()
-                .flatten()
-                .collect(),
+        let boards: Vec<Entity<Board>> = Entity::<Board>::load_many(&keys)?
+            .into_iter()
+            .flatten()
+            .collect();
+        let transactions = transactions(boards.iter().map(|board| board.genesis).collect())?;
+        Ok(Page {
+            view: ForumPage { boards },
+            threads: Vec::new(),
+            transactions,
         })
     }
 

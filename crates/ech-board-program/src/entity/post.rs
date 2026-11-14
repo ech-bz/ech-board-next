@@ -7,7 +7,7 @@ use ech_db_guest::{BigMap, Bind};
 
 use crate::component::bans::Bans;
 use crate::context::Context;
-use crate::entity::{Board, Forum, Read, Thread, User, Write};
+use crate::entity::{transactions, Board, Forum, Page, Read, Thread, User, Write};
 use crate::error::{ForumError, Result};
 use crate::types::{Esid, Hash, Sid};
 
@@ -259,10 +259,19 @@ impl Post {
         Bans::gate(&bans)
     }
 
-    pub(crate) fn get(post: &Read<Post>) -> Result<PostPage> {
-        Ok(PostPage {
-            my_reactions: Post::my_reactions(std::iter::once(&**post))?,
-            post: (**post).clone(),
+    pub(crate) fn get(post: &Read<Post>) -> Result<Page<PostPage>> {
+        let entity = (**post).clone();
+        let reactions = Post::my_reactions(std::iter::once(&entity))?;
+        let thread = Thread::open(entity.key.board.clone(), entity.thread)?;
+        let transactions = transactions(vec![entity.genesis, thread.genesis])?;
+        let entry = (thread.id(), bcs::to_bytes(&thread).expect("thread encodes"));
+        Ok(Page {
+            view: PostPage {
+                post: entity,
+                my_reactions: reactions,
+            },
+            threads: vec![entry],
+            transactions,
         })
     }
 

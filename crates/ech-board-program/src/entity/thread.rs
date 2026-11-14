@@ -6,11 +6,12 @@ use ech_board_entity::{entity, profile, Entity};
 use ech_db_guest::Author;
 use ech_db_guest::BigMap;
 use ech_db_guest::Bind;
+use ech_db_guest::Txid;
 
 use crate::component::bans::{BanValue, Bans};
 use crate::component::board_index::BoardOrderKey;
 use crate::context::{Context, ServerContext};
-use crate::entity::{Board, Forum, Post, PostKey, Read, User, Write};
+use crate::entity::{transactions, Board, Forum, Page, Post, PostKey, Read, User, Write};
 use crate::error::{ForumError, Result};
 use crate::types::{Esid, Hash, EDIT_WINDOW_MS};
 
@@ -271,10 +272,16 @@ impl Thread {
         Bans::gate(&bans)
     }
 
-    pub(crate) fn meta(thread: &Read<Thread>) -> Result<ThreadMeta<&Entity<Thread>>> {
-        Ok(ThreadMeta {
-            thread: &**thread,
-            page_size: PAGE_POSTS,
+    pub(crate) fn meta(thread: &Read<Thread>) -> Result<Page<ThreadMeta>> {
+        let entity = (**thread).clone();
+        let transactions = transactions(vec![entity.genesis])?;
+        Ok(Page {
+            view: ThreadMeta {
+                thread: entity,
+                page_size: PAGE_POSTS,
+            },
+            threads: Vec::new(),
+            transactions,
         })
     }
 
@@ -304,7 +311,7 @@ impl Thread {
         Ok(())
     }
 
-    pub(crate) fn page(thread: &Read<Thread>, after: u64) -> Result<ThreadPage> {
+    pub(crate) fn page(thread: &Read<Thread>, after: u64) -> Result<Page<ThreadPage>> {
         let end = thread.post_count.min(after.saturating_add(PAGE_POSTS));
         let count = end.saturating_sub(after) as usize;
         let before = end.checked_add(1);
@@ -332,12 +339,23 @@ impl Thread {
             Ok::<_, ForumError>(posts)
         })?;
         let next = (end < thread.post_count).then_some(end);
-        let page = ThreadPage {
-            my_reactions: Post::my_reactions(posts.values())?,
-            posts,
-            next,
-        };
-        Ok(page)
+        let mut txids: Vec<Txid> = Vec::with_capacity(posts.len() + 1);
+        txids.push(thread.genesis);
+        for post in posts.values() {
+            txids.push(post.genesis);
+        }
+        let transactions = transactions(txids)?;
+        let entity = (**thread).clone();
+        let entry = (entity.id(), bcs::to_bytes(&entity).expect("thread encodes"));
+        Ok(Page {
+            view: ThreadPage {
+                my_reactions: Post::my_reactions(posts.values())?,
+                posts,
+                next,
+            },
+            threads: vec![entry],
+            transactions,
+        })
     }
     pub(crate) fn set_closed(thread: &mut Write<Thread>, value: bool) -> Result<()> {
         Self::gate(thread)?;

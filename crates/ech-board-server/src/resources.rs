@@ -103,22 +103,6 @@ impl Resources {
             .resources())
     }
 
-    async fn resolve(mut self, forum: &ForumApi) -> Result<Self, DomainError> {
-        let threads = std::mem::take(&mut self.threads);
-        let mut reads = stream::iter(threads)
-            .map(|(id, resources)| async move {
-                let thread = entity::<Thread>(forum, id).await?;
-                Ok::<_, DomainError>((!thread.deleted).then_some(resources))
-            })
-            .buffer_unordered(32);
-        while let Some(resources) = reads.try_next().await? {
-            if let Some(resources) = resources {
-                self.extend(resources);
-            }
-        }
-        Ok(self)
-    }
-
     pub fn decode(namespace: &str, bytes: &[u8]) -> Result<Self, DomainError> {
         Ok(match namespace {
             "post" => bcs::from_bytes::<Entity<Post>>(bytes)?.resources(),
@@ -141,31 +125,23 @@ impl Resources {
         Ok(self)
     }
 
-    pub async fn load(
-        self,
-        store: &Store,
-        forum: &ForumApi,
-    ) -> Result<WithResources<()>, DomainError> {
-        let resources = self.resolve(forum).await?;
-        let transactions = forum.transactions(resources.transactions.clone()).await?;
-        resources.load_ready(store, &transactions).await
-    }
-
-    pub async fn load_page(
+    pub async fn load_page<T>(
         self,
         store: &Store,
         threads: &BTreeMap<Hash, Vec<u8>>,
         transactions: &BTreeMap<Hash, Tx>,
-    ) -> Result<WithResources<()>, DomainError> {
+        view: T,
+    ) -> Result<WithResources<T>, DomainError> {
         let resources = self.resolve_values(threads)?;
-        resources.load_ready(store, transactions).await
+        resources.load_ready(store, transactions, view).await
     }
 
-    async fn load_ready(
+    async fn load_ready<T>(
         self,
         store: &Store,
         transactions: &BTreeMap<Hash, Tx>,
-    ) -> Result<WithResources<()>, DomainError> {
+        view: T,
+    ) -> Result<WithResources<T>, DomainError> {
         let transactions = self
             .transactions
             .iter()
@@ -186,7 +162,7 @@ impl Resources {
             .try_collect();
         let (contents, attachments) = tokio::try_join!(contents, attachments)?;
         Ok(WithResources {
-            view: (),
+            view,
             contents,
             attachments,
             transactions,
@@ -316,18 +292,6 @@ impl PageResources for Entity<Post> {
             resources.threads.insert(thread, value.resources());
         }
         resources
-    }
-}
-
-impl<T: PageResources> WithResources<T> {
-    pub async fn load(store: &Store, forum: &ForumApi, view: T) -> Result<Self, DomainError> {
-        let resources = view.resources().load(store, forum).await?;
-        Ok(Self {
-            view,
-            contents: resources.contents,
-            attachments: resources.attachments,
-            transactions: resources.transactions,
-        })
     }
 }
 

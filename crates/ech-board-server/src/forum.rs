@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use ech_board_entity::{Entity, Output};
@@ -112,21 +112,6 @@ impl Forum {
     pub async fn changes(&self, keys: Vec<(String, Hash)>) -> Result<Changes, DomainError> {
         let bytes = self.call("debug.changes", bcs::to_bytes(&keys)?).await?;
         Ok(bcs::from_bytes(&bytes)?)
-    }
-
-    pub async fn transactions(
-        &self,
-        txids: BTreeSet<Hash>,
-    ) -> Result<BTreeMap<Hash, Tx>, DomainError> {
-        if txids.is_empty() {
-            return Ok(BTreeMap::new());
-        }
-        let list: Vec<Hash> = txids.into_iter().collect();
-        let bytes = self
-            .call("debug.transactions", bcs::to_bytes(&list)?)
-            .await?;
-        let values: Vec<Tx> = bcs::from_bytes(&bytes)?;
-        Ok(list.into_iter().zip(values).collect())
     }
 
     pub async fn ensure(&self) -> Result<(), DomainError> {

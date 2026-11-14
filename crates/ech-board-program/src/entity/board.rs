@@ -8,7 +8,9 @@ use ech_db_guest::Bind;
 use crate::component::bans::{BanValue, Bans};
 use crate::component::board_index::{BoardIndex, BoardOrderKey};
 use crate::context::Context;
-use crate::entity::{Forum, Post, Read, Thread, ThreadKey, ThreadPreview, Write};
+use crate::entity::{
+    transactions, Forum, Page, Post, Read, Thread, ThreadKey, ThreadPreview, Write,
+};
 use crate::error::{ForumError, Result};
 use crate::types::{Esid, Hash};
 
@@ -214,19 +216,44 @@ impl Board {
         Ok(Entity::<Self>::load(&BoardKey { slug })?)
     }
 
-    pub(crate) fn meta(board: &Read<Board>) -> Result<&Entity<Board>> {
-        Ok(board)
+    pub(crate) fn meta(board: &Read<Board>) -> Result<Page<Entity<Board>>> {
+        let entity = (**board).clone();
+        let transactions = transactions(vec![entity.genesis])?;
+        Ok(Page {
+            view: entity,
+            threads: Vec::new(),
+            transactions,
+        })
     }
 
-    pub(crate) fn page(board: &Read<Board>, cursor: Option<BoardCursor>) -> Result<BoardPage> {
+    pub(crate) fn page(
+        board: &Read<Board>,
+        cursor: Option<BoardCursor>,
+    ) -> Result<Page<BoardPage>> {
         let (numbers, next) = board.paginate(cursor)?;
         let threads = Self::previews(board, &numbers)?;
-        Ok(BoardPage {
-            my_reactions: Post::my_reactions(
-                threads.iter().flat_map(|thread| thread.posts.values()),
-            )?,
-            threads,
-            next,
+        let mut txids = Vec::new();
+        let mut entries = Vec::with_capacity(threads.len());
+        for thread in &threads {
+            txids.push(thread.thread.genesis);
+            entries.push((
+                thread.thread.id(),
+                bcs::to_bytes(&thread.thread).expect("thread encodes"),
+            ));
+            for post in thread.posts.values() {
+                txids.push(post.genesis);
+            }
+        }
+        Ok(Page {
+            view: BoardPage {
+                my_reactions: Post::my_reactions(
+                    threads.iter().flat_map(|thread| thread.posts.values()),
+                )?,
+                threads,
+                next,
+            },
+            threads: entries,
+            transactions: transactions(txids)?,
         })
     }
 
