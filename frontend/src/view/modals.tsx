@@ -1,4 +1,4 @@
-import { createContext, Show, useContext, type JSX } from 'solid-js'
+import { createContext, createSignal, Show, useContext, type JSX } from 'solid-js'
 import type { EntityObject } from '../model/entities/entity'
 import type { Post } from '../model/entities/post'
 import { identityKey as esidHex } from '../model/rules/identity'
@@ -13,10 +13,19 @@ import { CreateBoardModal } from './components/CreateBoardModal'
 import { ForumTitleModal } from './components/ForumTitleModal'
 import { LogsModal, type LogsTab } from './components/LogsModal/LogsModal'
 import { ModeratorsModal } from './components/ModeratorsModal'
+import { ReportModal } from './components/ReportModal'
 import { ThreadTopicModal } from './components/ThreadTopicModal'
+import { modData } from './mod/modData'
 import { useMod } from './mod'
 
+export interface ReportTarget {
+  board: string
+  threadNum: number
+  postNum: number
+}
+
 export interface ModalsApi {
+  openReport: (target: ReportTarget) => void
   openThreadTopic: (threadId: string) => void
   openThreadModerators: (threadId: string) => void
   openBoardModerators: () => void
@@ -35,6 +44,7 @@ export function ModalsProvider(props: { roles: RoleOption[]; relayUrl: string; c
   const mod = useMod()
   const model = useForumModel()
   const controller = useForumController()
+  const [reportTarget, setReportTarget] = createSignal<ReportTarget | null>(null)
   const topic = () => model.dialogs.topic
   const moderators = () => {
     const target = model.dialogs.moderators
@@ -49,6 +59,7 @@ export function ModalsProvider(props: { roles: RoleOption[]; relayUrl: string; c
   const logs = () => model.dialogs.logs
   const roleKinds = (): RoleKind[] => props.roles.map((role) => role.kind)
   const api: ModalsApi = {
+    openReport: (target) => setReportTarget(target),
     openThreadTopic: controller.openThreadTopic,
     openThreadModerators: (id) => controller.openModerators('thread', id),
     openBoardModerators: () => controller.openModerators('board'),
@@ -83,6 +94,9 @@ export function ModalsProvider(props: { roles: RoleOption[]; relayUrl: string; c
             onClose={() => controller.closeDialog('createBoard')}
           />
         )}
+      </Show>
+      <Show when={reportTarget()}>
+        {(target) => <ReportModal onClose={() => setReportTarget(null)} onSubmit={(reason) => modData.submitReport(reason, target())} />}
       </Show>
       <Show when={topic()}>
         {(state) => (

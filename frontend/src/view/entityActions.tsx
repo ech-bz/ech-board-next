@@ -5,7 +5,7 @@ import { canBan, canBanAny, roleForThreadAction, type BanScope, type ThreadActio
 import { withThreadRoles, type RoleKind, type RoleOption } from '../model/rules/roles'
 import { useForumController, useForumQueries } from './bindings/forum'
 import { useMod } from './mod'
-import { useModals } from './modals'
+import { useModals, type ReportTarget } from './modals'
 
 export type ThreadModAction = 'close' | 'open' | 'delete' | 'restore'
 
@@ -31,6 +31,7 @@ export interface EntityActions {
   threadId: () => string | null
   selectedPosts: (ids: Set<string>) => Post[]
   deletedCount: (ids: Set<string>) => number
+  openReport: (target: ReportTarget) => void
   openThreadTopic: (threadId: string) => void
   openThreadModerators: (threadId: string) => void
   openBoardModerators: () => void
@@ -87,6 +88,7 @@ export function EntityActionsProvider(props: { roles: RoleOption[]; children: JS
       for (const id of ids) if (read.get(id)?.hidden) count++
       return count
     },
+    openReport: (target) => modals.openReport(target),
     openThreadTopic: (threadId) => modals.openThreadTopic(threadId),
     openThreadModerators: (threadId) => modals.openThreadModerators(threadId),
     openBoardModerators: () => modals.openBoardModerators(),

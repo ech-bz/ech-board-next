@@ -1,7 +1,9 @@
 import { Router, Route as RouterRoute, useLocation } from '@solidjs/router'
 import { cva } from 'class-variance-authority'
-import { createEffect, createMemo, Show } from 'solid-js'
+import { createEffect, createMemo, createSignal, on, Show } from 'solid-js'
 import type { ForumRuntime } from '../controller/createController'
+import { hasModRole } from '../model/rules/permissions'
+import type { RoleKind } from '../model/rules/roles'
 import type { ForumInfo } from '../model/state/navigation'
 import { ForumProvider, useForumController, useForumModel, useForumQueries } from './bindings/forum'
 import { GalleryProvider } from './components/Gallery/GalleryProvider'
@@ -13,14 +15,18 @@ import { ComposerBridgeProvider } from './composerBridge'
 import { createHeldPageHeight } from './effects/heldPageHeight'
 import { EntityActionsProvider } from './entityActions'
 import { errorMessage } from './errors'
-import { I18nProvider } from './i18n'
+import { I18nLocaleScope, I18nProvider } from './i18n'
 import { IconSprite } from './icons/IconSprite'
+import { ModGalleryProvider } from './components/mod/ModGallery'
 import { ModalsProvider } from './modals'
+import { closeModTabs } from './modTabs'
+import { modPreviewEnabled } from './modPreview'
 import { NavProvider, useNav } from './nav'
 import { parseRoute } from './route'
 import { BoardPage } from './screens/BoardPage'
 import { BoardsPage } from './screens/BoardsPage'
 import { ComposePage } from './screens/ComposePage'
+import { ModPage } from './screens/ModPage'
 import { SettingsPage } from './screens/SettingsPage'
 import { ThreadPage } from './screens/ThreadPage'
 import { TitleSync } from './TitleSync'
@@ -71,7 +77,21 @@ function Shell() {
     }
   })
 
+  const [modSeenForum, setModSeenForum] = createSignal<string | null>(null)
+  createEffect(() => {
+    const ctx = context()
+    if (ctx && hasModRole(roles().map((role) => role.kind))) setModSeenForum(ctx.forumId)
+  })
+  const modRoleKinds = createMemo((): RoleKind[] => (modSeenForum() === context()?.forumId ? [...new Set(roles().map((role) => role.kind))] : []))
+  const isMod = () => modPreviewEnabled() || hasModRole(modRoleKinds()) || (modSeenForum() !== null && modSeenForum() === context()?.forumId)
+  const previewRoleKinds = (): RoleKind[] => (modRoleKinds().length > 0 ? modRoleKinds() : modPreviewEnabled() ? ['forum_mod'] : [])
+
   const route = () => parseRoute(location.pathname + location.hash, model.navigation.defaultForumId)
+  createEffect(on(() => route().page, (page) => page !== 'mod' && closeModTabs(), { defer: true }))
+  const modRoute = createMemo(() => {
+    const current = route()
+    return current.page === 'mod' ? current : null
+  })
   const threadRoute = createMemo(() => {
     const current = route()
     return current.page === 'thread' ? current : null
@@ -118,6 +138,8 @@ function Shell() {
       boards={boards()}
       board={currentBoard()}
       setting={setting()}
+      modTab={modRoute()?.tab ?? null}
+      onOpenMod={(tab) => nav.navigate({ page: 'mod', tab })}
       onToggleCollapsed={store.toggleSidebar}
       onSelectForum={selectForum}
       onSelectBoard={(board) => nav.navigate({ page: 'board', forumId: context()!.forumId, slug: board.slug })}
@@ -129,6 +151,7 @@ function Shell() {
 
   return (
     <I18nProvider>
+      <I18nLocaleScope lang="en" active={() => modRoute() !== null}>
       <ModalsProvider roles={roles()} relayUrl={context()?.relayUrl ?? ''}>
         <EntityActionsProvider roles={roles()}>
           <ComposerBridgeProvider>
@@ -168,6 +191,20 @@ function Shell() {
                             onSelectForum={selectForum}
                           />
                         </Show>
+                        <Show when={modRoute()}>
+                          {(r) => (
+                            <ModGalleryProvider>
+                              <ModPage
+                                tab={r().tab}
+                                forumId={context()!.forumId}
+                                boards={boards().map((board) => board.slug)}
+                                ready={boards().length > 0}
+                                canModerate={isMod()}
+                                roleKinds={previewRoleKinds()}
+                              />
+                            </ModGalleryProvider>
+                          )}
+                        </Show>
                         <Show when={route().page === 'settings' ? true : null}>
                           <SettingsPage setting={setting()} baseHref="/settings" />
                         </Show>
@@ -181,6 +218,7 @@ function Shell() {
           </ComposerBridgeProvider>
         </EntityActionsProvider>
       </ModalsProvider>
+      </I18nLocaleScope>
     </I18nProvider>
   )
 }

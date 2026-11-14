@@ -1,7 +1,8 @@
 import { useForumModel } from './bindings/forum'
 
-import type { Route, SettingKey, SettingSlug } from '../model/state/navigation'
-export type { Route, SettingKey, SettingSlug } from '../model/state/navigation'
+import { MOD_TAB_SLUGS, type ModTab, type Route, type SettingKey, type SettingSlug } from '../model/state/navigation'
+export { MOD_TAB_SLUGS } from '../model/state/navigation'
+export type { ModTab, Route, SettingKey, SettingSlug } from '../model/state/navigation'
 
 const SETTINGS: { slug: SettingSlug; key: SettingKey }[] = [
   { slug: 'key', key: 'Master Key' },
@@ -16,6 +17,10 @@ export function settingKeyToSlug(key: string): SettingSlug | null {
 export function settingSlugToKey(slug: string): SettingKey | null {
   const found = SETTINGS.find((s) => s.slug === slug)
   return found ? found.key : null
+}
+
+export function modPath(tab: ModTab): string {
+  return `/mod/${tab}`
 }
 
 function isDefaultForum(forumId: string, def: string | null): boolean {
@@ -47,6 +52,12 @@ export function parseRoute(path: string, defaultForumId: string | null): Route {
   const [pathname, hash] = path.split('#')
   const parts = pathname.split('/').filter(Boolean)
   if (parts.length === 0) return { page: 'boards' }
+  if (parts[0] === 'mod') {
+    if (parts.length === 1) return { page: 'mod', tab: 'overboard' }
+    const tab = MOD_TAB_SLUGS.find((slug) => slug === parts[1])
+    if (parts.length === 2 && tab) return { page: 'mod', tab }
+    return { page: 'boards' }
+  }
   if (parts[0] === 'settings') {
     if (parts.length === 1) return { page: 'settings' }
     if (parts.length === 2 && settingSlugToKey(parts[1])) return { page: 'settings', setting: parts[1] as SettingSlug }
@@ -82,6 +93,7 @@ export function routeToPath(r: Route, defaultForumId: string | null): string {
   if (r.page === 'board') return boardPath(r.forumId, r.slug, defaultForumId)
   if (r.page === 'thread') return threadPath(r.forumId, r.slug, r.threadNum, r.postNum, defaultForumId)
   if (r.page === 'compose') return composePath(r.forumId, r.slug, defaultForumId)
+  if (r.page === 'mod') return modPath(r.tab)
   return r.setting ? `/settings/${r.setting}` : '/settings'
 }
 
@@ -89,6 +101,7 @@ export function depthOf(r: Route): number {
   if (r.page === 'boards') return 0
   if (r.page === 'board') return 1
   if (r.page === 'thread') return 2
+  if (r.page === 'mod') return 1
   if (r.page === 'compose') return 3
   return r.setting ? 2 : 1
 }
@@ -98,6 +111,7 @@ export function parentRoute(r: Route): Route | null {
   if (r.page === 'compose') return { page: 'board', forumId: r.forumId, slug: r.slug }
   if (r.page === 'board') return { page: 'boards', forumId: r.forumId }
   if (r.page === 'settings' && r.setting) return { page: 'settings' }
+  if (r.page === 'mod') return { page: 'boards' }
   return null
 }
 

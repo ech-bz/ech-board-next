@@ -30,7 +30,7 @@ export function createNavigation(model: ForumState, commit: Commit, gateway: For
       const request = ++generation
       realtime.close()
       const page: ForumState['page'] = { revision: model.page.revision + 1, forumId: context.forumId, boardId: null, threadId: null, mode: null, loadingMore: false, resyncSequence: model.page.resyncSequence + Number(background) }
-      if (route.page === 'settings') {
+      if (route.page === 'settings' || route.page === 'mod') {
         commit(...pageReplacement(model, page), { type: 'navigation.patch', value: { route, context, error: null, loading: false, refreshing: false, reconnecting: false } })
         void gateway.readForum(context.relayUrl).then((data) => {
           if (!isDisposed() && request === generation) receive(forumChanges(data))

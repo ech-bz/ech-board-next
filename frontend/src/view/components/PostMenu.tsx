@@ -17,7 +17,9 @@ export function PostMenu(props: { post: Post; closed: boolean; threadObject?: Th
   const selection = usePostSelection()
   const items = (): MenuItem[] => {
     const rec = props.post
-    const result: MenuItem[] = []
+    const result: MenuItem[] = [
+      { label: t('report.title'), onClick: () => actions.openReport({ board: rec.board, threadNum: rec.threadNumber, postNum: rec.number }) },
+    ]
     if (rec.author) result.push({ label: t('history.author'), onClick: () => controller.openAuthorHistory(rec.author!) })
     if (props.onEdit && rec.canEdit) result.push({ label: t('mod.edit'), onClick: () => props.onEdit?.(rec.id) })
     const author = (): MenuItem => ({ label: t('mod.selectAllFromAuthor'), onClick: () => selection?.selectAllFromAuthor(rec, rec.threadId) })

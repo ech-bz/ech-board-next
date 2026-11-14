@@ -116,3 +116,15 @@ export function selfModerationDeadline(created: number, mine: boolean, now: numb
   const deadline = created + SELF_MOD_WINDOW_MS + 1
   return mine && now < deadline ? deadline : null
 }
+
+export const MOD_KINDS: RoleKind[] = ['forum_mod', 'board_mod', 'thread_admin', 'thread_mod']
+
+const MOD_LEVELS: Partial<Record<RoleKind, number>> = { forum_mod: 4, board_mod: 3, thread_admin: 2, thread_mod: 1 }
+
+export function hasModRole(kinds: RoleKind[]): boolean {
+  return kinds.some((kind) => MOD_KINDS.includes(kind))
+}
+
+export function accessLevel(kinds: RoleKind[]): number {
+  return kinds.reduce((max, kind) => Math.max(max, MOD_LEVELS[kind] ?? 0), 0)
+}

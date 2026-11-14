@@ -2,6 +2,7 @@ import { cva } from 'class-variance-authority'
 import { createEffect, createSignal, on, onCleanup, Show } from 'solid-js'
 import type { MediaReference } from '../../../model/entities/media'
 import { useForumController, useForumModel } from '../../bindings/forum'
+import { useI18n } from '../../i18n'
 import { MusicIcon } from '../../icons/MusicIcon'
 import { PauseIcon } from '../../icons/PauseIcon'
 import { PlayIcon } from '../../icons/PlayIcon'
@@ -10,6 +11,8 @@ import { VolumeOffIcon } from '../../icons/VolumeOffIcon'
 import { Capsule } from '../Capsule'
 import { IconButton } from '../IconButton'
 import { IncrementalList } from '../IncrementalList'
+import { formatMime, formatSize } from '../MediaBox'
+import { useModFormat } from '../mod/format'
 import type { GalleryItem, SourceRect } from './context'
 import { useIsMobile } from './useIsMobile'
 
@@ -19,6 +22,10 @@ const galleryTrackVariants = cva('pointer-events-none flex h-full w-full gap-4 t
 const gallerySlideVariants = cva('pointer-events-none flex h-full flex-[0_0_100%] items-center justify-center')
 const galleryMediaVariants = cva('pointer-events-auto max-h-full max-w-full touch-none select-none object-contain [transform-origin:center]')
 const galleryBottomVariants = cva('pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-center gap-3')
+const galleryInfoVariants = cva(
+  'pointer-events-none absolute z-control flex flex-col break-words bg-shade px-3 py-1.5 text-lg leading-snug text-scrim-fg max-[899px]:text-md',
+)
+const galleryInfoLinkVariants = cva('pointer-events-auto cursor-pointer font-semibold text-accent no-underline hover:text-accent-hover hover:underline')
 const galleryControlsVariants = cva('gap-3 px-4 opacity-0 transition-opacity duration-200')
 const galleryCtrlBtnVariants = cva('[&_svg]:size-4 [&_svg]:text-scrim-fg')
 const gallerySeekBarVariants = cva('relative h-1 w-seek flex-none cursor-pointer rounded-sm bg-track [touch-action:none] before:absolute before:-inset-x-2.5 before:-inset-y-2 before:content-[""]')
@@ -109,7 +116,11 @@ function fmtTime(s: number): string {
 
 export function GalleryOverlay(props: { items: readonly MediaReference[]; revision: number; media: (reference: MediaReference | undefined) => GalleryItem | undefined; index: number; sourceRect: SourceRect | null; onSelect: (index: number) => void; onClose: () => void }) {
   const mobile = useIsMobile()
+  const { t } = useI18n()
+  const fmt = useModFormat()
   const cur = () => props.index
+  const [infoBox, setInfoBox] = createSignal<{ left: number; width: number; bottom: number } | null>(null)
+  const canHover = typeof window !== 'undefined' && window.matchMedia('(hover: hover)').matches
   const setCur = (value: number | ((previous: number) => number)) => props.onSelect(typeof value === 'function' ? value(cur()) : value)
   const [thumbs, setThumbs] = createSignal(true)
   const [playing, setPlaying] = createSignal(false)
@@ -745,6 +756,31 @@ export function GalleryOverlay(props: { items: readonly MediaReference[]; revisi
     return !!item && (item.mime.startsWith('video/') || item.mime.startsWith('audio/'))
   }
   const displayTime = () => scrubT() ?? vtime()
+  const info = () => currentItem()?.info
+  const updateInfoBox = (e?: MouseEvent) => {
+    const el = activeMedia
+    if (!info() || !el || !stage) return setInfoBox(null)
+    const m = el.getBoundingClientRect()
+    const st = stage.getBoundingClientRect()
+    if (canHover) {
+      if (!e || e.clientX < m.left || e.clientX > m.right || e.clientY < m.top || e.clientY > m.bottom) return setInfoBox(null)
+      const left = Math.max(m.left, st.left)
+      const right = Math.min(m.right, st.right)
+      setInfoBox({ left, width: right - left, bottom: window.innerHeight - Math.min(m.bottom, st.bottom) })
+    } else {
+      setInfoBox({ left: st.left, width: st.width, bottom: window.innerHeight - st.bottom })
+    }
+  }
+  createEffect(
+    on(
+      cur,
+      () => {
+        setInfoBox(null)
+        if (!canHover) requestAnimationFrame(() => updateInfoBox())
+      },
+      { defer: canHover },
+    ),
+  )
 
   return (
     <div
@@ -753,6 +789,9 @@ export function GalleryOverlay(props: { items: readonly MediaReference[]; revisi
       onClick={(e) => {
         if (e.target === e.currentTarget) props.onClose()
       }}
+      onMouseMove={(e) => canHover && updateInfoBox(e)}
+      onMouseLeave={() => canHover && setInfoBox(null)}
+      onWheel={(e) => canHover && requestAnimationFrame(() => updateInfoBox(e))}
     >
       <div
         class={galleryStageVariants()}
@@ -837,6 +876,31 @@ export function GalleryOverlay(props: { items: readonly MediaReference[]; revisi
           </IncrementalList>
         </div>
       </div>
+      <Show when={info() && infoBox()}>
+        <div class={galleryInfoVariants()} style={{ left: `${infoBox()!.left}px`, width: `${infoBox()!.width}px`, bottom: `${infoBox()!.bottom}px` }}>
+          <div>
+            {t('gallery.poster')}: {info()!.posterUid} • {t('gallery.postNum')}:{' '}
+            <Show when={info()!.onOpenPost} fallback={<span class="font-semibold text-accent">№{info()!.postNum}</span>}>
+              <a
+                class={galleryInfoLinkVariants()}
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  const go = info()!.onOpenPost!
+                  props.onClose()
+                  go()
+                }}
+              >
+                №{info()!.postNum}
+              </a>
+            </Show>{' '}
+            • {t('gallery.board')}: <span class="font-semibold text-accent">/{info()!.board}/</span>
+          </div>
+          <div>
+            {t('gallery.format')}: {formatMime(currentItem()!.mime)} • {t('gallery.size')}: {formatSize(currentItem()!.size)} • {t('gallery.placedAt')}: {fmt.full(info()!.ts)}
+          </div>
+        </div>
+      </Show>
       <div data-gallery-bottom="" class={galleryBottomVariants()}>
         <Show when={isPlayable()}>
           <Capsule visible={thumbs()} class={galleryControlsVariants()}>
