@@ -167,13 +167,26 @@ impl Forum {
         submissions: Vec<Submission>,
         time: u64,
     ) -> Result<Vec<Output>, DomainError> {
-        if submissions.is_empty() {
+        self.append_each(
+            submissions
+                .into_iter()
+                .map(|submission| (submission, time))
+                .collect(),
+        )
+        .await
+    }
+
+    pub async fn append_each(
+        &self,
+        entries: Vec<(Submission, u64)>,
+    ) -> Result<Vec<Output>, DomainError> {
+        if entries.is_empty() {
             return Ok(Vec::new());
         }
         let started = Instant::now();
-        let mut requests = Vec::with_capacity(submissions.len());
-        let mut txids = Vec::with_capacity(submissions.len());
-        for submission in submissions {
+        let mut requests = Vec::with_capacity(entries.len());
+        let mut txids = Vec::with_capacity(entries.len());
+        for (submission, time) in entries {
             self.check_program(&submission.user)?;
             let request = self.request(
                 submission.user,

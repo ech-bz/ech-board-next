@@ -100,6 +100,11 @@ struct ImportForm {
     blob: Vec<TempFile>,
 }
 
+#[derive(MultipartForm)]
+struct ImportBatchForm {
+    requests: MultipartBytes,
+}
+
 #[derive(Deserialize, Serialize)]
 struct ImportRequest {
     function: String,
@@ -310,6 +315,42 @@ async fn import_admin(
     Ok(HttpResponse::Ok()
         .content_type(CONTENT_TYPE)
         .body(outputs.remove(0).result))
+}
+
+async fn import_batch_admin(
+    app: web::Data<App>,
+    form: MultipartForm<ImportBatchForm>,
+) -> Result<HttpResponse, DomainError> {
+    let requests: Vec<ImportRequest> = from_bytes(&form.requests.data)?;
+    let mut entries = Vec::with_capacity(requests.len());
+    for request in requests {
+        let user = app.forum.import_part(
+            request.function,
+            request.args,
+            request.country,
+            request.trip.clone(),
+            request.source,
+        );
+        entries.push((
+            Submission {
+                user,
+                decryptions: Vec::new(),
+                country: request.country,
+                trip: request.trip,
+            },
+            request.time,
+        ));
+    }
+    let results = app
+        .forum
+        .append_each(entries)
+        .await?
+        .into_iter()
+        .map(|output| output.result)
+        .collect::<Vec<_>>();
+    Ok(HttpResponse::Ok()
+        .content_type(CONTENT_TYPE)
+        .body(bcs::to_bytes(&results)?))
 }
 
 async fn submit_core(
@@ -648,6 +689,7 @@ pub fn admin_routes(config: &mut web::ServiceConfig) {
         .app_data(MultipartFormConfig::default().total_limit(BODY_LIMIT))
         .route("/api/submit", web::post().to(submit_admin))
         .route("/api/import", web::post().to(import_admin))
+        .route("/api/import/batch", web::post().to(import_batch_admin))
         .route("/api/query", web::post().to(query_admin))
         .route("/moderators", web::get().to(admin_moderators))
         .route("/moderators", web::post().to(admin_add_moderator))
