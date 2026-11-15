@@ -40,12 +40,12 @@ struct ProbeStream {
 #[derive(Deserialize)]
 struct ProbeFormat {
     duration: Option<String>,
+    format_name: Option<String>,
 }
 
 pub async fn prepare(path: &Path, reaction: bool) -> Result<PreparedMedia, DomainError> {
-    let head = head(path).await?;
-    let mime = mime(&head);
-    if mime == "application/octet-stream" || reaction && !mime.starts_with("image/") {
+    let mime = mime(&head(path).await?)?;
+    if reaction && !mime.starts_with("image/") {
         return Err(DomainError::BadRequest("unsupported media format".into()));
     }
     let size = tokio::fs::metadata(path)
@@ -67,6 +67,7 @@ pub async fn prepare(path: &Path, reaction: bool) -> Result<PreparedMedia, Domai
         });
     }
     let probe = probe(path).await?;
+    let format = demuxer(&probe)?;
     let visual = probe
         .streams
         .iter()
@@ -96,7 +97,7 @@ pub async fn prepare(path: &Path, reaction: bool) -> Result<PreparedMedia, Domai
                 "media dimensions are missing".into(),
             ));
         }
-        Some(thumbnail(&path).await?)
+        Some(thumbnail(path, format).await?)
     } else {
         None
     };
@@ -109,7 +110,7 @@ async fn head(path: &Path) -> Result<Vec<u8>, DomainError> {
     let mut file = tokio::fs::File::open(path)
         .await
         .map_err(|error| DomainError::Store(error.to_string()))?;
-    let mut buf = vec![0u8; 16];
+    let mut buf = vec![0u8; 512];
     let mut filled = 0;
     while filled < buf.len() {
         let read = file
@@ -131,7 +132,7 @@ async fn probe(path: &Path) -> Result<Probe, DomainError> {
             "-v",
             "error",
             "-show_entries",
-            "stream=codec_type,width,height,duration:format=duration",
+            "stream=codec_type,width,height,duration:format=duration,format_name",
             "-of",
             "json",
         ])
@@ -141,9 +142,11 @@ async fn probe(path: &Path) -> Result<Probe, DomainError> {
         .map_err(|error| DomainError::BadRequest(format!("media metadata: {error}")))
 }
 
-async fn thumbnail(path: &Path) -> Result<Bytes, DomainError> {
+async fn thumbnail(path: &Path, format: &str) -> Result<Bytes, DomainError> {
     let output = run(Command::new("ffmpeg")
-        .args(["-nostdin", "-v", "error", "-threads", "1", "-i"])
+        .args([
+            "-nostdin", "-v", "error", "-threads", "1", "-f", format, "-i",
+        ])
         .arg(path)
         .args([
             "-vf",
@@ -178,35 +181,29 @@ async fn run(command: &mut Command) -> Result<Output, DomainError> {
     Ok(output)
 }
 
-fn mime(bytes: &[u8]) -> &'static str {
-    if bytes.starts_with(&[0xff, 0xd8]) {
-        return "image/jpeg";
-    }
-    if bytes.starts_with(&[0x89, 0x50, 0x4e, 0x47]) {
-        return "image/png";
-    }
-    if bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(&b"WEBP"[..]) {
-        return "image/webp";
-    }
-    if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
-        return "image/gif";
-    }
-    if bytes.get(4..8) == Some(&b"ftyp"[..]) {
-        return "video/mp4";
-    }
-    if bytes.starts_with(&[0x1a, 0x45, 0xdf, 0xa3]) {
-        return "video/webm";
-    }
-    if bytes.starts_with(b"ID3")
-        || bytes.first() == Some(&0xff) && bytes.get(1).is_some_and(|b| b & 0xe0 == 0xe0)
+fn mime(bytes: &[u8]) -> Result<&'static str, DomainError> {
+    if bytes.first() == Some(&0xff)
+        && bytes
+            .get(1)
+            .is_some_and(|b| b & 0xe0 == 0xe0 && (b >> 1) & 3 == 1 && (b >> 3) & 3 != 1)
     {
-        return "audio/mpeg";
+        return Ok("audio/mpeg");
     }
-    if bytes.starts_with(b"OggS") {
-        return "audio/ogg";
+    match infer::get(bytes).map(|kind| kind.mime_type()) {
+        Some(
+            known @ ("image/jpeg" | "image/png" | "image/gif" | "image/webp" | "video/mp4"
+            | "video/quicktime" | "video/x-m4v" | "video/webm" | "video/x-matroska"
+            | "audio/mpeg" | "audio/aac" | "audio/ogg" | "application/pdf"),
+        ) => Ok(known),
+        _ => Err(DomainError::BadRequest("unsupported media format".into())),
     }
-    if bytes.starts_with(b"%PDF") {
-        return "application/pdf";
-    }
-    "application/octet-stream"
+}
+
+fn demuxer(probe: &Probe) -> Result<&str, DomainError> {
+    probe
+        .format
+        .format_name
+        .as_deref()
+        .and_then(|name| name.split(',').next())
+        .ok_or_else(|| DomainError::BadRequest("invalid media".into()))
 }

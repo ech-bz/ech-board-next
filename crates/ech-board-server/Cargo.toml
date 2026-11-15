@@ -19,6 +19,7 @@ ech-db-protocol.workspace = true
 ech-db-sdk.workspace = true
 futures-util.workspace = true
 hex.workspace = true
+infer.workspace = true
 iso3166.workspace = true
 maxminddb.workspace = true
 pwhash.workspace = true
