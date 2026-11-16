@@ -11,6 +11,7 @@ pub fn registry() -> Functions<ForumError> {
     functions.add("forum.meta", Forum::meta);
     functions.add("forum.page", Forum::page);
     functions.add("forum.set_title", Forum::set_title);
+    functions.add("forum.set_pow_bits", Forum::set_pow_bits);
     functions.add("forum.add_moderator", Forum::add_moderator);
     functions.add("forum.remove_moderator", Forum::remove_moderator);
     functions.add("forum.ban", Forum::ban);
@@ -33,6 +34,7 @@ pub fn registry() -> Functions<ForumError> {
         "board.set_reaction_rate_limit",
         Board::set_reaction_rate_limit,
     );
+    functions.add("board.set_pow_bits", Board::set_pow_bits);
     functions.add("board.set_description", Board::set_description);
     functions.add("board.set_ignore_forum_bans", Board::set_ignore_forum_bans);
     functions.add("board.set_reactions", Board::set_reactions);

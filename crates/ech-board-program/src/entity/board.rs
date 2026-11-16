@@ -37,6 +37,7 @@ pub struct BoardV1 {
     pub max_media: u8,
     pub post_rate_limit_ms: u32,
     pub reaction_rate_limit_ms: u32,
+    pub pow_bits: u8,
     pub thread_count: u64,
     pub post_count: u64,
     pub pinned: Vec<u64>,
@@ -177,6 +178,7 @@ impl Board {
                 max_media: 4,
                 post_rate_limit_ms: 0,
                 reaction_rate_limit_ms: 0,
+                pow_bits: 0,
                 thread_count: 0,
                 post_count: 0,
                 pinned: Vec::new(),
@@ -370,6 +372,16 @@ impl Board {
             return Err(ForumError::NotAuthorized);
         }
         board.reaction_rate_limit_ms = value;
+        board.save()?;
+        Ok(())
+    }
+
+    pub(crate) fn set_pow_bits(board: &mut Write<Board>, value: u8) -> Result<()> {
+        Self::check_bans(board)?;
+        if Forum::current()?.permissions() < Permissions::ForumMod {
+            return Err(ForumError::NotAuthorized);
+        }
+        board.pow_bits = value;
         board.save()?;
         Ok(())
     }

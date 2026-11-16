@@ -62,10 +62,11 @@ pub struct Context {
     author: Author,
     time: u64,
     requests: UserRequests,
+    txid: [u8; 32],
 }
 
 impl Context {
-    fn new(request: &Request) -> Result<Self> {
+    fn new(request: &Request, txid: [u8; 32]) -> Result<Self> {
         let requests = UserRequests::decode(&request.tx.user.ctx)?;
         let server = ServerContext::decode(&request.tx.server.ctx)?;
         if [
@@ -81,11 +82,12 @@ impl Context {
             author: request.tx.user.author.clone(),
             time: server.time,
             requests,
+            txid,
         })
     }
 
-    pub fn begin(request: Request) -> Result<()> {
-        let context = Self::new(&request)?;
+    pub fn begin(request: Request, txid: [u8; 32]) -> Result<()> {
+        let context = Self::new(&request, txid)?;
         STATE.with(|slot| *slot.borrow_mut() = Some(State { request, context }));
         Ok(())
     }
@@ -106,6 +108,10 @@ impl Context {
 
     pub fn time() -> u64 {
         Self::state(|state| state.context.time)
+    }
+
+    pub fn txid() -> [u8; 32] {
+        Self::state(|state| state.context.txid)
     }
 
     pub fn requests() -> UserRequests {

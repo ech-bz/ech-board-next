@@ -85,6 +85,8 @@ pub enum ForumError {
     RateLimited,
     #[error("reactions require at least one post")]
     ReactionRequiresPost,
+    #[error("proof of work required")]
+    PowRequired,
 }
 
 pub type Result<T> = std::result::Result<T, ForumError>;

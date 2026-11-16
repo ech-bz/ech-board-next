@@ -111,7 +111,8 @@ impl Post {
             thread.bump = post_number;
         }
         let requests = Context::requests();
-        let user = User::record_post(board.post_rate_limit_ms)?;
+        let pow_bits = board.pow_bits.max(forum.pow_bits);
+        let user = User::record_post(board.post_rate_limit_ms, pow_bits)?;
         let post = Entity::<Post>::insert(
             PostKey {
                 board: board.key.slug.clone(),

@@ -36,7 +36,7 @@ fn run(root: Root, request: Request) -> Result<Vec<u8>> {
         .txid(&root)
         .map_err(|_| ForumError::NotAuthorized)?;
     let tx = request.tx.clone();
-    Context::begin(request)?;
+    Context::begin(request, *txid.as_array())?;
     Session::begin_write(Write {
         txid: *txid.as_array(),
         tx,

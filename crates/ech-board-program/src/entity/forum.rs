@@ -22,6 +22,7 @@ pub enum Forum {
 #[derive(Bind, Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub struct ForumV1 {
     pub title_hash: Option<Hash>,
+    pub pow_bits: u8,
     pub moderators: Vec<Esid>,
     pub bans: Bans,
     pub boards: BigLog<BoardKey>,
@@ -58,6 +59,7 @@ impl Forum {
             ForumKey {},
             Forum::from(ForumV1 {
                 title_hash: None,
+                pow_bits: 0,
                 moderators: Vec::new(),
                 bans: Bans::default(),
                 boards: BigLog::new(),
@@ -93,6 +95,16 @@ impl Forum {
             threads: Vec::new(),
             transactions,
         })
+    }
+
+    pub(crate) fn set_pow_bits(forum: &mut Write<Forum>, value: u8) -> Result<()> {
+        Self::check_bans(forum)?;
+        if forum.permissions() < Permissions::ForumMod {
+            return Err(ForumError::NotAuthorized);
+        }
+        forum.pow_bits = value;
+        forum.save()?;
+        Ok(())
     }
 
     pub(crate) fn set_title(forum: &mut Write<Forum>, title_hash: Hash) -> Result<()> {

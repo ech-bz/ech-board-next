@@ -21,6 +21,17 @@ pub struct UserV1 {
 }
 
 impl User {
+    fn leading_zero_bits(hash: &[u8; 32]) -> u32 {
+        let mut zeros = 0;
+        for byte in hash {
+            if *byte != 0 {
+                return zeros + byte.leading_zeros();
+            }
+            zeros += 8;
+        }
+        zeros
+    }
+
     pub(crate) fn get() -> Result<Option<Entity<Self>>> {
         match Entity::<Self>::load(&Context::author_sid()?) {
             Ok(user) => Ok(Some(user)),
@@ -29,11 +40,16 @@ impl User {
         }
     }
 
-    pub(crate) fn record_post(rate_limit_ms: u32) -> Result<Entity<Self>> {
+    pub(crate) fn record_post(post_rate_limit_ms: u32, pow_bits: u8) -> Result<Entity<Self>> {
         Self::update(|user| {
             let now = Context::time();
-            if now.saturating_sub(user.last_post) < rate_limit_ms as u64 {
+            if now.saturating_sub(user.last_post) < post_rate_limit_ms as u64 {
                 return Err(ForumError::RateLimited);
+            }
+            if user.post_count == 0
+                && Self::leading_zero_bits(&Context::txid()) < u32::from(pow_bits)
+            {
+                return Err(ForumError::PowRequired);
             }
             user.last_post = now;
             user.post_count = user
