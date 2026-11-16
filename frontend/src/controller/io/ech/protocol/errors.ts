@@ -15,10 +15,8 @@ const EntityErrorSchema = bcs.enum('EntityError', {
   UnknownFunction: bcs.struct('UnknownFunction', { namespace: bcs.string(), function: bcs.string() }),
   NotFound: null,
   InvalidArguments: null,
-  MissingRoot: null,
   KeyChanged: null,
   Decode: bcs.string(),
-  MissingWrite: null,
   Outdated: null,
   Encode: bcs.string(),
 })
@@ -26,7 +24,6 @@ const EntityErrorSchema = bcs.enum('EntityError', {
 export const ForumErrorSchema = bcs.enum('ForumError', {
   Entity: EntityErrorSchema,
   Guest: GuestErrorSchema,
-  RootOwnerRequired: null,
   NotAuthorized: null,
   InvalidBanExpiry: null,
   InvalidBoardSlug: null,
@@ -60,7 +57,6 @@ export const ForumErrorSchema = bcs.enum('ForumError', {
   NotFound: null,
   ForumExists: null,
   BoardExists: null,
-  InvalidContentHash: null,
   InvalidBoardCursor: null,
   AlreadyBanned: null,
   NotBanned: null,
