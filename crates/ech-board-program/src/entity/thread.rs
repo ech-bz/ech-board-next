@@ -8,7 +8,7 @@ use ech_db_guest::BigMap;
 use ech_db_guest::Bind;
 use ech_db_guest::Txid;
 
-use crate::component::bans::{BanValue, Bans};
+use crate::component::bans::{Ban, Bans};
 use crate::component::board_index::BoardOrderKey;
 use crate::context::{Context, ServerContext};
 use crate::entity::{transactions, Board, Forum, Page, Post, PostKey, Read, User, Write};
@@ -453,7 +453,7 @@ impl Thread {
         thread: &mut Write<Thread>,
         target: Esid,
         reason_hash: Option<Hash>,
-        expires: u64,
+        expires: Option<u64>,
     ) -> Result<()> {
         Self::gate(thread)?;
         let forum = Forum::current()?;
@@ -461,17 +461,19 @@ impl Thread {
         if !thread.is_moderator(&forum, &board)? {
             return Err(ForumError::NotAuthorized);
         }
-        if expires != 0 && expires <= Context::time()? {
+        let now = Context::time()?;
+        if expires.is_some_and(|expires| expires <= now) {
             return Err(ForumError::InvalidBanExpiry);
         }
         let sid = Context::sid(&target)?;
         thread.bans.ban(
-            target,
             sid,
-            BanValue {
+            Ban {
+                esid: target,
                 reason_hash,
                 expires,
             },
+            now,
         )?;
         Ok(())
     }
@@ -484,7 +486,7 @@ impl Thread {
             return Err(ForumError::NotAuthorized);
         }
         let sid = Context::sid(&target)?;
-        thread.bans.unban(&target, &sid)?;
+        thread.bans.unban(&sid, &target)?;
         Ok(())
     }
 
@@ -492,7 +494,7 @@ impl Thread {
         thread: &Read<Thread>,
         after: Option<Esid>,
         limit: u32,
-    ) -> Result<Vec<(Esid, BanValue)>> {
+    ) -> Result<Vec<Ban>> {
         thread.bans.entries(after.as_ref(), limit as usize)
     }
 }

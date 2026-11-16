@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use ech_board_entity::{entity, Entity};
 use ech_db_guest::{BigLog, Bind};
 
-use crate::component::bans::{BanValue, Bans};
+use crate::component::bans::{Ban, Bans};
 use crate::context::Context;
 use crate::entity::{transactions, Board, BoardKey, Page, Read, Write};
 use crate::error::{ForumError, Result};
@@ -131,23 +131,25 @@ impl Forum {
         forum: &mut Write<Forum>,
         target: Esid,
         reason_hash: Option<Hash>,
-        expires: u64,
+        expires: Option<u64>,
     ) -> Result<()> {
         Bans::gate(&[&forum.bans])?;
         if !forum.is_moderator()? {
             return Err(ForumError::NotAuthorized);
         }
-        if expires != 0 && expires <= Context::time()? {
+        let now = Context::time()?;
+        if expires.is_some_and(|expires| expires <= now) {
             return Err(ForumError::InvalidBanExpiry);
         }
         let sid = Context::sid(&target)?;
         forum.bans.ban(
-            target,
             sid,
-            BanValue {
+            Ban {
+                esid: target,
                 reason_hash,
                 expires,
             },
+            now,
         )?;
         Ok(())
     }
@@ -158,7 +160,7 @@ impl Forum {
             return Err(ForumError::NotAuthorized);
         }
         let sid = Context::sid(&target)?;
-        forum.bans.unban(&target, &sid)?;
+        forum.bans.unban(&sid, &target)?;
         Ok(())
     }
 
@@ -166,7 +168,7 @@ impl Forum {
         forum: &Read<Forum>,
         after: Option<Esid>,
         limit: u32,
-    ) -> Result<Vec<(Esid, BanValue)>> {
+    ) -> Result<Vec<Ban>> {
         forum.bans.entries(after.as_ref(), limit as usize)
     }
 }

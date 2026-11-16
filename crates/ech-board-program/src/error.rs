@@ -81,6 +81,10 @@ pub enum ForumError {
     InvalidContentHash,
     #[error("invalid board cursor")]
     InvalidBoardCursor,
+    #[error("already banned")]
+    AlreadyBanned,
+    #[error("not banned")]
+    NotBanned,
 }
 
 pub type Result<T> = std::result::Result<T, ForumError>;
