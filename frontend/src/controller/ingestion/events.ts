@@ -17,17 +17,17 @@ export async function eventChanges(model: ForumState, gateway: ForumGateway, rel
   const root = toHex(api.root)
   const scope = fresh ? undefined : model.scopes[forumKey(root)]
   const contents = new Map<string, Uint8Array>()
-  for (const item of event.contents) {
+  for (const item of event.payload.contents) {
     const hash = toHex(fromHex(item.hash))
     if (!scope?.contents[hash]) contents.set(hash, fromHex(item.value))
   }
-  const attachments = new Map<string, Media>(event.attachments.map((item) => [toHex(fromHex(item.hash)), MediaMetaSchema.parse(fromHex(item.value))]))
+  const attachments = new Map<string, Media>(event.payload.attachments.map((item) => [toHex(fromHex(item.hash)), MediaMetaSchema.parse(fromHex(item.value))]))
   const posts: PostEntity[] = []
   const threads: ThreadEntity[] = []
   const boards: BoardEntity[] = []
   const forums: ForumEntity[] = []
   const changes: EntityUpdate = { txid: event.txid, scope: { forumId: root, relayUrl }, posts, threads, boards, forums }
-  for (const entity of event.entities) {
+  for (const entity of event.payload.entities) {
     const bytes = fromHex(entity.value)
     if (entity.kind === 'post') posts.push(parseEntity('post', bytes))
     if (entity.kind === 'thread') threads.push(parseEntity('thread', bytes))
@@ -35,7 +35,7 @@ export async function eventChanges(model: ForumState, gateway: ForumGateway, rel
     if (entity.kind === 'forum') forums.push(parseEntity('forum', bytes))
   }
   changes.transactions = new Map(
-    event.transactions.map((item) => [toHex(fromHex(item.hash)), TxSchema.parse(fromHex(item.value))]),
+    event.payload.transactions.map((item) => [toHex(fromHex(item.hash)), TxSchema.parse(fromHex(item.value))]),
   )
   if (!fresh) {
     changes.threads = threads.filter((entity) => model.page.mode === 'thread'
