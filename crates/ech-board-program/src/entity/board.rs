@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use ech_board_entity::{entity, Entity};
 use ech_db_guest::Bind;
 
-use crate::component::bans::{Ban, Bans, Gate};
+use crate::component::bans::{Ban, Bans, BansGate};
 use crate::component::board_index::{BoardIndex, BoardOrderKey};
 use crate::component::permissions::Permissions;
 use crate::context::Context;
@@ -153,7 +153,7 @@ impl Board {
         slug: String,
         description_hash: Option<Hash>,
     ) -> Result<BoardKey> {
-        Forum::gate(forum)?;
+        Forum::check_bans(forum)?;
         if forum.permissions() < Permissions::ForumMod {
             return Err(ForumError::NotAuthorized);
         }
@@ -192,7 +192,7 @@ impl Board {
         Ok(board.key)
     }
 
-    pub(crate) fn gate(board: &Entity<Board>) -> Result<()> {
+    pub(crate) fn check_bans(board: &Entity<Board>) -> Result<()> {
         let forum = Forum::current()?;
         let permissions = board.permissions(&forum);
         let mut bans = Vec::new();
@@ -202,7 +202,7 @@ impl Board {
         if !board.ignore_forum_bans {
             bans.push(&forum.bans);
         }
-        bans.gate()
+        bans.check_bans()
     }
 
     pub(crate) fn open(slug: String) -> Result<Entity<Board>> {
@@ -251,7 +251,7 @@ impl Board {
     }
 
     pub(crate) fn add_moderator(board: &mut Write<Board>, member: Esid) -> Result<()> {
-        Self::gate(board)?;
+        Self::check_bans(board)?;
         if Forum::current()?.permissions() < Permissions::ForumMod {
             return Err(ForumError::NotAuthorized);
         }
@@ -263,7 +263,7 @@ impl Board {
     }
 
     pub(crate) fn remove_moderator(board: &mut Write<Board>, member: Esid) -> Result<()> {
-        Self::gate(board)?;
+        Self::check_bans(board)?;
         if Forum::current()?.permissions() < Permissions::ForumMod {
             return Err(ForumError::NotAuthorized);
         }
@@ -278,7 +278,7 @@ impl Board {
         reason_hash: Option<Hash>,
         expires: Option<u64>,
     ) -> Result<()> {
-        Self::gate(board)?;
+        Self::check_bans(board)?;
         if board.permissions(&*Forum::current()?) < Permissions::BoardMod {
             return Err(ForumError::NotAuthorized);
         }
@@ -300,7 +300,7 @@ impl Board {
     }
 
     pub(crate) fn unban(board: &mut Write<Board>, target: Esid) -> Result<()> {
-        Self::gate(board)?;
+        Self::check_bans(board)?;
         if board.permissions(&*Forum::current()?) < Permissions::BoardMod {
             return Err(ForumError::NotAuthorized);
         }
@@ -319,7 +319,7 @@ impl Board {
     }
 
     pub(crate) fn set_readonly(board: &mut Write<Board>, value: bool) -> Result<()> {
-        Self::gate(board)?;
+        Self::check_bans(board)?;
         if Forum::current()?.permissions() < Permissions::ForumMod {
             return Err(ForumError::NotAuthorized);
         }
@@ -329,7 +329,7 @@ impl Board {
     }
 
     pub(crate) fn set_bump_limit(board: &mut Write<Board>, value: u32) -> Result<()> {
-        Self::gate(board)?;
+        Self::check_bans(board)?;
         if Forum::current()?.permissions() < Permissions::ForumMod {
             return Err(ForumError::NotAuthorized);
         }
@@ -342,7 +342,7 @@ impl Board {
     }
 
     pub(crate) fn set_max_media(board: &mut Write<Board>, value: u8) -> Result<()> {
-        Self::gate(board)?;
+        Self::check_bans(board)?;
         if Forum::current()?.permissions() < Permissions::ForumMod {
             return Err(ForumError::NotAuthorized);
         }
@@ -355,7 +355,7 @@ impl Board {
     }
 
     pub(crate) fn set_post_rate_limit(board: &mut Write<Board>, value: u32) -> Result<()> {
-        Self::gate(board)?;
+        Self::check_bans(board)?;
         if Forum::current()?.permissions() < Permissions::ForumMod {
             return Err(ForumError::NotAuthorized);
         }
@@ -365,7 +365,7 @@ impl Board {
     }
 
     pub(crate) fn set_reaction_rate_limit(board: &mut Write<Board>, value: u32) -> Result<()> {
-        Self::gate(board)?;
+        Self::check_bans(board)?;
         if Forum::current()?.permissions() < Permissions::ForumMod {
             return Err(ForumError::NotAuthorized);
         }
@@ -375,7 +375,7 @@ impl Board {
     }
 
     pub(crate) fn set_description(board: &mut Write<Board>, value: Option<Hash>) -> Result<()> {
-        Self::gate(board)?;
+        Self::check_bans(board)?;
         if board.permissions(&*Forum::current()?) < Permissions::BoardMod {
             return Err(ForumError::NotAuthorized);
         }
@@ -385,7 +385,7 @@ impl Board {
     }
 
     pub(crate) fn set_ignore_forum_bans(board: &mut Write<Board>, value: bool) -> Result<()> {
-        Self::gate(board)?;
+        Self::check_bans(board)?;
         if Forum::current()?.permissions() < Permissions::ForumMod {
             return Err(ForumError::NotAuthorized);
         }
@@ -395,7 +395,7 @@ impl Board {
     }
 
     pub(crate) fn set_reactions(board: &mut Write<Board>, values: Vec<Hash>) -> Result<()> {
-        Self::gate(board)?;
+        Self::check_bans(board)?;
         if board.permissions(&*Forum::current()?) < Permissions::BoardMod {
             return Err(ForumError::NotAuthorized);
         }
@@ -408,7 +408,7 @@ impl Board {
     }
 
     pub(crate) fn set_pinned(board: &mut Write<Board>, mut values: Vec<u64>) -> Result<()> {
-        Self::gate(board)?;
+        Self::check_bans(board)?;
         if board.permissions(&*Forum::current()?) < Permissions::BoardMod {
             return Err(ForumError::NotAuthorized);
         }

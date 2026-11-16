@@ -8,7 +8,7 @@ use ech_db_guest::BigMap;
 use ech_db_guest::Bind;
 use ech_db_guest::Txid;
 
-use crate::component::bans::{Ban, Bans, Gate};
+use crate::component::bans::{Ban, Bans, BansGate};
 use crate::component::board_index::BoardOrderKey;
 use crate::component::permissions::Permissions;
 use crate::context::{Context, ServerContext};
@@ -237,7 +237,7 @@ impl Thread {
             .collect()
     }
 
-    pub(crate) fn gate(thread: &Entity<Thread>) -> Result<()> {
+    pub(crate) fn check_bans(thread: &Entity<Thread>) -> Result<()> {
         let board = Board::open(thread.key.board.clone())?;
         let forum = Forum::current()?;
         let permissions = Self::permissions(thread, &forum, &board)?;
@@ -251,7 +251,7 @@ impl Thread {
         if !board.ignore_forum_bans {
             bans.push(&forum.bans);
         }
-        bans.gate()
+        bans.check_bans()
     }
 
     pub(crate) fn meta(thread: &Read<Thread>) -> Result<Page<ThreadMeta>> {
@@ -340,7 +340,7 @@ impl Thread {
         })
     }
     pub(crate) fn set_closed(thread: &mut Write<Thread>, value: bool) -> Result<()> {
-        Self::gate(thread)?;
+        Self::check_bans(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
         if Self::permissions(thread, &forum, &board)? < Permissions::ThreadMod {
@@ -352,7 +352,7 @@ impl Thread {
     }
 
     pub(crate) fn set_pinned(thread: &mut Write<Thread>, value: bool) -> Result<()> {
-        Self::gate(thread)?;
+        Self::check_bans(thread)?;
         let forum = Forum::current()?;
         let mut board = Board::open(thread.key.board.clone())?;
         if Self::permissions(thread, &forum, &board)? < Permissions::BoardMod {
@@ -370,7 +370,7 @@ impl Thread {
     }
 
     pub(crate) fn set_deleted(thread: &mut Write<Thread>, value: bool) -> Result<()> {
-        Self::gate(thread)?;
+        Self::check_bans(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
         if Self::permissions(thread, &forum, &board)? < Permissions::ThreadMod {
@@ -382,7 +382,7 @@ impl Thread {
     }
 
     pub(crate) fn set_topic(thread: &mut Write<Thread>, value: Option<Hash>) -> Result<()> {
-        Self::gate(thread)?;
+        Self::check_bans(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
         if Self::permissions(thread, &forum, &board)? < Permissions::UserSelfMod {
@@ -394,7 +394,7 @@ impl Thread {
     }
 
     pub(crate) fn set_admin(thread: &mut Write<Thread>, value: Option<Esid>) -> Result<()> {
-        Self::gate(thread)?;
+        Self::check_bans(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
         if Self::permissions(thread, &forum, &board)? < Permissions::ThreadAdmin {
@@ -406,7 +406,7 @@ impl Thread {
     }
 
     pub(crate) fn add_moderator(thread: &mut Write<Thread>, member: Esid) -> Result<()> {
-        Self::gate(thread)?;
+        Self::check_bans(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
         if Self::permissions(thread, &forum, &board)? < Permissions::ThreadAdmin {
@@ -420,7 +420,7 @@ impl Thread {
     }
 
     pub(crate) fn remove_moderator(thread: &mut Write<Thread>, member: Esid) -> Result<()> {
-        Self::gate(thread)?;
+        Self::check_bans(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
         if Self::permissions(thread, &forum, &board)? < Permissions::ThreadAdmin {
@@ -437,7 +437,7 @@ impl Thread {
         reason_hash: Option<Hash>,
         expires: Option<u64>,
     ) -> Result<()> {
-        Self::gate(thread)?;
+        Self::check_bans(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
         if Self::permissions(thread, &forum, &board)? < Permissions::ThreadMod {
@@ -461,7 +461,7 @@ impl Thread {
     }
 
     pub(crate) fn unban(thread: &mut Write<Thread>, target: Esid) -> Result<()> {
-        Self::gate(thread)?;
+        Self::check_bans(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
         if Self::permissions(thread, &forum, &board)? < Permissions::ThreadMod {

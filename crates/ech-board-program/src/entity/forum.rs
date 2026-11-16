@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use ech_board_entity::{entity, Entity};
 use ech_db_guest::{BigLog, Bind};
 
-use crate::component::bans::{Ban, Bans, Gate};
+use crate::component::bans::{Ban, Bans, BansGate};
 use crate::component::permissions::Permissions;
 use crate::context::Context;
 use crate::entity::{transactions, Board, BoardKey, Page, Read, Write};
@@ -43,8 +43,8 @@ impl Forum {
         Permissions::User
     }
 
-    pub(crate) fn gate(forum: &Forum) -> Result<()> {
-        forum.bans.gate()
+    pub(crate) fn check_bans(forum: &Forum) -> Result<()> {
+        forum.bans.check_bans()
     }
 
     pub(crate) fn create() -> Result<ForumKey> {
@@ -96,7 +96,7 @@ impl Forum {
     }
 
     pub(crate) fn set_title(forum: &mut Write<Forum>, title_hash: Hash) -> Result<()> {
-        Self::gate(forum)?;
+        Self::check_bans(forum)?;
         if forum.permissions() < Permissions::ForumMod {
             return Err(ForumError::NotAuthorized);
         }
@@ -106,7 +106,7 @@ impl Forum {
     }
 
     pub(crate) fn add_moderator(forum: &mut Write<Forum>, member: Esid) -> Result<()> {
-        Self::gate(forum)?;
+        Self::check_bans(forum)?;
         if forum.permissions() < Permissions::Root {
             return Err(ForumError::NotAuthorized);
         }
@@ -118,7 +118,7 @@ impl Forum {
     }
 
     pub(crate) fn remove_moderator(forum: &mut Write<Forum>, member: Esid) -> Result<()> {
-        Self::gate(forum)?;
+        Self::check_bans(forum)?;
         if forum.permissions() < Permissions::Root {
             return Err(ForumError::NotAuthorized);
         }
@@ -133,7 +133,7 @@ impl Forum {
         reason_hash: Option<Hash>,
         expires: Option<u64>,
     ) -> Result<()> {
-        Self::gate(forum)?;
+        Self::check_bans(forum)?;
         if forum.permissions() < Permissions::ForumMod {
             return Err(ForumError::NotAuthorized);
         }
@@ -155,7 +155,7 @@ impl Forum {
     }
 
     pub(crate) fn unban(forum: &mut Write<Forum>, target: Esid) -> Result<()> {
-        Self::gate(forum)?;
+        Self::check_bans(forum)?;
         if forum.permissions() < Permissions::ForumMod {
             return Err(ForumError::NotAuthorized);
         }

@@ -65,23 +65,23 @@ impl Bans {
     }
 }
 
-pub trait Gate {
+pub trait BansGate {
     fn any_banned(&self, sid: &Sid, now: u64) -> Result<bool>;
 
-    fn gate(&self) -> Result<()>;
+    fn check_bans(&self) -> Result<()>;
 }
 
-impl Gate for Bans {
+impl BansGate for Bans {
     fn any_banned(&self, sid: &Sid, now: u64) -> Result<bool> {
         [self].any_banned(sid, now)
     }
 
-    fn gate(&self) -> Result<()> {
-        [self].gate()
+    fn check_bans(&self) -> Result<()> {
+        [self].check_bans()
     }
 }
 
-impl Gate for [&Bans] {
+impl BansGate for [&Bans] {
     fn any_banned(&self, sid: &Sid, now: u64) -> Result<bool> {
         let requests: Vec<_> = self.iter().map(|bans| (&bans.records, sid)).collect();
         let lists = BigMap::get_batch(requests.as_slice())?;
@@ -101,7 +101,7 @@ impl Gate for [&Bans] {
         Ok(banned)
     }
 
-    fn gate(&self) -> Result<()> {
+    fn check_bans(&self) -> Result<()> {
         if Context::read_only() || Context::is_server() {
             return Ok(());
         }

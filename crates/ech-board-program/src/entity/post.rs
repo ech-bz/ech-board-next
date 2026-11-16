@@ -80,7 +80,7 @@ impl Post {
         vote_keys: Vec<Hash>,
         multi_vote: bool,
     ) -> Result<PostKey> {
-        Thread::gate(thread)?;
+        Thread::check_bans(thread)?;
         let forum = Forum::current()?;
         if thread.key.board != board.key.slug {
             return Err(ForumError::NotFound);
@@ -237,7 +237,7 @@ impl Post {
         let forum = Forum::current()?;
         let board = Board::open(post.key.board.clone())?;
         let thread = Thread::open(post.key.board.clone(), post.thread)?;
-        Thread::gate(&thread)?;
+        Thread::check_bans(&thread)?;
         let permissions = Self::permissions(post, &forum, &board, &thread)?;
         if permissions < Permissions::ThreadMod && !(ban && permissions >= Permissions::UserSelfMod)
         {
@@ -289,7 +289,7 @@ impl Post {
         let forum = Forum::current()?;
         let board = Board::open(post.key.board.clone())?;
         let thread = Thread::open(post.key.board.clone(), post.thread)?;
-        Thread::gate(&thread)?;
+        Thread::check_bans(&thread)?;
         if Self::permissions(post, &forum, &board, &thread)? < Permissions::UserSelfMod {
             return Err(ForumError::NotAuthorized);
         }
@@ -307,7 +307,7 @@ impl Post {
         let forum = Forum::current()?;
         let board = Board::open(post.key.board.clone())?;
         let mut thread = Thread::open(post.key.board.clone(), post.thread)?;
-        Thread::gate(&thread)?;
+        Thread::check_bans(&thread)?;
         let empty = post.text_hash.is_none() && post.media_hashes.is_empty();
         if Self::permissions(post, &forum, &board, &thread)? < Permissions::UserSelfMod
             && !(deleted && empty)
@@ -331,7 +331,7 @@ impl Post {
     pub(crate) fn vote(post: &mut Write<Post>, choices: Vec<Hash>) -> Result<()> {
         let sid = Context::author_sid()?;
         let thread = Thread::open(post.key.board.clone(), post.thread)?;
-        Thread::gate(&thread)?;
+        Thread::check_bans(&thread)?;
         if post.deleted || post.votes.len() < 2 {
             return Err(ForumError::PollUnavailable);
         }
@@ -361,7 +361,7 @@ impl Post {
         let sid = Context::author_sid()?;
         let board = Board::open(post.key.board.clone())?;
         let thread = Thread::open(post.key.board.clone(), post.thread)?;
-        Thread::gate(&thread)?;
+        Thread::check_bans(&thread)?;
         if !board.reactions.contains(&reaction) {
             return Err(ForumError::ReactionNotAllowed);
         }
@@ -417,7 +417,7 @@ impl Post {
         let forum = Forum::current()?;
         let board = Board::open(post.key.board.clone())?;
         let thread = Thread::open(post.key.board.clone(), post.thread)?;
-        Thread::gate(&thread)?;
+        Thread::check_bans(&thread)?;
         if Thread::permissions(&thread, &forum, &board)? < Permissions::ThreadMod {
             return Err(ForumError::NotAuthorized);
         }
@@ -430,7 +430,7 @@ impl Post {
         let forum = Forum::current()?;
         let board = Board::open(post.key.board.clone())?;
         let thread = Thread::open(post.key.board.clone(), post.thread)?;
-        Thread::gate(&thread)?;
+        Thread::check_bans(&thread)?;
         if Thread::permissions(&thread, &forum, &board)? < Permissions::ThreadMod {
             return Err(ForumError::NotAuthorized);
         }
