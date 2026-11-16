@@ -75,15 +75,12 @@ impl Thread {
         if permissions != Permissions::User {
             return Ok(permissions);
         }
-        let value = match &**thread {
-            Self::V1(value) => value,
-        };
-        if let Some(admin) = &value.admin {
+        if let Some(admin) = &thread.admin {
             if Context::is_author(admin) {
                 return Ok(Permissions::ThreadAdmin);
             }
         }
-        if Context::is_author_any(&value.moderators) {
+        if Context::is_author_any(&thread.moderators) {
             return Ok(Permissions::ThreadMod);
         }
         let genesis = thread.genesis()?;

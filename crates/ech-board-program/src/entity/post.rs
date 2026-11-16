@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, HashSet};
 
 use serde::{Deserialize, Serialize};
 
-use ech_board_entity::{entity, Entity, Stored, WriteBatch};
+use ech_board_entity::{entity, Entity, Stored};
 use ech_db_guest::{Author, BigMap, Bind};
 
 use crate::component::permissions::Permissions;
@@ -111,9 +111,8 @@ impl Post {
         if bump {
             thread.bump = post_number;
         }
-        let mut writes = WriteBatch::new();
         let requests = Context::requests();
-        let post = writes.insert(
+        let post = Entity::<Post>::insert(
             PostKey {
                 board: board.key.slug.clone(),
                 number: post_number,
@@ -148,8 +147,8 @@ impl Post {
                 thread.last_posts.remove(0);
             }
         }
-        writes.save(thread)?;
-        writes.save(board)?;
+        thread.save()?;
+        board.save()?;
         Ok(post.key)
     }
 
@@ -171,8 +170,7 @@ impl Post {
         if bump {
             thread.bump = post_number;
         }
-        let mut writes = WriteBatch::new();
-        let post = writes.insert(
+        let post = Entity::<Post>::insert(
             PostKey {
                 board: board.key.slug.clone(),
                 number: post_number,
@@ -210,8 +208,8 @@ impl Post {
                 thread.last_posts.remove(0);
             }
         }
-        writes.save(thread)?;
-        writes.save(board)?;
+        thread.save()?;
+        board.save()?;
         Ok(post.key)
     }
 

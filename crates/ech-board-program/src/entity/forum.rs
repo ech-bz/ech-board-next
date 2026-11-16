@@ -37,10 +37,7 @@ impl Forum {
         if Context::is_server() {
             return Permissions::Root;
         }
-        let value = match self {
-            Self::V1(value) => value,
-        };
-        if Context::is_author_any(&value.moderators) {
+        if Context::is_author_any(&self.moderators) {
             return Permissions::ForumMod;
         }
         Permissions::User

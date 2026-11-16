@@ -15,9 +15,11 @@ pub use call::Func;
 pub use error::EntityError;
 pub use functions::Functions;
 
+#[cfg(target_arch = "wasm32")]
 mod write_batch;
 
-pub use write_batch::WriteBatch;
+#[cfg(target_arch = "wasm32")]
+use write_batch::WriteBatch;
 
 use std::ops::{Deref, DerefMut};
 
@@ -171,15 +173,13 @@ impl<T: Stored> Entity<T> {
         load_many::<T>(&ids)
     }
 
-    pub fn needs_migration(&self) -> bool {
-        self.value.version() != T::CURRENT
-    }
-
     pub fn migrate(&mut self) -> Result<()> {
-        if !self.needs_migration() {
-            return Ok(());
+        if self.value.version() != T::CURRENT {
+            self.value = self.value.migrate()?;
+            let id = T::id(&self.key);
+            self.bind(&id);
         }
-        self.save()
+        Ok(())
     }
 }
 
@@ -215,11 +215,6 @@ impl<T: Stored> Entity<T> {
     }
 
     pub fn save(&mut self) -> Result<()> {
-        if self.needs_migration() {
-            self.value = self.value.migrate()?;
-            let id = T::id(&self.key);
-            self.bind(&id);
-        }
         WriteBatch::new().save(self)
     }
 }
@@ -260,6 +255,7 @@ fn decode_entity<T: Stored>(id: &[u8; 32], raw: Option<Vec<u8>>) -> Result<Optio
     if profile::measure("entity_check_id", || T::id(&entity.key)) != *id {
         return Err(EntityError::KeyChanged);
     }
+    entity.migrate()?;
     profile::measure("entity_bind", || entity.bind(id));
     Ok(Some(entity))
 }

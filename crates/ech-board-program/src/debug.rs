@@ -26,7 +26,8 @@ impl Debug {
             let value = Store::record(&namespace, &id)?.ok_or(ForumError::NotFound)?;
             match namespace.as_str() {
                 Post::NAMESPACE => {
-                    let entity: Entity<Post> = bcs::from_bytes(&value).expect("post decodes");
+                    let mut entity: Entity<Post> = bcs::from_bytes(&value).expect("post decodes");
+                    entity.migrate().expect("post migrates");
                     txids.insert(*entity.genesis.as_array());
                     if !entity.deleted {
                         let thread = Thread::id(&ThreadKey {

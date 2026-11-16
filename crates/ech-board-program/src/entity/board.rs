@@ -65,10 +65,7 @@ impl Board {
         if permissions != Permissions::User {
             return permissions;
         }
-        let value = match self {
-            Self::V1(value) => value,
-        };
-        if Context::is_author_any(&value.moderators) {
+        if Context::is_author_any(&self.moderators) {
             return Permissions::BoardMod;
         }
         Permissions::User
@@ -80,49 +77,38 @@ impl Board {
         previous_bump: u64,
         bump: bool,
     ) -> Result<u64> {
-        let value = match self {
-            Self::V1(value) => value,
-        };
-        value.post_count = value
+        let post_count = self
             .post_count
             .checked_add(1)
             .ok_or(ForumError::CounterOverflow)?;
+        self.post_count = post_count;
         if bump {
-            value.order.replace(
+            self.order.replace(
                 Some(BoardOrderKey::new(thread, previous_bump)),
-                BoardOrderKey::new(thread, value.post_count),
+                BoardOrderKey::new(thread, post_count),
             )?;
         }
-        Ok(value.post_count)
+        Ok(post_count)
     }
 
     pub(crate) fn pin(&mut self, number: u64) -> Result<()> {
-        let value = match self {
-            Self::V1(value) => value,
-        };
-        if value.pinned.len() >= PINNED_LIMIT && !value.pinned.contains(&number) {
+        if self.pinned.len() >= PINNED_LIMIT && !self.pinned.contains(&number) {
             return Err(ForumError::PinnedThreadLimit);
         }
-        if !value.pinned.contains(&number) {
-            value.pinned.push(number);
+        if !self.pinned.contains(&number) {
+            self.pinned.push(number);
         }
         Ok(())
     }
 
     pub(crate) fn unpin(&mut self, number: u64) {
-        let value = match self {
-            Self::V1(value) => value,
-        };
-        value.pinned.retain(|entry| *entry != number);
+        self.pinned.retain(|entry| *entry != number);
     }
 
     fn paginate(&self, cursor: Option<BoardCursor>) -> Result<(Vec<u64>, Option<BoardCursor>)> {
-        let value = match self {
-            Self::V1(value) => value,
-        };
         let pinned = cursor
             .as_ref()
-            .map_or(&value.pinned, |cursor| &cursor.pinned);
+            .map_or(&self.pinned, |cursor| &cursor.pinned);
         if pinned.len() > PINNED_LIMIT
             || pinned
                 .iter()

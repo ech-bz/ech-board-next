@@ -1,18 +1,11 @@
-use crate::{Entity, Result, Stored};
-
-#[cfg(target_arch = "wasm32")]
-use crate::Bind;
-#[cfg(target_arch = "wasm32")]
+use crate::{Bind, Entity, Result, Stored};
 use ech_db_guest::BigLog;
-#[cfg(target_arch = "wasm32")]
 use ech_db_protocol::id::Txid;
 
 pub struct WriteBatch {
-    #[cfg(target_arch = "wasm32")]
     write: crate::Write,
 }
 
-#[cfg(target_arch = "wasm32")]
 impl WriteBatch {
     pub fn new() -> Self {
         let write = crate::Session::current_write().expect("session is started");
@@ -70,20 +63,5 @@ impl WriteBatch {
             crate::change(T::NAMESPACE, *id);
         }
         Ok(())
-    }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-impl WriteBatch {
-    pub fn new() -> Self {
-        unimplemented!("entity objects require the wasm runtime")
-    }
-
-    pub fn insert<T: Stored>(&mut self, _key: T::Key, _value: T) -> Result<Entity<T>> {
-        unimplemented!("entity objects require the wasm runtime")
-    }
-
-    pub fn save<T: Stored>(&mut self, _entity: &mut Entity<T>) -> Result<()> {
-        unimplemented!("entity objects require the wasm runtime")
     }
 }

@@ -93,11 +93,6 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
     let arms = versions.iter().map(|(ident, version, _)| {
         quote! { Self::#ident(_) => #version, }
     });
-    let single = if versions.len() == 1 {
-        Some(versions[0].2.clone())
-    } else {
-        None
-    };
     let last_ident = versions[versions.len() - 1].0.clone();
     let last_type = versions[versions.len() - 1].2.clone();
     let migrate_arms = (0..versions.len()).map(|index| {
@@ -128,28 +123,36 @@ pub fn expand(args: TokenStream, item: TokenStream) -> syn::Result<TokenStream> 
             }
         }
     });
-    let single_ident = versions[0].0.clone();
-    let deref = match &single {
-        Some(ty) => quote! {
-            impl ::std::ops::Deref for #name {
-                type Target = #ty;
+    let older_arms = || {
+        versions[..versions.len() - 1]
+            .iter()
+            .map(|(ident, _, _)| {
+                quote! { Self::#ident(_) => ::core::unreachable!("entity value is migrated"), }
+            })
+            .collect::<Vec<_>>()
+    };
+    let older = older_arms();
+    let older_mut = older_arms();
+    let deref = quote! {
+        impl ::std::ops::Deref for #name {
+            type Target = #last_type;
 
-                fn deref(&self) -> &Self::Target {
-                    match self {
-                        Self::#single_ident(value) => value,
-                    }
+            fn deref(&self) -> &Self::Target {
+                match self {
+                    #(#older)*
+                    Self::#last_ident(value) => value,
                 }
             }
+        }
 
-            impl ::std::ops::DerefMut for #name {
-                fn deref_mut(&mut self) -> &mut Self::Target {
-                    match self {
-                        Self::#single_ident(value) => value,
-                    }
+        impl ::std::ops::DerefMut for #name {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                match self {
+                    #(#older_mut)*
+                    Self::#last_ident(value) => value,
                 }
             }
-        },
-        None => quote! {},
+        }
     };
     Ok(quote! {
         #structure
