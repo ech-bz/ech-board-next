@@ -60,12 +60,12 @@ export const Calls = {
         'forum.remove_moderator',
         withId(EntityId.forum(), tuple(EsidField).serialize([esidBytes(member)]).toBytes()),
       ),
-    ban: (target: string, reason: string | null, expires: bigint) =>
+    ban: (target: string, reason: string | null, expires: bigint | null) =>
       call(
         'forum.ban',
         withId(
           EntityId.forum(),
-          tuple(EsidField, bcs.option(Hash), bcs.u64())
+          tuple(EsidField, bcs.option(Hash), bcs.option(bcs.u64()))
             .serialize([esidBytes(target), optionalHash(reason), expires])
             .toBytes(),
         ),
@@ -135,12 +135,12 @@ export const Calls = {
         'board.remove_moderator',
         withId(id, tuple(EsidField).serialize([esidBytes(member)]).toBytes()),
       ),
-    ban: (id: string, target: string, reason: string | null, expires: bigint) =>
+    ban: (id: string, target: string, reason: string | null, expires: bigint | null) =>
       call(
         'board.ban',
         withId(
           id,
-          tuple(EsidField, bcs.option(Hash), bcs.u64())
+          tuple(EsidField, bcs.option(Hash), bcs.option(bcs.u64()))
             .serialize([esidBytes(target), optionalHash(reason), expires])
             .toBytes(),
         ),
@@ -230,12 +230,12 @@ export const Calls = {
         'thread.remove_moderator',
         withId(id, tuple(EsidField).serialize([esidBytes(member)]).toBytes()),
       ),
-    ban: (id: string, target: string, reason: string | null, expires: bigint) =>
+    ban: (id: string, target: string, reason: string | null, expires: bigint | null) =>
       call(
         'thread.ban',
         withId(
           id,
-          tuple(EsidField, bcs.option(Hash), bcs.u64())
+          tuple(EsidField, bcs.option(Hash), bcs.option(bcs.u64()))
             .serialize([esidBytes(target), optionalHash(reason), expires])
             .toBytes(),
         ),

@@ -170,8 +170,8 @@ export function createModActions(getEnv: () => ModEnv, model: ForumState, commit
         ? Calls.board.ban(env.boardId, target, reason ? toHex(hashOf(reason)) : null, expiresOf(durationMs))
         : Calls.thread.ban(threadId, target, reason ? toHex(hashOf(reason)) : null, expiresOf(durationMs))
 
-  function expiresOf(durationMs: number): bigint {
-    return durationMs > 0 ? BigInt(Date.now() + durationMs) : 0n
+  function expiresOf(durationMs: number): bigint | null {
+    return durationMs > 0 ? BigInt(Date.now() + durationMs) : null
   }
 
   const runBan = (post: Post, threadId: string, scope: BanScope, _mask: number, durationMs: number, reason: string) =>

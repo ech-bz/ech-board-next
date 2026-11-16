@@ -46,7 +46,7 @@ export function BansModal(props: { title: string; relayUrl: string; kind: 'forum
                 <tr>
                   <td class={tdVariants()}>{ban.author}</td>
                   <td class={tdVariants()}>{ban.reason ? ban.reason : t('bans.noData')}</td>
-                  <td class={tdVariants()}>{new Date(ban.expires).toLocaleString()}</td>
+                  <td class={tdVariants()}>{ban.expires === null ? t('bans.permanent') : new Date(ban.expires).toLocaleString()}</td>
                 </tr>
               )}
             </For>

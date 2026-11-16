@@ -29,7 +29,7 @@ export function createInspectionCommands(model: ForumState, commit: Commit, gate
       try {
         const entries = await fetchBans(await gateway.connect(relayUrl), kind, id)
         if (!current(`bans:${key}`, request)) return
-        const items = entries.map(([author, value]) => ({ author: identityKey(author), reason: value.reason_hash ? toHex(value.reason_hash) : null, expires: Number(value.expires) }))
+        const items = entries.map((ban) => ({ author: identityKey(ban.esid), reason: ban.reason_hash ? toHex(ban.reason_hash) : null, expires: ban.expires === null ? null : Number(ban.expires) }))
         commit({ type: 'bans.set', value: { key, value: { items, loading: false, error: null } } })
       } catch (error) {
         if (current(`bans:${key}`, request)) commit({ type: 'bans.set', value: { key, value: { items: [], loading: false, error: describeError(error) } } })

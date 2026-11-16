@@ -20,7 +20,7 @@ const DURATIONS: { key: MessageKey; ms: number }[] = [
   { key: 'ban.dur7d', ms: 7 * 86400_000 },
   { key: 'ban.dur30d', ms: 30 * 86400_000 },
   { key: 'ban.dur365d', ms: 365 * 86400_000 },
-  { key: 'ban.durForever', ms: Number.MAX_SAFE_INTEGER },
+  { key: 'ban.durForever', ms: 0 },
 ]
 
 const SCOPE_LABELS: Record<BanScope, MessageKey> = {

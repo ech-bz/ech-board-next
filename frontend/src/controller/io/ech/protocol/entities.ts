@@ -18,17 +18,17 @@ const bigMap = (name: string) => struct(name, {})
 export { TxSchema }
 export type { Tx }
 
-const BanValueSchema = struct('BanValue', {
+const BanSchema = struct('Ban', {
+  esid: EsidSchema,
   reason_hash: bcs.option(Hash),
-  expires: bcs.u64(),
+  expires: bcs.option(bcs.u64()),
 })
 
-export const BanEntriesSchema = bcs.vector(bcs.tuple([EsidSchema, BanValueSchema]))
+export const BanEntriesSchema = bcs.vector(BanSchema)
 export type BanEntry = typeof BanEntriesSchema.$inferType[number]
 
 const BansSchema = struct('Bans', {
-  public: bigMap('BigMap<Esid, BanValue>'),
-  private: bigMap('BigMap<Sid, Esid>'),
+  records: bigMap('BigMap<Sid, Vec<Ban>>'),
 })
 
 export const PostKeySchema = struct('PostKey', {

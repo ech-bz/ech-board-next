@@ -64,7 +64,7 @@ for (const scope of ['forum', 'board', 'thread']) {
   const entity = { [scope]: Hash }
   ArgumentSchemas[`${scope}.add_moderator`] = bcs.struct('Arguments', { ...entity, member: EsidSchema })
   ArgumentSchemas[`${scope}.remove_moderator`] = bcs.struct('Arguments', { ...entity, member: EsidSchema })
-  ArgumentSchemas[`${scope}.ban`] = bcs.struct('Arguments', { ...entity, target: EsidSchema, reason_hash: optionalHash, expires: bcs.u64() })
+  ArgumentSchemas[`${scope}.ban`] = bcs.struct('Arguments', { ...entity, target: EsidSchema, reason_hash: optionalHash, expires: bcs.option(bcs.u64()) })
   ArgumentSchemas[`${scope}.unban`] = bcs.struct('Arguments', { ...entity, target: EsidSchema })
   ArgumentSchemas[`${scope}.ban_list`] = bcs.struct('Arguments', { ...entity, after: bcs.option(EsidSchema), limit: bcs.u32() })
 }
