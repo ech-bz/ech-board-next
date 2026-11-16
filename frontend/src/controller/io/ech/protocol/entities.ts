@@ -84,6 +84,8 @@ const BoardV1Schema = struct('BoardV1', {
   readonly: bcs.bool(),
   bump_limit: bcs.u32(),
   max_media: bcs.u8(),
+  post_rate_limit_ms: bcs.u32(),
+  reaction_rate_limit_ms: bcs.u32(),
   thread_count: bcs.u64(),
   post_count: bcs.u64(),
   pinned: bcs.vector(bcs.u64()),

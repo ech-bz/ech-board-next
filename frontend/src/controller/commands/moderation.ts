@@ -339,6 +339,12 @@ export function createModActions(getEnv: () => ModEnv, model: ForumState, commit
   const runBoardSetBumpLimit = (value: number) =>
     boardSetting((env) => Calls.board.set_bump_limit(env.boardId, value), roleForBoardCore(getEnv().roles))
 
+  const runBoardSetPostRateLimit = (value: number) =>
+    boardSetting((env) => Calls.board.set_post_rate_limit(env.boardId, value), roleForBoardCore(getEnv().roles))
+
+  const runBoardSetReactionRateLimit = (value: number) =>
+    boardSetting((env) => Calls.board.set_reaction_rate_limit(env.boardId, value), roleForBoardCore(getEnv().roles))
+
   const runBoardSetIgnoreForumBans = (value: boolean) =>
     boardSetting((env) => Calls.board.set_ignore_forum_bans(env.boardId, value), roleForBoardCore(getEnv().roles))
 
@@ -416,6 +422,8 @@ export function createModActions(getEnv: () => ModEnv, model: ForumState, commit
     runBoardSetDescription,
     runBoardSetMaxMedia,
     runBoardSetBumpLimit,
+    runBoardSetPostRateLimit,
+    runBoardSetReactionRateLimit,
     runBoardSetIgnoreForumBans,
     runBoardSetReactions,
     runBoardSetPinned,

@@ -105,6 +105,10 @@ export const Calls = {
       call('board.set_bump_limit', withId(id, tuple(bcs.u32()).serialize([value]).toBytes())),
     set_max_media: (id: string, value: number) =>
       call('board.set_max_media', withId(id, tuple(bcs.u8()).serialize([value]).toBytes())),
+    set_post_rate_limit: (id: string, value: number) =>
+      call('board.set_post_rate_limit', withId(id, tuple(bcs.u32()).serialize([value]).toBytes())),
+    set_reaction_rate_limit: (id: string, value: number) =>
+      call('board.set_reaction_rate_limit', withId(id, tuple(bcs.u32()).serialize([value]).toBytes())),
     set_description: (id: string, value: string | null) =>
       call(
         'board.set_description',

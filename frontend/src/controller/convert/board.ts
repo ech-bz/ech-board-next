@@ -19,6 +19,8 @@ export function convertBoard(entity: BoardEntity, model: ForumState, root: strin
     readonly: value.readonly,
     bumpLimit: value.bump_limit,
     maxMedia: value.max_media,
+    postRateLimit: value.post_rate_limit_ms,
+    reactionRateLimit: value.reaction_rate_limit_ms,
     threadCount: Number(value.thread_count),
     postCount: Number(value.post_count),
     pinned: value.pinned.map(Number),

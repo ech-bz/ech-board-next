@@ -162,6 +162,8 @@ export function ModalsProvider(props: { roles: RoleOption[]; relayUrl: string; c
             runBoardSetDescription: (text) => mod.runBoardSetDescription(text),
             runBoardSetMaxMedia: (v) => mod.runBoardSetMaxMedia(v),
             runBoardSetBumpLimit: (v) => mod.runBoardSetBumpLimit(v),
+            runBoardSetPostRateLimit: (v) => mod.runBoardSetPostRateLimit(v),
+            runBoardSetReactionRateLimit: (v) => mod.runBoardSetReactionRateLimit(v),
             runBoardSetIgnoreForumBans: (v) => mod.runBoardSetIgnoreForumBans(v),
             runBoardSetReactions: (vals) => mod.runBoardSetReactions(vals),
             runBoardSetPinned: (pinned) => mod.runBoardSetPinned(pinned),

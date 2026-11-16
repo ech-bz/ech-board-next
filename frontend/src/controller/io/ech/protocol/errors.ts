@@ -60,6 +60,8 @@ export const ForumErrorSchema = bcs.enum('ForumError', {
   InvalidBoardCursor: null,
   AlreadyBanned: null,
   NotBanned: null,
+  RateLimited: null,
+  ReactionRequiresPost: null,
 })
 
 export type ForumError = typeof ForumErrorSchema.$inferType
