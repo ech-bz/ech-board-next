@@ -82,6 +82,7 @@ export type Submission = {
   access: Access
   requests: UserRequests
   trip: string | null
+  powBits?: number
   blobs?: Uint8Array[]
 }
 
@@ -94,12 +95,10 @@ export async function submit(
   const form = new FormData()
   const txids: string[] = []
   for (const entry of entries) {
-    const user = identity.sign(
-      relay.root,
-      UserRequestsSchema.serialize(entry.requests).toBytes(),
-      entry.request,
-      entry.access.tweak,
-    )
+    const ctx = UserRequestsSchema.serialize(entry.requests).toBytes()
+    const user = entry.powBits
+      ? await identity.grind(relay.root, ctx, entry.request, entry.powBits, entry.access.tweak)
+      : identity.sign(relay.root, ctx, entry.request, entry.access.tweak)
     txids.push(
       hex(
         blake2b(

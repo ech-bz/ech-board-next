@@ -50,6 +50,8 @@ export const Calls = {
         'forum.set_title',
         withId(EntityId.forum(), tuple(Hash).serialize([hashBytes(title)]).toBytes()),
       ),
+    set_pow_bits: (value: number) =>
+      call('forum.set_pow_bits', withId(EntityId.forum(), tuple(bcs.u8()).serialize([value]).toBytes())),
     add_moderator: (member: string) =>
       call(
         'forum.add_moderator',
@@ -109,6 +111,8 @@ export const Calls = {
       call('board.set_post_rate_limit', withId(id, tuple(bcs.u32()).serialize([value]).toBytes())),
     set_reaction_rate_limit: (id: string, value: number) =>
       call('board.set_reaction_rate_limit', withId(id, tuple(bcs.u32()).serialize([value]).toBytes())),
+    set_pow_bits: (id: string, value: number) =>
+      call('board.set_pow_bits', withId(id, tuple(bcs.u8()).serialize([value]).toBytes())),
     set_description: (id: string, value: string | null) =>
       call(
         'board.set_description',
@@ -362,6 +366,7 @@ export class ForumApi {
     onPrepared?: (txid: string) => void,
     requests: UserRequests = relay.NO_REQUESTS,
     trip: string | null = null,
+    powBits = 0,
   ): Promise<{ txid: string; result: Uint8Array }> {
     const identity = this.identity
     const [first] = await relay.submit(
@@ -376,6 +381,7 @@ export class ForumApi {
           },
           requests,
           trip,
+          powBits,
           blobs: blobs.map((blob) => blob.bytes),
         },
       ],

@@ -86,6 +86,7 @@ const BoardV1Schema = struct('BoardV1', {
   max_media: bcs.u8(),
   post_rate_limit_ms: bcs.u32(),
   reaction_rate_limit_ms: bcs.u32(),
+  pow_bits: bcs.u8(),
   thread_count: bcs.u64(),
   post_count: bcs.u64(),
   pinned: bcs.vector(bcs.u64()),
@@ -100,6 +101,7 @@ const ForumKeySchema = struct('ForumKey', {})
 
 const ForumV1Schema = struct('ForumV1', {
   title_hash: bcs.option(Hash),
+  pow_bits: bcs.u8(),
   moderators: bcs.vector(EsidSchema),
   bans: BansSchema,
   boards: struct('BigLog<BoardKey>', { entries: bigMap('BigMap<u64, BoardKey>'), length: bcs.u64() }),

@@ -1,14 +1,15 @@
 import { blake2b } from '@noble/hashes/blake2'
 import { requestsPostcount } from '../../model/content/requests'
+import { describeError } from '../../model/errors'
 import type { RoleOption } from '../../model/rules/roles'
 import type { ComposerDraft } from '../../model/state/composer'
 import type { ForumState } from '../../model/state/forum'
 import { finalizeParts, parseBbCode } from '../content/bbcode'
 import { makePostResolver } from '../content/postResolver'
 import type { ForumGateway } from '../forumGateway'
-import { Calls } from '../io/ech/forumApi'
+import { Calls, type Call, type ForumApi } from '../io/ech/forumApi'
 import { EntityId } from '../io/ech/protocol/entityId'
-import { PostKeySchema, ThreadKeySchema } from '../io/ech/protocol/entities'
+import { PostKeySchema, ThreadKeySchema, type UserRequests } from '../io/ech/protocol/entities'
 import { randomTweak } from '../io/crypto/identity'
 import { serializePostParts } from '../io/ech/protocol/types'
 import * as relayApi from '../io/ech/relay'
@@ -72,6 +73,38 @@ function splitName(value: string): { name: string; trip: string | null } {
   return { name: value.slice(0, index), trip: value.slice(index) }
 }
 
+function powBits(ctx: PostSubmitCtx): number {
+  const scope = ctx.model.scopes[ctx.forumId]
+  const board = scope?.entities.boards[ctx.boardId]?.powBits ?? 0
+  const forum = scope?.entities.forums[ctx.forumId]?.powBits ?? 0
+  return Math.max(board, forum)
+}
+
+function powRequired(error: unknown): boolean {
+  const failure = describeError(error)
+  return typeof failure !== 'string' && failure.code === 'PowRequired'
+}
+
+async function append(
+  ctx: PostSubmitCtx,
+  api: ForumApi,
+  entry: {
+    call: Call
+    blobs: { hash: string; bytes: Uint8Array }[]
+    tweak: Uint8Array
+    requests: UserRequests
+    trip: string | null
+  },
+): Promise<{ txid: string; result: Uint8Array }> {
+  try {
+    return await api.append(entry.call, entry.blobs, entry.tweak, undefined, entry.requests, entry.trip)
+  } catch (error) {
+    const bits = powBits(ctx)
+    if (bits === 0 || !powRequired(error)) throw error
+    return await api.append(entry.call, [], entry.tweak, undefined, entry.requests, entry.trip, bits)
+  }
+}
+
 async function prepare(
   ctx: PostSubmitCtx,
   form: PostFormState,
@@ -124,14 +157,13 @@ export async function submitNewThread(
   const api = await ctx.gateway.connect(ctx.relayUrl)
   const topic = textBlob(subject)
   if (topic) blobs.push(topic.blob)
-  const result = await api.append(
-    Calls.thread.create(ctx.boardId, topic ? topic.hash : null, hash, media, nameHash, [], false, !!form.selfAdmin),
-    blobs.map((bytes) => ({ hash: '', bytes })),
+  const result = await append(ctx, api, {
+    call: Calls.thread.create(ctx.boardId, topic ? topic.hash : null, hash, media, nameHash, [], false, !!form.selfAdmin),
+    blobs: blobs.map((bytes) => ({ hash: '', bytes })),
     tweak,
-    undefined,
-    { geo: form.withFlag, trip: trip !== null, postcount },
+    requests: { geo: form.withFlag, trip: trip !== null, postcount },
     trip,
-  )
+  })
   return { thread: Number(ThreadKeySchema.parse(result.result).number) }
 }
 
@@ -144,13 +176,12 @@ export async function submitReply(
   const tweak = postTweak(ctx.role)
   const { textHash: hash, media, nameHash, trip, postcount, blobs } = await prepare(ctx, form, onProgress, tweak)
   const api = await ctx.gateway.connect(ctx.relayUrl)
-  const result = await api.append(
-    Calls.post.create(ctx.boardId, EntityId.thread(ctx.slug, ctx.threadNumber), hash, media, nameHash, [], false),
-    blobs.map((bytes) => ({ hash: '', bytes })),
+  const result = await append(ctx, api, {
+    call: Calls.post.create(ctx.boardId, EntityId.thread(ctx.slug, ctx.threadNumber), hash, media, nameHash, [], false),
+    blobs: blobs.map((bytes) => ({ hash: '', bytes })),
     tweak,
-    undefined,
-    { geo: form.withFlag, trip: trip !== null, postcount },
+    requests: { geo: form.withFlag, trip: trip !== null, postcount },
     trip,
-  )
+  })
   return { post: Number(PostKeySchema.parse(result.result).number) }
 }

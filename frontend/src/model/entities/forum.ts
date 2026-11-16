@@ -5,6 +5,7 @@ import type { RoleOption } from '../rules/roles'
 export interface Forum extends Entity {
   readonly title: string
   readonly titleHash: Uint8Array | null
+  readonly powBits: number
   readonly moderators: Identity[]
   readonly roles: RoleOption[]
 }

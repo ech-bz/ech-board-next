@@ -15,6 +15,7 @@ export function convertForum(entity: ForumEntity, model: ForumState, root: strin
     id: EntityId.forum(),
     sequence: entity.history.length,
     titleHash: value.title_hash ? convertBytes(value.title_hash, previous?.titleHash) : null,
+    powBits: value.pow_bits,
     moderators: value.moderators.map((identity, index) => convertIdentity(identity, previous?.moderators[index])),
   }, forumFields(model, root, EntityId.forum()))
 }

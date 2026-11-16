@@ -1,10 +1,11 @@
-import { fromHex, toHex } from '@mysten/bcs'
+import { bcs, fromHex, toHex } from '@mysten/bcs'
 import { ristretto255 } from '@noble/curves/ed25519.js'
 import { blake2b } from '@noble/hashes/blake2b'
 
 import {
   ChallengePayload,
   UserContext,
+  UserPartSchema,
   type Call,
   type Esid,
   type Statement,
@@ -156,4 +157,75 @@ export class Identity {
       },
     }
   }
+
+  async grind(
+    root: Uint8Array,
+    ctx: Uint8Array,
+    call: Call,
+    bits: number,
+    tweak: Uint8Array = randomTweak(),
+    signal?: AbortSignal,
+  ): Promise<UserPart> {
+    const { x, r } = this.scalars(root, tweak)
+    const esid = this.esid(root, tweak)
+    const statement = this.statement(root, esid)
+    const anchor = point(root)
+    const alpha = randomScalar()
+    const beta = randomScalar()
+    const commitment = [
+      encode(Base.multiply(beta)),
+      encode(Base.multiply(alpha).add(anchor.multiply(beta))),
+    ]
+    const prefix = crypto.getRandomValues(new Uint8Array(24))
+    let counter = 0n
+    for (let attempt = 0; ; attempt += 1) {
+      const nonce = new Uint8Array(32)
+      nonce.set(prefix)
+      let rest = counter
+      for (let index = 31; index >= 24; index -= 1) {
+        nonce[index] = Number(rest & 0xffn)
+        rest >>= 8n
+      }
+      counter += 1n
+      const context = UserContext.serialize([root, tweak, nonce, ctx, call]).toBytes()
+      const payload = ChallengePayload.serialize([statement, context, commitment]).toBytes()
+      const value = challenge('user', payload)
+      const user: UserPart = {
+        nonce,
+        ctx,
+        call,
+        author: {
+          $kind: 'User' as const,
+          User: {
+            esid,
+            proof: {
+              commitment,
+              response: [
+                scalarBytes(alpha + value * x),
+                scalarBytes(beta + value * r),
+              ],
+            },
+          },
+        },
+      }
+      if (leadingZeroBits(txidOf(root, user)) >= bits) return user
+      if (attempt % 512 === 511) {
+        if (signal?.aborted) throw new Error('proof of work aborted')
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      }
+    }
+  }
+}
+
+export function txidOf(root: Uint8Array, user: UserPart): Uint8Array {
+  return blake2b(bcs.tuple([bcs.bytes(32), UserPartSchema]).serialize([root, user]).toBytes(), { dkLen: 32 })
+}
+
+export function leadingZeroBits(hash: Uint8Array): number {
+  let zeros = 0
+  for (const byte of hash) {
+    if (byte !== 0) return zeros + Math.clz32(byte) - 24
+    zeros += 8
+  }
+  return zeros
 }

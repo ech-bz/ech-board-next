@@ -23,6 +23,7 @@ export interface Board extends Entity {
   readonly maxMedia: number
   readonly postRateLimit: number
   readonly reactionRateLimit: number
+  readonly powBits: number
   readonly threadCount: number
   readonly postCount: number
   readonly pinned: number[]
