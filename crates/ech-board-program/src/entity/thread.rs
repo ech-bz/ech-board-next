@@ -8,8 +8,9 @@ use ech_db_guest::BigMap;
 use ech_db_guest::Bind;
 use ech_db_guest::Txid;
 
-use crate::component::bans::{Ban, Bans};
+use crate::component::bans::{Ban, Bans, Gate};
 use crate::component::board_index::BoardOrderKey;
+use crate::component::permissions::Permissions;
 use crate::context::{Context, ServerContext};
 use crate::entity::{transactions, Board, Forum, Page, Post, PostKey, Read, User, Write};
 use crate::error::{ForumError, Result};
@@ -65,58 +66,35 @@ pub struct ThreadPreview {
 }
 
 impl Thread {
-    pub(crate) fn is_moderator(&self, forum: &Forum, board: &Board) -> Result<bool> {
-        let value = match self {
+    pub(crate) fn permissions(
+        thread: &Entity<Thread>,
+        forum: &Forum,
+        board: &Board,
+    ) -> Result<Permissions> {
+        let permissions = board.permissions(forum);
+        if permissions != Permissions::User {
+            return Ok(permissions);
+        }
+        let value = match &**thread {
             Self::V1(value) => value,
         };
-        if board.is_moderator(forum)? {
-            return Ok(true);
-        }
-        for esid in &value.moderators {
-            if Context::is_author(esid)? {
-                return Ok(true);
-            }
-        }
         if let Some(admin) = &value.admin {
-            if Context::is_author(admin)? {
-                return Ok(true);
+            if Context::is_author(admin) {
+                return Ok(Permissions::ThreadAdmin);
             }
         }
-        Ok(false)
-    }
-
-    pub(crate) fn is_admin(&self, forum: &Forum, board: &Board) -> Result<bool> {
-        let value = match self {
-            Self::V1(value) => value,
-        };
-        let board = match board {
-            Board::V1(board) => board,
-        };
-        if forum.is_moderator()? {
-            return Ok(true);
+        if Context::is_author_any(&value.moderators) {
+            return Ok(Permissions::ThreadMod);
         }
-        for esid in &board.moderators {
-            if Context::is_author(esid)? {
-                return Ok(true);
+        let genesis = thread.genesis()?;
+        if let Author::User { esid, .. } = &genesis.user.author {
+            let created = ServerContext::decode(&genesis.server.ctx)?.time;
+            let now = Context::time();
+            if Context::is_author(esid) && now >= created && now - created <= EDIT_WINDOW_MS {
+                return Ok(Permissions::UserSelfMod);
             }
         }
-        if let Some(admin) = &value.admin {
-            if Context::is_author(admin)? {
-                return Ok(true);
-            }
-        }
-        Ok(false)
-    }
-
-    pub(crate) fn is_author(&self, post: &Entity<Post>) -> Result<bool> {
-        let genesis = post.genesis()?;
-        let author = match &genesis.user.author {
-            Author::User { esid, .. } => *esid,
-            Author::Server => return Ok(false),
-        };
-        let created = ServerContext::decode(&genesis.server.ctx)?.time;
-        let time = Context::time()?;
-        Ok(Context::is_author(&author)? && time >= created && time - created <= EDIT_WINDOW_MS)
+        Ok(Permissions::User)
     }
 
     pub(crate) fn create(
@@ -190,7 +168,7 @@ impl Thread {
         closed: bool,
         deleted: bool,
     ) -> Result<ThreadKey> {
-        if !Context::is_server()? {
+        if !Context::is_server() {
             return Err(ForumError::NotAuthorized);
         }
         let number = board
@@ -265,11 +243,18 @@ impl Thread {
     pub(crate) fn gate(thread: &Entity<Thread>) -> Result<()> {
         let board = Board::open(thread.key.board.clone())?;
         let forum = Forum::current()?;
-        let mut bans = vec![&thread.bans, &board.bans];
+        let permissions = Self::permissions(thread, &forum, &board)?;
+        let mut bans = Vec::new();
+        if permissions < Permissions::ThreadAdmin {
+            bans.push(&thread.bans);
+        }
+        if permissions < Permissions::ForumMod {
+            bans.push(&board.bans);
+        }
         if !board.ignore_forum_bans {
             bans.push(&forum.bans);
         }
-        Bans::gate(&bans)
+        bans.gate()
     }
 
     pub(crate) fn meta(thread: &Read<Thread>) -> Result<Page<ThreadMeta>> {
@@ -361,7 +346,7 @@ impl Thread {
         Self::gate(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
-        if !thread.is_moderator(&forum, &board)? {
+        if Self::permissions(thread, &forum, &board)? < Permissions::ThreadMod {
             return Err(ForumError::NotAuthorized);
         }
         thread.closed = value;
@@ -373,7 +358,7 @@ impl Thread {
         Self::gate(thread)?;
         let forum = Forum::current()?;
         let mut board = Board::open(thread.key.board.clone())?;
-        if !thread.is_moderator(&forum, &board)? {
+        if Self::permissions(thread, &forum, &board)? < Permissions::BoardMod {
             return Err(ForumError::NotAuthorized);
         }
         if value {
@@ -391,7 +376,7 @@ impl Thread {
         Self::gate(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
-        if !thread.is_moderator(&forum, &board)? {
+        if Self::permissions(thread, &forum, &board)? < Permissions::ThreadMod {
             return Err(ForumError::NotAuthorized);
         }
         thread.deleted = value;
@@ -403,7 +388,7 @@ impl Thread {
         Self::gate(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
-        if !thread.is_moderator(&forum, &board)? {
+        if Self::permissions(thread, &forum, &board)? < Permissions::UserSelfMod {
             return Err(ForumError::NotAuthorized);
         }
         thread.topic_hash = value;
@@ -415,7 +400,7 @@ impl Thread {
         Self::gate(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
-        if !thread.is_admin(&forum, &board)? {
+        if Self::permissions(thread, &forum, &board)? < Permissions::ThreadAdmin {
             return Err(ForumError::NotAuthorized);
         }
         thread.admin = value;
@@ -427,7 +412,7 @@ impl Thread {
         Self::gate(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
-        if !thread.is_admin(&forum, &board)? {
+        if Self::permissions(thread, &forum, &board)? < Permissions::ThreadAdmin {
             return Err(ForumError::NotAuthorized);
         }
         if !thread.moderators.contains(&member) {
@@ -441,7 +426,7 @@ impl Thread {
         Self::gate(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
-        if !thread.is_admin(&forum, &board)? {
+        if Self::permissions(thread, &forum, &board)? < Permissions::ThreadAdmin {
             return Err(ForumError::NotAuthorized);
         }
         thread.moderators.retain(|entry| *entry != member);
@@ -458,10 +443,10 @@ impl Thread {
         Self::gate(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
-        if !thread.is_moderator(&forum, &board)? {
+        if Self::permissions(thread, &forum, &board)? < Permissions::ThreadMod {
             return Err(ForumError::NotAuthorized);
         }
-        let now = Context::time()?;
+        let now = Context::time();
         if expires.is_some_and(|expires| expires <= now) {
             return Err(ForumError::InvalidBanExpiry);
         }
@@ -482,7 +467,7 @@ impl Thread {
         Self::gate(thread)?;
         let forum = Forum::current()?;
         let board = Board::open(thread.key.board.clone())?;
-        if !thread.is_moderator(&forum, &board)? {
+        if Self::permissions(thread, &forum, &board)? < Permissions::ThreadMod {
             return Err(ForumError::NotAuthorized);
         }
         let sid = Context::sid(&target)?;
@@ -495,6 +480,7 @@ impl Thread {
         after: Option<Esid>,
         limit: u32,
     ) -> Result<Vec<Ban>> {
+        let after = after.as_ref().map(Context::sid).transpose()?;
         thread.bans.entries(after.as_ref(), limit as usize)
     }
 }

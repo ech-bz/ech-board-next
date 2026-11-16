@@ -39,47 +39,13 @@ impl Bans {
         self.write(*sid, records)
     }
 
-    pub fn gate(bans: &[&Self]) -> Result<()> {
-        if Context::read_only() || Context::is_server()? {
-            return Ok(());
-        }
-        let sid = Context::author_sid()?;
-        if Self::any_banned(bans, &sid, Context::time()?)? {
-            return Err(ForumError::Banned);
-        }
-        Ok(())
-    }
-
-    pub fn entries(&self, after: Option<&Esid>, limit: usize) -> Result<Vec<Ban>> {
-        let after = match after {
-            Some(esid) => Some(Context::sid(esid)?),
-            None => None,
-        };
+    pub fn entries(&self, after: Option<&Sid>, limit: usize) -> Result<Vec<Ban>> {
         Ok(self
             .records
-            .entries(after.as_ref(), limit)?
+            .entries(after, limit)?
             .into_iter()
             .flat_map(|(_, records)| records)
             .collect())
-    }
-
-    fn any_banned(bans: &[&Self], sid: &Sid, now: u64) -> Result<bool> {
-        let requests: Vec<_> = bans.iter().map(|bans| (&bans.records, sid)).collect();
-        let lists = BigMap::get_batch(requests.as_slice())?;
-        let mut banned = false;
-        for (bans, records) in bans.iter().zip(lists) {
-            let Some(mut records) = records else {
-                continue;
-            };
-            let length = records.len();
-            records.retain(|entry| entry.expires.is_none_or(|expires| expires > now));
-            let active = !records.is_empty();
-            if records.len() != length {
-                bans.write(*sid, records)?;
-            }
-            banned |= active;
-        }
-        Ok(banned)
     }
 
     fn read(&self, sid: &Sid) -> Result<Vec<Ban>> {
@@ -94,6 +60,54 @@ impl Bans {
             self.records.remove(&sid)?;
         } else {
             self.records.insert(&sid, &records)?;
+        }
+        Ok(())
+    }
+}
+
+pub trait Gate {
+    fn any_banned(&self, sid: &Sid, now: u64) -> Result<bool>;
+
+    fn gate(&self) -> Result<()>;
+}
+
+impl Gate for Bans {
+    fn any_banned(&self, sid: &Sid, now: u64) -> Result<bool> {
+        [self].any_banned(sid, now)
+    }
+
+    fn gate(&self) -> Result<()> {
+        [self].gate()
+    }
+}
+
+impl Gate for [&Bans] {
+    fn any_banned(&self, sid: &Sid, now: u64) -> Result<bool> {
+        let requests: Vec<_> = self.iter().map(|bans| (&bans.records, sid)).collect();
+        let lists = BigMap::get_batch(requests.as_slice())?;
+        let mut banned = false;
+        for (bans, records) in self.iter().zip(lists) {
+            let Some(mut records) = records else {
+                continue;
+            };
+            let length = records.len();
+            records.retain(|entry| entry.expires.is_none_or(|expires| expires > now));
+            let active = !records.is_empty();
+            if records.len() != length {
+                bans.write(*sid, records)?;
+            }
+            banned |= active;
+        }
+        Ok(banned)
+    }
+
+    fn gate(&self) -> Result<()> {
+        if Context::read_only() || Context::is_server() {
+            return Ok(());
+        }
+        let sid = Context::author_sid()?;
+        if self.any_banned(&sid, Context::time())? {
+            return Err(ForumError::Banned);
         }
         Ok(())
     }

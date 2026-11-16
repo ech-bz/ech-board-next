@@ -200,7 +200,7 @@ impl<T: Stored> DerefMut for Entity<T> {
 #[cfg(target_arch = "wasm32")]
 impl<T: Stored> Entity<T> {
     pub fn insert(key: T::Key, value: T) -> Result<Self> {
-        WriteBatch::new()?.insert(key, value)
+        WriteBatch::new().insert(key, value)
     }
 
     pub fn genesis(&self) -> Result<Rc<Tx>> {
@@ -220,7 +220,7 @@ impl<T: Stored> Entity<T> {
             let id = T::id(&self.key);
             self.bind(&id);
         }
-        WriteBatch::new()?.save(self)
+        WriteBatch::new().save(self)
     }
 }
 

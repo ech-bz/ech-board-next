@@ -14,13 +14,19 @@ pub struct WriteBatch {
 
 #[cfg(target_arch = "wasm32")]
 impl WriteBatch {
-    pub fn new() -> Result<Self> {
-        let write = crate::Session::current_write().ok_or(crate::EntityError::MissingWrite)?;
-        Ok(Self { write })
+    pub fn new() -> Self {
+        let write = crate::Session::current_write().expect("session is started");
+        Self { write }
     }
 
     pub fn insert<T: Stored>(&mut self, key: T::Key, value: T) -> Result<Entity<T>> {
         let id = T::id(&key);
+        crate::TRANSACTIONS.with(|transactions| {
+            transactions
+                .borrow_mut()
+                .entry(self.write.txid)
+                .or_insert_with(|| std::rc::Rc::new(self.write.tx.clone()));
+        });
         let mut entity = Entity {
             history: BigLog::default(),
             genesis: Txid::new(self.write.txid),
@@ -69,7 +75,7 @@ impl WriteBatch {
 
 #[cfg(not(target_arch = "wasm32"))]
 impl WriteBatch {
-    pub fn new() -> Result<Self> {
+    pub fn new() -> Self {
         unimplemented!("entity objects require the wasm runtime")
     }
 

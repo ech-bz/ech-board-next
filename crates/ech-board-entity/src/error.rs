@@ -16,14 +16,10 @@ pub enum EntityError {
     NotFound,
     #[error("invalid arguments")]
     InvalidArguments,
-    #[error("missing root context")]
-    MissingRoot,
     #[error("entity key changed")]
     KeyChanged,
     #[error("entity decode: {0}")]
     Decode(String),
-    #[error("missing write context")]
-    MissingWrite,
     #[error("entity version is not current")]
     Outdated,
     #[error("entity encode: {0}")]

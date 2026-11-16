@@ -3,13 +3,13 @@ use std::collections::{BTreeMap, HashSet};
 use serde::{Deserialize, Serialize};
 
 use ech_board_entity::{entity, Entity, Stored, WriteBatch};
-use ech_db_guest::{BigMap, Bind};
+use ech_db_guest::{Author, BigMap, Bind};
 
-use crate::component::bans::Bans;
-use crate::context::Context;
+use crate::component::permissions::Permissions;
+use crate::context::{Context, ServerContext};
 use crate::entity::{transactions, Board, Forum, Page, Read, Thread, User, Write};
 use crate::error::{ForumError, Result};
-use crate::types::{Esid, Hash, Sid};
+use crate::types::{Esid, Hash, Sid, EDIT_WINDOW_MS};
 
 #[derive(Bind, Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub struct PostKey {
@@ -50,6 +50,27 @@ pub struct PostPage {
 }
 
 impl Post {
+    pub(crate) fn permissions(
+        post: &Entity<Post>,
+        forum: &Forum,
+        board: &Board,
+        thread: &Entity<Thread>,
+    ) -> Result<Permissions> {
+        let permissions = Thread::permissions(thread, forum, board)?;
+        if permissions > Permissions::UserSelfMod {
+            return Ok(permissions);
+        }
+        let genesis = post.genesis()?;
+        if let Author::User { esid, .. } = &genesis.user.author {
+            let created = ServerContext::decode(&genesis.server.ctx)?.time;
+            let now = Context::time();
+            if Context::is_author(esid) && now >= created && now - created <= EDIT_WINDOW_MS {
+                return Ok(Permissions::UserSelfMod);
+            }
+        }
+        Ok(Permissions::User)
+    }
+
     pub(crate) fn create(
         board: &mut Write<Board>,
         thread: &mut Write<Thread>,
@@ -66,10 +87,11 @@ impl Post {
             return Err(ForumError::NotFound);
         }
         let number = thread.key.number;
-        if board.readonly && !board.is_moderator(&forum)? {
+        let permissions = Thread::permissions(thread, &forum, board)?;
+        if board.readonly && permissions < Permissions::BoardMod {
             return Err(ForumError::BoardReadOnly);
         }
-        if thread.closed && !thread.is_moderator(&forum, board)? {
+        if thread.closed && permissions < Permissions::ThreadMod {
             return Err(ForumError::ThreadClosed);
         }
         if media_hashes.len() > board.max_media as usize {
@@ -89,8 +111,8 @@ impl Post {
         if bump {
             thread.bump = post_number;
         }
-        let mut writes = WriteBatch::new()?;
-        let requests = Context::requests()?;
+        let mut writes = WriteBatch::new();
+        let requests = Context::requests();
         let post = writes.insert(
             PostKey {
                 board: board.key.slug.clone(),
@@ -140,7 +162,7 @@ impl Post {
         deleted: bool,
         edited: bool,
     ) -> Result<PostKey> {
-        if !Context::is_server()? {
+        if !Context::is_server() {
             return Err(ForumError::NotAuthorized);
         }
         let number = thread.key.number;
@@ -149,7 +171,7 @@ impl Post {
         if bump {
             thread.bump = post_number;
         }
-        let mut writes = WriteBatch::new()?;
+        let mut writes = WriteBatch::new();
         let post = writes.insert(
             PostKey {
                 board: board.key.slug.clone(),
@@ -196,7 +218,7 @@ impl Post {
     pub(crate) fn my_reactions<'a>(
         posts: impl IntoIterator<Item = &'a Entity<Post>>,
     ) -> Result<BTreeMap<Hash, Hash>> {
-        if Context::is_server()? {
+        if Context::is_server() {
             return Ok(BTreeMap::new());
         }
         let sid = Context::author_sid()?;
@@ -214,12 +236,13 @@ impl Post {
     }
 
     pub(crate) fn set_media(post: &mut Entity<Post>, hashes: Vec<Hash>, ban: bool) -> Result<()> {
-        Self::gate(post)?;
         let forum = Forum::current()?;
         let board = Board::open(post.key.board.clone())?;
         let thread = Thread::open(post.key.board.clone(), post.thread)?;
-        let moderator = thread.is_moderator(&forum, &board)?;
-        if !(moderator || (ban && thread.is_author(post)?)) {
+        Thread::gate(&thread)?;
+        let permissions = Self::permissions(post, &forum, &board, &thread)?;
+        if permissions < Permissions::ThreadMod && !(ban && permissions >= Permissions::UserSelfMod)
+        {
             return Err(ForumError::NotAuthorized);
         }
         if ban {
@@ -248,17 +271,6 @@ impl Post {
         Ok(())
     }
 
-    pub(crate) fn gate(post: &Entity<Post>) -> Result<()> {
-        let thread = Thread::open(post.key.board.clone(), post.thread)?;
-        let board = Board::open(post.key.board.clone())?;
-        let forum = Forum::current()?;
-        let mut bans = vec![&thread.bans, &board.bans];
-        if !board.ignore_forum_bans {
-            bans.push(&forum.bans);
-        }
-        Bans::gate(&bans)
-    }
-
     pub(crate) fn get(post: &Read<Post>) -> Result<Page<PostPage>> {
         let entity = (**post).clone();
         let reactions = Post::my_reactions(std::iter::once(&entity))?;
@@ -276,11 +288,11 @@ impl Post {
     }
 
     pub(crate) fn set_text(post: &mut Write<Post>, text_hash: Option<Hash>) -> Result<()> {
-        Self::gate(post)?;
         let forum = Forum::current()?;
         let board = Board::open(post.key.board.clone())?;
         let thread = Thread::open(post.key.board.clone(), post.thread)?;
-        if !thread.is_moderator(&forum, &board)? && !thread.is_author(post)? {
+        Thread::gate(&thread)?;
+        if Self::permissions(post, &forum, &board, &thread)? < Permissions::UserSelfMod {
             return Err(ForumError::NotAuthorized);
         }
         post.text_hash = text_hash;
@@ -294,14 +306,14 @@ impl Post {
     }
 
     pub(crate) fn set_deleted(post: &mut Write<Post>, deleted: bool) -> Result<()> {
-        Self::gate(post)?;
         let forum = Forum::current()?;
         let board = Board::open(post.key.board.clone())?;
         let mut thread = Thread::open(post.key.board.clone(), post.thread)?;
+        Thread::gate(&thread)?;
         let empty = post.text_hash.is_none() && post.media_hashes.is_empty();
-        let authorized =
-            thread.is_moderator(&forum, &board)? || thread.is_author(post)? || (deleted && empty);
-        if !authorized {
+        if Self::permissions(post, &forum, &board, &thread)? < Permissions::UserSelfMod
+            && !(deleted && empty)
+        {
             return Err(ForumError::NotAuthorized);
         }
         if post.deleted == deleted {
@@ -319,9 +331,9 @@ impl Post {
     }
 
     pub(crate) fn vote(post: &mut Write<Post>, choices: Vec<Hash>) -> Result<()> {
-        Self::gate(post)?;
         let sid = Context::author_sid()?;
-        Thread::open(post.key.board.clone(), post.thread)?;
+        let thread = Thread::open(post.key.board.clone(), post.thread)?;
+        Thread::gate(&thread)?;
         if post.deleted || post.votes.len() < 2 {
             return Err(ForumError::PollUnavailable);
         }
@@ -348,10 +360,10 @@ impl Post {
     }
 
     pub(crate) fn react(post: &mut Write<Post>, old: Option<Hash>, reaction: Hash) -> Result<()> {
-        Self::gate(post)?;
         let sid = Context::author_sid()?;
         let board = Board::open(post.key.board.clone())?;
-        let _thread = Thread::open(post.key.board.clone(), post.thread)?;
+        let thread = Thread::open(post.key.board.clone(), post.thread)?;
+        Thread::gate(&thread)?;
         if !board.reactions.contains(&reaction) {
             return Err(ForumError::ReactionNotAllowed);
         }
@@ -403,11 +415,11 @@ impl Post {
     }
 
     pub(crate) fn set_banned(post: &mut Write<Post>, banned: Option<Esid>) -> Result<()> {
-        Self::gate(post)?;
         let forum = Forum::current()?;
         let board = Board::open(post.key.board.clone())?;
         let thread = Thread::open(post.key.board.clone(), post.thread)?;
-        if !thread.is_moderator(&forum, &board)? {
+        Thread::gate(&thread)?;
+        if Thread::permissions(&thread, &forum, &board)? < Permissions::ThreadMod {
             return Err(ForumError::NotAuthorized);
         }
         post.banned = banned;
@@ -416,11 +428,11 @@ impl Post {
     }
 
     pub(crate) fn set_mod_note(post: &mut Write<Post>, value: Option<Hash>) -> Result<()> {
-        Self::gate(post)?;
         let forum = Forum::current()?;
         let board = Board::open(post.key.board.clone())?;
         let thread = Thread::open(post.key.board.clone(), post.thread)?;
-        if !thread.is_moderator(&forum, &board)? {
+        Thread::gate(&thread)?;
+        if Thread::permissions(&thread, &forum, &board)? < Permissions::ThreadMod {
             return Err(ForumError::NotAuthorized);
         }
         post.mod_note_hash = value;

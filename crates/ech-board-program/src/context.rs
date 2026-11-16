@@ -100,15 +100,15 @@ impl Context {
         unimplemented!("program requires the wasm runtime")
     }
 
-    pub fn call() -> Result<Call> {
+    pub fn call() -> Call {
         Self::state(|state| state.request.tx.user.call.clone())
     }
 
-    pub fn time() -> Result<u64> {
+    pub fn time() -> u64 {
         Self::state(|state| state.context.time)
     }
 
-    pub fn requests() -> Result<UserRequests> {
+    pub fn requests() -> UserRequests {
         Self::state(|state| state.context.requests)
     }
 
@@ -116,7 +116,7 @@ impl Context {
         Self::state(|state| match state.context.author {
             Author::User { esid, .. } => Some(esid),
             Author::Server => None,
-        })?
+        })
         .ok_or(ForumError::NotAuthorized)
     }
 
@@ -127,7 +127,7 @@ impl Context {
                 .decryptions
                 .get(esid)
                 .map(|decryption| decryption.sid)
-        })?
+        })
         .ok_or(ForumError::NotAuthorized)
     }
 
@@ -136,22 +136,29 @@ impl Context {
         Self::sid(&esid)
     }
 
-    pub fn is_server() -> Result<bool> {
+    pub fn is_server() -> bool {
         Self::state(|state| matches!(state.context.author, Author::Server))
     }
 
-    pub fn is_author(author: &Esid) -> Result<bool> {
+    pub fn is_author(author: &Esid) -> bool {
         Self::state(|state| match state.context.author {
             Author::User { esid, .. } => esid == *author,
             Author::Server => false,
         })
     }
 
-    fn state<T>(f: impl FnOnce(&State) -> T) -> Result<T> {
+    pub fn is_author_any(authors: &[Esid]) -> bool {
+        Self::state(|state| match &state.context.author {
+            Author::User { esid, .. } => authors.contains(esid),
+            Author::Server => false,
+        })
+    }
+
+    fn state<T>(f: impl FnOnce(&State) -> T) -> T {
         STATE.with(|slot| {
             let slot = slot.borrow();
-            let state = slot.as_ref().ok_or(ForumError::NotAuthorized)?;
-            Ok(f(state))
+            let state = slot.as_ref().expect("context is initialized");
+            f(state)
         })
     }
 }

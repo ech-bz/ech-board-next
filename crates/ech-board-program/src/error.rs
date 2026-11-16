@@ -9,8 +9,6 @@ pub enum ForumError {
     Entity(#[from] EntityError),
     #[error(transparent)]
     Guest(#[from] GuestError),
-    #[error("root owner required")]
-    RootOwnerRequired,
     #[error("not authorized")]
     NotAuthorized,
     #[error("ban expiry is in the past")]
@@ -77,8 +75,6 @@ pub enum ForumError {
     ForumExists,
     #[error("board already exists")]
     BoardExists,
-    #[error("content hash mismatch")]
-    InvalidContentHash,
     #[error("invalid board cursor")]
     InvalidBoardCursor,
     #[error("already banned")]

@@ -41,7 +41,7 @@ fn run(root: Root, request: Request) -> Result<Vec<u8>> {
         txid: *txid.as_array(),
         tx,
     });
-    let call = Context::call()?;
+    let call = Context::call();
     let result = registry::registry().call(&call.function, &call.args)?;
     profile::measure("output_encode", || {
         let output = Output {

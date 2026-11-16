@@ -3,7 +3,8 @@ use serde::{Deserialize, Serialize};
 use ech_board_entity::{entity, Entity};
 use ech_db_guest::{BigLog, Bind};
 
-use crate::component::bans::{Ban, Bans};
+use crate::component::bans::{Ban, Bans, Gate};
+use crate::component::permissions::Permissions;
 use crate::context::Context;
 use crate::entity::{transactions, Board, BoardKey, Page, Read, Write};
 use crate::error::{ForumError, Result};
@@ -32,23 +33,25 @@ pub struct ForumPage {
 }
 
 impl Forum {
-    pub(crate) fn is_moderator(&self) -> Result<bool> {
+    pub(crate) fn permissions(&self) -> Permissions {
+        if Context::is_server() {
+            return Permissions::Root;
+        }
         let value = match self {
             Self::V1(value) => value,
         };
-        if Context::is_server()? {
-            return Ok(true);
+        if Context::is_author_any(&value.moderators) {
+            return Permissions::ForumMod;
         }
-        for esid in &value.moderators {
-            if Context::is_author(esid)? {
-                return Ok(true);
-            }
-        }
-        Ok(false)
+        Permissions::User
+    }
+
+    pub(crate) fn gate(forum: &Forum) -> Result<()> {
+        forum.bans.gate()
     }
 
     pub(crate) fn create() -> Result<ForumKey> {
-        if !Context::is_server()? {
+        if !Context::is_server() {
             return Err(ForumError::NotAuthorized);
         }
         if Entity::<Self>::load(&ForumKey {}).is_ok() {
@@ -96,8 +99,8 @@ impl Forum {
     }
 
     pub(crate) fn set_title(forum: &mut Write<Forum>, title_hash: Hash) -> Result<()> {
-        Bans::gate(&[&forum.bans])?;
-        if !forum.is_moderator()? {
+        Self::gate(forum)?;
+        if forum.permissions() < Permissions::ForumMod {
             return Err(ForumError::NotAuthorized);
         }
         forum.title_hash = Some(title_hash);
@@ -106,8 +109,8 @@ impl Forum {
     }
 
     pub(crate) fn add_moderator(forum: &mut Write<Forum>, member: Esid) -> Result<()> {
-        Bans::gate(&[&forum.bans])?;
-        if !Context::is_server()? {
+        Self::gate(forum)?;
+        if forum.permissions() < Permissions::Root {
             return Err(ForumError::NotAuthorized);
         }
         if !forum.moderators.contains(&member) {
@@ -118,8 +121,8 @@ impl Forum {
     }
 
     pub(crate) fn remove_moderator(forum: &mut Write<Forum>, member: Esid) -> Result<()> {
-        Bans::gate(&[&forum.bans])?;
-        if !Context::is_server()? {
+        Self::gate(forum)?;
+        if forum.permissions() < Permissions::Root {
             return Err(ForumError::NotAuthorized);
         }
         forum.moderators.retain(|entry| *entry != member);
@@ -133,11 +136,11 @@ impl Forum {
         reason_hash: Option<Hash>,
         expires: Option<u64>,
     ) -> Result<()> {
-        Bans::gate(&[&forum.bans])?;
-        if !forum.is_moderator()? {
+        Self::gate(forum)?;
+        if forum.permissions() < Permissions::ForumMod {
             return Err(ForumError::NotAuthorized);
         }
-        let now = Context::time()?;
+        let now = Context::time();
         if expires.is_some_and(|expires| expires <= now) {
             return Err(ForumError::InvalidBanExpiry);
         }
@@ -155,8 +158,8 @@ impl Forum {
     }
 
     pub(crate) fn unban(forum: &mut Write<Forum>, target: Esid) -> Result<()> {
-        Bans::gate(&[&forum.bans])?;
-        if !forum.is_moderator()? {
+        Self::gate(forum)?;
+        if forum.permissions() < Permissions::ForumMod {
             return Err(ForumError::NotAuthorized);
         }
         let sid = Context::sid(&target)?;
@@ -169,6 +172,7 @@ impl Forum {
         after: Option<Esid>,
         limit: u32,
     ) -> Result<Vec<Ban>> {
+        let after = after.as_ref().map(Context::sid).transpose()?;
         forum.bans.entries(after.as_ref(), limit as usize)
     }
 }
