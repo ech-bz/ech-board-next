@@ -16,8 +16,10 @@ use crate::content::Store;
 use crate::error::DomainError;
 use crate::forum::Forum as ForumApi;
 use crate::geo::Geo;
-use crate::resources::Resources;
+use crate::resources::{BlobPayload, Resources, ResourcesPayload};
 use crate::tripcode::Trips;
+
+const RESOURCES_ATTEMPTS: usize = 3;
 
 pub struct App {
     pub forum: Arc<ForumApi>,
@@ -31,12 +33,6 @@ pub struct App {
 pub struct EntityPayload {
     pub kind: String,
     pub id: String,
-    pub value: String,
-}
-
-#[derive(Clone, Serialize)]
-pub struct BlobPayload {
-    pub hash: String,
     pub value: String,
 }
 
@@ -66,16 +62,21 @@ impl ReactionEvent {
 }
 
 #[derive(Clone, Serialize)]
+pub struct EventPayload {
+    pub entities: Vec<EntityPayload>,
+    pub contents: Vec<BlobPayload>,
+    pub attachments: Vec<BlobPayload>,
+    pub transactions: Vec<BlobPayload>,
+}
+
+#[derive(Clone, Serialize)]
 pub struct Event {
     pub txid: String,
     pub function: String,
     pub reaction: Option<ReactionEvent>,
     pub board: String,
     pub thread: String,
-    pub entities: Vec<EntityPayload>,
-    pub contents: Vec<BlobPayload>,
-    pub attachments: Vec<BlobPayload>,
-    pub transactions: Vec<BlobPayload>,
+    pub payload: EventPayload,
 }
 
 pub struct Hub {
@@ -100,55 +101,6 @@ impl Hub {
 
     pub fn publish(&self, event: Event) {
         let _ = self.sender.send(event);
-    }
-
-    async fn resources(
-        &self,
-        store: &Store,
-        values: &[(String, [u8; 32], Vec<u8>)],
-        threads: &BTreeMap<[u8; 32], Vec<u8>>,
-        transactions: &BTreeMap<[u8; 32], Tx>,
-    ) -> Result<(Vec<BlobPayload>, Vec<BlobPayload>, Vec<BlobPayload>), DomainError> {
-        let mut resources = Resources::default();
-        for (namespace, _, bytes) in values {
-            resources.extend(Resources::decode(namespace, bytes)?);
-        }
-        let loaded = resources
-            .load_page(store, threads, transactions, ())
-            .await?;
-        let contents = loaded
-            .contents
-            .into_iter()
-            .filter_map(|(hash, bytes)| {
-                bytes.map(|bytes| BlobPayload {
-                    hash: hex::encode(hash),
-                    value: hex::encode(bytes),
-                })
-            })
-            .collect();
-        let attachments = loaded
-            .attachments
-            .into_iter()
-            .filter_map(|(hash, meta)| {
-                meta.map(|meta| {
-                    Ok(BlobPayload {
-                        hash: hex::encode(hash),
-                        value: hex::encode(bcs::to_bytes(&meta)?),
-                    })
-                })
-            })
-            .collect::<Result<_, DomainError>>()?;
-        let transactions = loaded
-            .transactions
-            .into_iter()
-            .map(|(hash, tx)| {
-                Ok(BlobPayload {
-                    hash: hex::encode(hash),
-                    value: hex::encode(to_bytes(&tx)?),
-                })
-            })
-            .collect::<Result<Vec<_>, DomainError>>()?;
-        Ok((contents, attachments, transactions))
     }
 
     fn scope(&self, entities: &[EntityPayload]) -> Result<(String, String), DomainError> {
@@ -252,6 +204,8 @@ impl Hub {
                             .zip(collected.transactions)
                             .collect();
                         let queue_ms = received.elapsed().as_secs_f64() * 1000.0;
+                        let mut prepared = Vec::with_capacity(pending.len());
+                        let mut total = Resources::default();
                         for entry in pending {
                             let mut payloads = Vec::with_capacity(entry.changes.len());
                             let mut raws = Vec::with_capacity(entry.changes.len());
@@ -280,39 +234,53 @@ impl Hub {
                                     continue;
                                 }
                             };
-                            let resources_started = Instant::now();
-                            let (contents, attachments, transaction_payloads) = match hub
-                                .resources(&content, &raws, &threads, &transactions)
-                                .await
-                            {
-                                Ok(resources) => resources,
+                            let set = raws
+                                .iter()
+                                .try_fold(Resources::default(), |mut set, (namespace, _, bytes)| {
+                                    set.extend(&Resources::decode(namespace, bytes)?);
+                                    Ok(set)
+                                })
+                                .and_then(|set| set.resolve_values(&threads));
+                            let set = match set {
+                                Ok(set) => set,
                                 Err(error) => {
                                     tracing::warn!(%error, txid = %entry.txid, "journal resources");
                                     continue;
                                 }
                             };
-                            let resources_ms = resources_started.elapsed().as_secs_f64() * 1000.0;
-                            if history_ms + queue_ms + resources_ms >= 100.0 {
-                                tracing::info!(
-                                    txid = %entry.txid,
-                                    function = %entry.function,
-                                    history_ms,
-                                    queue_ms,
-                                    resources_ms,
-                                    "slow live update"
-                                );
+                            total.extend(&set);
+                            prepared.push((entry, payloads, board, thread, set));
+                        }
+                        let resources_started = Instant::now();
+                        let mut attempt = 0;
+                        let loaded = loop {
+                            attempt += 1;
+                            match total.load_ready(&content, &transactions, ()).await {
+                                Ok(loaded) => break Some(loaded),
+                                Err(error) => {
+                                    tracing::warn!(%error, attempt, "journal resources");
+                                    if attempt >= RESOURCES_ATTEMPTS {
+                                        break None;
+                                    }
+                                    tokio::time::sleep(Duration::from_millis(200 * attempt as u64))
+                                        .await;
+                                }
                             }
-                            hub.publish(Event {
-                                txid: entry.txid.to_string(),
-                                function: entry.function,
-                                reaction: entry.reaction,
-                                board,
-                                thread,
-                                entities: payloads,
-                                contents,
-                                attachments,
-                                transactions: transaction_payloads,
-                            });
+                        };
+                        let resources_ms = resources_started.elapsed().as_secs_f64() * 1000.0;
+                        if history_ms + queue_ms + resources_ms >= 100.0 {
+                            tracing::info!(
+                                events = prepared.len(),
+                                history_ms,
+                                queue_ms,
+                                resources_ms,
+                                "slow live update"
+                            );
+                        }
+                        if let Some(loaded) = loaded {
+                            for (entry, payloads, board, thread, set) in prepared {
+                                emit(&hub, entry, payloads, board, thread, set.payload(&loaded));
+                            }
                         }
                         cursor = next;
                     }
@@ -328,6 +296,36 @@ impl Hub {
 
 fn hex_of(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn emit(
+    hub: &Hub,
+    entry: Pending,
+    entities: Vec<EntityPayload>,
+    board: String,
+    thread: String,
+    sliced: Result<ResourcesPayload, DomainError>,
+) {
+    let resources = match sliced {
+        Ok(resources) => resources,
+        Err(error) => {
+            tracing::warn!(%error, txid = %entry.txid, "journal slice");
+            return;
+        }
+    };
+    hub.publish(Event {
+        txid: entry.txid.to_string(),
+        function: entry.function,
+        reaction: entry.reaction,
+        board,
+        thread,
+        payload: EventPayload {
+            entities,
+            contents: resources.contents,
+            attachments: resources.attachments,
+            transactions: resources.transactions,
+        },
+    });
 }
 
 struct ChangedEntity<T: Stored> {

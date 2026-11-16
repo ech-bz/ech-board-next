@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use bcs::to_bytes;
 use futures_util::stream::{self, StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 
@@ -28,6 +29,19 @@ pub struct WithResources<T> {
     pub transactions: BTreeMap<Hash, Tx>,
 }
 
+#[derive(Clone, Serialize)]
+pub struct BlobPayload {
+    pub hash: String,
+    pub value: String,
+}
+
+#[derive(Clone, Serialize)]
+pub struct ResourcesPayload {
+    pub contents: Vec<BlobPayload>,
+    pub attachments: Vec<BlobPayload>,
+    pub transactions: Vec<BlobPayload>,
+}
+
 #[derive(Default)]
 pub struct Resources {
     pub contents: BTreeSet<Key>,
@@ -37,13 +51,62 @@ pub struct Resources {
 }
 
 impl Resources {
-    pub fn extend(&mut self, other: Self) {
-        self.contents.extend(other.contents);
-        self.media.extend(other.media);
-        self.transactions.extend(other.transactions);
-        for (id, resources) in other.threads {
-            self.threads.entry(id).or_default().extend(resources);
+    pub fn extend(&mut self, other: &Self) {
+        self.contents.extend(other.contents.iter().copied());
+        self.media.extend(other.media.iter().copied());
+        self.transactions.extend(other.transactions.iter().copied());
+        for (id, resources) in &other.threads {
+            self.threads.entry(*id).or_default().extend(resources);
         }
+    }
+
+    pub fn payload(&self, loaded: &WithResources<()>) -> Result<ResourcesPayload, DomainError> {
+        let contents = self
+            .contents
+            .iter()
+            .filter_map(|key| {
+                let bytes = loaded.contents.get(&key.hash)?.as_ref()?;
+                Some(BlobPayload {
+                    hash: hex::encode(key.hash),
+                    value: hex::encode(bytes),
+                })
+            })
+            .collect();
+        let attachments = self
+            .media
+            .iter()
+            .filter_map(|key| {
+                let meta = loaded.attachments.get(&key.hash)?.as_ref()?;
+                Some(
+                    to_bytes(meta)
+                        .map(|value| BlobPayload {
+                            hash: hex::encode(key.hash),
+                            value: hex::encode(value),
+                        })
+                        .map_err(DomainError::from),
+                )
+            })
+            .collect::<Result<Vec<_>, DomainError>>()?;
+        let transactions = self
+            .transactions
+            .iter()
+            .filter_map(|hash| {
+                let tx = loaded.transactions.get(hash)?;
+                Some(
+                    to_bytes(tx)
+                        .map(|value| BlobPayload {
+                            hash: hex::encode(hash),
+                            value: hex::encode(value),
+                        })
+                        .map_err(DomainError::from),
+                )
+            })
+            .collect::<Result<Vec<_>, DomainError>>()?;
+        Ok(ResourcesPayload {
+            contents,
+            attachments,
+            transactions,
+        })
     }
 
     fn transaction(&mut self, txid: Txid) {
@@ -113,13 +176,16 @@ impl Resources {
         })
     }
 
-    fn resolve_values(mut self, threads: &BTreeMap<Hash, Vec<u8>>) -> Result<Self, DomainError> {
+    pub fn resolve_values(
+        mut self,
+        threads: &BTreeMap<Hash, Vec<u8>>,
+    ) -> Result<Self, DomainError> {
         let pending = std::mem::take(&mut self.threads);
         for (id, resources) in pending {
             let bytes = threads.get(&id).ok_or(DomainError::NotFound)?;
             let thread: Entity<Thread> = bcs::from_bytes(bytes)?;
             if !thread.deleted {
-                self.extend(resources);
+                self.extend(&resources);
             }
         }
         Ok(self)
@@ -136,8 +202,8 @@ impl Resources {
         resources.load_ready(store, transactions, view).await
     }
 
-    async fn load_ready<T>(
-        self,
+    pub async fn load_ready<T>(
+        &self,
         store: &Store,
         transactions: &BTreeMap<Hash, Tx>,
         view: T,
@@ -147,7 +213,7 @@ impl Resources {
             .iter()
             .filter_map(|hash| transactions.get(hash).map(|tx| (*hash, tx.clone())))
             .collect();
-        let contents = stream::iter(self.contents)
+        let contents = stream::iter(self.contents.iter().copied())
             .map(|key| async move {
                 Ok::<_, DomainError>((
                     key.hash,
@@ -156,7 +222,7 @@ impl Resources {
             })
             .buffer_unordered(32)
             .try_collect();
-        let attachments = stream::iter(self.media)
+        let attachments = stream::iter(self.media.iter().copied())
             .map(|key| async move { Ok::<_, DomainError>((key.hash, store.metadata(key).await?)) })
             .buffer_unordered(32)
             .try_collect();
@@ -215,7 +281,7 @@ impl PageResources for ThreadPreview {
         let mut resources = self.thread.resources();
         if !self.thread.deleted {
             for post in self.posts.values() {
-                resources.extend(post.resources());
+                resources.extend(&post.resources());
             }
         }
         resources
@@ -226,7 +292,7 @@ impl PageResources for ForumPage {
     fn resources(&self) -> Resources {
         let mut resources = Resources::default();
         for board in &self.boards {
-            resources.extend(board.resources());
+            resources.extend(&board.resources());
         }
         resources
     }
@@ -236,7 +302,7 @@ impl PageResources for ThreadPage {
     fn resources(&self) -> Resources {
         let mut resources = Resources::default();
         for post in self.posts.values() {
-            resources.extend(post.resources());
+            resources.extend(&post.resources());
         }
         resources
     }
@@ -246,7 +312,7 @@ impl PageResources for BoardPage {
     fn resources(&self) -> Resources {
         let mut resources = Resources::default();
         for thread in &self.threads {
-            resources.extend(thread.resources());
+            resources.extend(&thread.resources());
         }
         resources
     }
