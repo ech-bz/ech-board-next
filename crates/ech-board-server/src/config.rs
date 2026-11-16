@@ -46,7 +46,6 @@ pub struct TripcodeConfig {
 pub struct ContentConfig {
     pub storage: StorageConfig,
     pub cache_bytes: u64,
-    pub cache_max_object_bytes: u32,
     pub concurrency: usize,
     pub processing_concurrency: usize,
 }

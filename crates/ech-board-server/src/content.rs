@@ -29,7 +29,6 @@ const STREAM_THRESHOLD: u64 = 5 * 1024 * 1024;
 pub struct Store {
     backend: Arc<dyn ObjectStore>,
     cache: Cache<Key, Bytes>,
-    cache_max_object_bytes: usize,
     requests: Arc<Semaphore>,
     processing: Semaphore,
 }
@@ -70,7 +69,6 @@ impl Store {
                     u32::try_from(bytes.len().saturating_add(64)).unwrap_or(u32::MAX)
                 })
                 .build(),
-            cache_max_object_bytes: config.cache_max_object_bytes as usize,
             requests: Arc::new(Semaphore::new(config.concurrency)),
             processing: Semaphore::new(config.processing_concurrency),
         })
@@ -78,10 +76,6 @@ impl Store {
 
     fn cached(&self, kind: Kind) -> bool {
         kind != Kind::Media
-    }
-
-    pub fn cacheable(&self, kind: Kind, size: u64) -> bool {
-        self.cached(kind) && size <= self.cache_max_object_bytes as u64
     }
 
     pub async fn put(&self, key: Key, bytes: Bytes) -> Result<(), DomainError> {
@@ -106,14 +100,14 @@ impl Store {
             );
         }
         result.map_err(storage_error)?;
-        if self.cacheable(key.kind, bytes.len() as u64) {
+        if self.cached(key.kind) {
             self.cache.insert(key, bytes).await;
         }
         Ok(())
     }
 
     async fn put_file(&self, key: Key, path: &Path, size: u64) -> Result<(), DomainError> {
-        if self.cacheable(key.kind, size) || size < STREAM_THRESHOLD {
+        if size < STREAM_THRESHOLD {
             return self.put(key, read_file(path).await?).await;
         }
         let started = Instant::now();
@@ -266,18 +260,10 @@ impl Store {
                     .map_err(storage_error)
             })
             .await;
-        match result {
-            Ok(bytes) => {
-                if !self.cacheable(key.kind, bytes.len() as u64) {
-                    self.cache.invalidate(&key).await;
-                }
-                Ok(bytes)
-            }
-            Err(error) => match error.as_ref() {
-                DomainError::NotFound => Err(DomainError::NotFound),
-                error => Err(DomainError::Store(error.to_string())),
-            },
-        }
+        result.map_err(|error| match error.as_ref() {
+            DomainError::NotFound => DomainError::NotFound,
+            error => DomainError::Store(error.to_string()),
+        })
     }
 
     pub async fn optional(&self, key: Key) -> Result<Option<Bytes>, DomainError> {
