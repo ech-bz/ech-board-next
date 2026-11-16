@@ -80,7 +80,6 @@ impl Post {
         vote_keys: Vec<Hash>,
         multi_vote: bool,
     ) -> Result<PostKey> {
-        let user = User::record_post()?;
         Thread::gate(thread)?;
         let forum = Forum::current()?;
         if thread.key.board != board.key.slug {
@@ -112,6 +111,7 @@ impl Post {
             thread.bump = post_number;
         }
         let requests = Context::requests();
+        let user = User::record_post(board.post_rate_limit_ms)?;
         let post = Entity::<Post>::insert(
             PostKey {
                 board: board.key.slug.clone(),
@@ -400,6 +400,7 @@ impl Post {
             }
             post.reacted.insert(&sid, &reaction)?;
         }
+        User::record_reaction(board.reaction_rate_limit_ms)?;
         post.save()?;
         Ok(())
     }

@@ -35,6 +35,8 @@ pub struct BoardV1 {
     pub readonly: bool,
     pub bump_limit: u32,
     pub max_media: u8,
+    pub post_rate_limit_ms: u32,
+    pub reaction_rate_limit_ms: u32,
     pub thread_count: u64,
     pub post_count: u64,
     pub pinned: Vec<u64>,
@@ -173,6 +175,8 @@ impl Board {
                 readonly: false,
                 bump_limit: 500,
                 max_media: 4,
+                post_rate_limit_ms: 0,
+                reaction_rate_limit_ms: 0,
                 thread_count: 0,
                 post_count: 0,
                 pinned: Vec::new(),
@@ -346,6 +350,26 @@ impl Board {
             return Err(ForumError::InvalidMaxMedia);
         }
         board.max_media = value;
+        board.save()?;
+        Ok(())
+    }
+
+    pub(crate) fn set_post_rate_limit(board: &mut Write<Board>, value: u32) -> Result<()> {
+        Self::gate(board)?;
+        if Forum::current()?.permissions() < Permissions::ForumMod {
+            return Err(ForumError::NotAuthorized);
+        }
+        board.post_rate_limit_ms = value;
+        board.save()?;
+        Ok(())
+    }
+
+    pub(crate) fn set_reaction_rate_limit(board: &mut Write<Board>, value: u32) -> Result<()> {
+        Self::gate(board)?;
+        if Forum::current()?.permissions() < Permissions::ForumMod {
+            return Err(ForumError::NotAuthorized);
+        }
+        board.reaction_rate_limit_ms = value;
         board.save()?;
         Ok(())
     }

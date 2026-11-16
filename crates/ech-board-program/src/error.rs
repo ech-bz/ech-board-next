@@ -81,6 +81,10 @@ pub enum ForumError {
     AlreadyBanned,
     #[error("not banned")]
     NotBanned,
+    #[error("rate limited")]
+    RateLimited,
+    #[error("reactions require at least one post")]
+    ReactionRequiresPost,
 }
 
 pub type Result<T> = std::result::Result<T, ForumError>;

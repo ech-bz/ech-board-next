@@ -1,7 +1,7 @@
 use ech_board_entity::Functions;
 
 use crate::debug::Debug;
-use crate::entity::{Board, Forum, Post, Thread};
+use crate::entity::{Board, Forum, Post, Thread, User};
 use crate::error::ForumError;
 
 pub fn registry() -> Functions<ForumError> {
@@ -28,6 +28,11 @@ pub fn registry() -> Functions<ForumError> {
     functions.add("board.set_readonly", Board::set_readonly);
     functions.add("board.set_bump_limit", Board::set_bump_limit);
     functions.add("board.set_max_media", Board::set_max_media);
+    functions.add("board.set_post_rate_limit", Board::set_post_rate_limit);
+    functions.add(
+        "board.set_reaction_rate_limit",
+        Board::set_reaction_rate_limit,
+    );
     functions.add("board.set_description", Board::set_description);
     functions.add("board.set_ignore_forum_bans", Board::set_ignore_forum_bans);
     functions.add("board.set_reactions", Board::set_reactions);
@@ -59,6 +64,8 @@ pub fn registry() -> Functions<ForumError> {
     functions.add("post.unban_media", Post::unban_media);
     functions.add("post.set_banned", Post::set_banned);
     functions.add("post.set_mod_note", Post::set_mod_note);
+
+    functions.add("user.get", User::get);
 
     functions.add_raw("debug.entity", Debug::entity);
     functions.add("debug.changes", Debug::changes);

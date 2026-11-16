@@ -16,15 +16,44 @@ pub enum User {
 pub struct UserV1 {
     pub post_count: u64,
     pub thread_count: u64,
+    pub last_post: u64,
+    pub last_reaction: u64,
 }
 
 impl User {
-    pub(crate) fn record_post() -> Result<Entity<Self>> {
+    pub(crate) fn get() -> Result<Option<Entity<Self>>> {
+        match Entity::<Self>::load(&Context::author_sid()?) {
+            Ok(user) => Ok(Some(user)),
+            Err(EntityError::NotFound) => Ok(None),
+            Err(error) => Err(error.into()),
+        }
+    }
+
+    pub(crate) fn record_post(rate_limit_ms: u32) -> Result<Entity<Self>> {
         Self::update(|user| {
+            let now = Context::time();
+            if now.saturating_sub(user.last_post) < rate_limit_ms as u64 {
+                return Err(ForumError::RateLimited);
+            }
+            user.last_post = now;
             user.post_count = user
                 .post_count
                 .checked_add(1)
                 .ok_or(ForumError::CounterOverflow)?;
+            Ok(())
+        })
+    }
+
+    pub(crate) fn record_reaction(rate_limit_ms: u32) -> Result<Entity<Self>> {
+        Self::update(|user| {
+            if user.post_count == 0 {
+                return Err(ForumError::ReactionRequiresPost);
+            }
+            let now = Context::time();
+            if now.saturating_sub(user.last_reaction) < rate_limit_ms as u64 {
+                return Err(ForumError::RateLimited);
+            }
+            user.last_reaction = now;
             Ok(())
         })
     }
@@ -41,11 +70,7 @@ impl User {
 
     fn update(f: impl FnOnce(&mut Self) -> Result<()>) -> Result<Entity<Self>> {
         let sid = Context::author_sid()?;
-        let existing = match Entity::<Self>::load(&sid) {
-            Ok(user) => Some(user),
-            Err(EntityError::NotFound) => None,
-            Err(error) => return Err(error.into()),
-        };
+        let existing = Self::get()?;
         let mut value = existing
             .as_ref()
             .map(|user| user.value.clone())
@@ -53,6 +78,8 @@ impl User {
                 Self::from(UserV1 {
                     post_count: 0,
                     thread_count: 0,
+                    last_post: 0,
+                    last_reaction: 0,
                 })
             });
         f(&mut value)?;
