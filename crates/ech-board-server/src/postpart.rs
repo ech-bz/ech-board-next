@@ -26,7 +26,7 @@ enum PostPart {
     Plain(String),
     Bold(Vec<PostPart>),
     Italic(Vec<PostPart>),
-    Code(Vec<PostPart>),
+    Code(String),
     ReplyTo {
         forum: Hash,
         board: String,
