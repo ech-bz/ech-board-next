@@ -197,7 +197,11 @@ impl Store {
             Kind::Media | Kind::Reaction => {
                 let directory =
                     tempfile::tempdir().map_err(|error| DomainError::Store(error.to_string()))?;
-                let path = directory.path().join("content");
+                let name = match crate::media::extension(&bytes) {
+                    Some(extension) => format!("content.{extension}"),
+                    None => "content".to_string(),
+                };
+                let path = directory.path().join(name);
                 tokio::fs::write(&path, &bytes)
                     .await
                     .map_err(|error| DomainError::Store(error.to_string()))?;

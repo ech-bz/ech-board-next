@@ -200,6 +200,26 @@ fn mime(bytes: &[u8]) -> Result<&'static str, DomainError> {
     }
 }
 
+pub fn extension(bytes: &[u8]) -> Option<&'static str> {
+    Some(match mime(bytes).ok()? {
+        "image/jpeg" => "jpg",
+        "image/png" => "png",
+        "image/gif" => "gif",
+        "image/webp" => "webp",
+        "image/avif" => "avif",
+        "video/mp4" => "mp4",
+        "video/quicktime" => "mov",
+        "video/x-m4v" => "m4v",
+        "video/webm" => "webm",
+        "video/x-matroska" => "mkv",
+        "audio/mpeg" => "mp3",
+        "audio/aac" => "aac",
+        "audio/ogg" => "ogg",
+        "application/pdf" => "pdf",
+        _ => return None,
+    })
+}
+
 fn demuxer(probe: &Probe) -> Result<&str, DomainError> {
     probe
         .format
