@@ -21,7 +21,7 @@ export function threadFields(model: ForumState, root: string, id: string) {
     opId: () => scope().postIds[numberKey(thread().board, thread().number)] ?? null,
     replyIds: () => thread().lastPosts.flatMap((number) => {
       const id = scope().postIds[numberKey(thread().board, number)]
-      return id && !scope().entities.posts[id]?.deleted ? [id] : []
+      return id && (model.preferences.showDeleted || !scope().entities.posts[id]?.deleted) ? [id] : []
     }),
     topic: () => {
       const hash = thread().topicHash
