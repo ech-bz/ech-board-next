@@ -191,9 +191,10 @@ fn mime(bytes: &[u8]) -> Result<&'static str, DomainError> {
     }
     match infer::get(bytes).map(|kind| kind.mime_type()) {
         Some(
-            known @ ("image/jpeg" | "image/png" | "image/gif" | "image/webp" | "video/mp4"
-            | "video/quicktime" | "video/x-m4v" | "video/webm" | "video/x-matroska"
-            | "audio/mpeg" | "audio/aac" | "audio/ogg" | "application/pdf"),
+            known @ ("image/jpeg" | "image/png" | "image/gif" | "image/webp" | "image/avif"
+            | "video/mp4" | "video/quicktime" | "video/x-m4v" | "video/webm"
+            | "video/x-matroska" | "audio/mpeg" | "audio/aac" | "audio/ogg"
+            | "application/pdf"),
         ) => Ok(known),
         _ => Err(DomainError::BadRequest("unsupported media format".into())),
     }
