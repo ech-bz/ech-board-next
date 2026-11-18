@@ -31,7 +31,7 @@ export const PostPart: BcsType<PostPartInput> = bcs.enum('PostPart', {
   Plain: bcs.string(),
   Bold: bcs.vector(lazy(() => PostPart as unknown as BcsType<PostPartInput>)),
   Italic: bcs.vector(lazy(() => PostPart as unknown as BcsType<PostPartInput>)),
-  Code: bcs.vector(lazy(() => PostPart as unknown as BcsType<PostPartInput>)),
+  Code: bcs.string(),
   ReplyTo: bcs.struct('ReplyTo', {
     forum: Address,
     board: bcs.string(),

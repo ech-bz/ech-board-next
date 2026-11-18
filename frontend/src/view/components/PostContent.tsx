@@ -43,15 +43,6 @@ function renderTextWithLinks(text: string): JSX.Element[] {
   return out
 }
 
-function extractCodeText(parts: PostPartInput[]): string {
-  let s = ''
-  for (const p of parts) {
-    if ('Plain' in p) s += p.Plain
-    else if ('Code' in p) s += extractCodeText(p.Code)
-  }
-  return s.replace(/^\n+/, '').replace(/\n+$/, '')
-}
-
 function trimPlain(part: PostPartInput, re: RegExp): PostPartInput {
   return 'Plain' in part ? { Plain: part.Plain.replace(re, '') } : part
 }
@@ -108,7 +99,7 @@ function renderPart(p: PostPartInput, opts: RenderOpts, renderNested: RenderNest
   }
   if ('Bold' in p) return <b>{renderParts(p.Bold, opts, renderNested)}</b>
   if ('Italic' in p) return <i>{renderParts(p.Italic, opts, renderNested)}</i>
-  if ('Code' in p) return <pre class={'my-1.5 block overflow-x-auto whitespace-pre-wrap break-words rounded-sm bg-panel2 p-2.5 font-mono'}>{extractCodeText(p.Code)}</pre>
+  if ('Code' in p) return <pre class={'my-1.5 block overflow-x-auto whitespace-pre-wrap break-words rounded-sm bg-panel2 p-2.5 font-mono'}>{p.Code.replace(/^\n+/, '').replace(/\n+$/, '')}</pre>
   if ('Underline' in p) return <u>{renderParts(p.Underline, opts, renderNested)}</u>
   if ('Overline' in p) return <span class={'overline'}>{renderParts(p.Overline, opts, renderNested)}</span>
   if ('Spoiler' in p) return <span class={'post-spoiler'}>{renderParts(p.Spoiler, opts, renderNested)}</span>

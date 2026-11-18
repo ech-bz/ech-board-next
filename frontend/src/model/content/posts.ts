@@ -28,7 +28,7 @@ function partText(p: PostPartInput, foldsExpanded: boolean, ctx?: RefContext): s
   if ('Plain' in p) return p.Plain
   if ('Bold' in p) return partsToPlainText(p.Bold, foldsExpanded, ctx)
   if ('Italic' in p) return partsToPlainText(p.Italic, foldsExpanded, ctx)
-  if ('Code' in p) return partsToPlainText(p.Code, foldsExpanded, ctx)
+  if ('Code' in p) return p.Code
   if ('Underline' in p) return partsToPlainText(p.Underline, foldsExpanded, ctx)
   if ('Overline' in p) return partsToPlainText(p.Overline, foldsExpanded, ctx)
   if ('Spoiler' in p) return partsToPlainText(p.Spoiler, foldsExpanded, ctx)
@@ -51,7 +51,7 @@ export function partsToEditText(parts: PostPartInput[], ctx?: RefContext): { tex
       if ('Plain' in p) out += p.Plain
       else if ('Bold' in p) out += `[b]${render(p.Bold)}[/b]`
       else if ('Italic' in p) out += `[i]${render(p.Italic)}[/i]`
-      else if ('Code' in p) out += `[code]${render(p.Code)}[/code]`
+      else if ('Code' in p) out += `[code]${p.Code}[/code]`
       else if ('Underline' in p) out += `[u]${render(p.Underline)}[/u]`
       else if ('Overline' in p) out += `[o]${render(p.Overline)}[/o]`
       else if ('Spoiler' in p) out += `[spoiler]${render(p.Spoiler)}[/spoiler]`

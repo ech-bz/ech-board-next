@@ -2,12 +2,11 @@ import { encryptSecret, type SecretKey } from '../io/crypto/secret'
 import type { PostPartInput } from '../io/ech/protocol/types'
 import { serializePostParts } from '../io/ech/protocol/types'
 
-type VariantName = 'Bold' | 'Italic' | 'Code' | 'Underline' | 'Overline' | 'Spoiler' | 'Strike' | 'Sup' | 'Sub'
+type VariantName = 'Bold' | 'Italic' | 'Underline' | 'Overline' | 'Spoiler' | 'Strike' | 'Sup' | 'Sub'
 
 const TAG_MAP: Record<string, VariantName> = {
   b: 'Bold',
   i: 'Italic',
-  code: 'Code',
   u: 'Underline',
   o: 'Overline',
   spoiler: 'Spoiler',
@@ -44,6 +43,7 @@ function parsePostRef(raw: string): PostRef | null {
 
 export type ParsedPart =
   | { kind: 'plain'; text: string }
+  | { kind: 'code'; text: string }
   | { kind: 'formatted'; variant: VariantName; children: ParsedPart[] }
   | { kind: 'secret'; children: ParsedPart[] }
   | { kind: 'secretRef'; index: number }
@@ -152,6 +152,20 @@ export async function parseBbCode(text: string, resolvePost?: PostResolver): Pro
       const children = await parseBbCode(inner, resolvePost)
       result.push({ kind: 'fold', title, children })
       i = endTag + FOLD_CLOSE.length
+      continue
+    }
+
+    if (tagName === 'code') {
+      const codeClose = '[/code]'
+      const endTag = text.indexOf(codeClose, closeBracket + 1)
+      if (endTag === -1) {
+        pushPlain(result, text.slice(i, closeBracket + 1))
+        i = closeBracket + 1
+        continue
+      }
+      const inner = text.slice(closeBracket + 1, endTag)
+      result.push({ kind: 'code', text: inner })
+      i = endTag + codeClose.length
       continue
     }
 
@@ -272,6 +286,8 @@ async function convertParts(
   for (const p of parts) {
     if (p.kind === 'plain') {
       out.push({ Plain: p.text })
+    } else if (p.kind === 'code') {
+      out.push({ Code: p.text })
     } else if (p.kind === 'reply') {
       out.push({ ReplyTo: { forum: p.forum, board: p.board, post: p.post } })
     } else if (p.kind === 'secretRef') {
