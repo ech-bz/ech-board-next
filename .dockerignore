@@ -4,3 +4,5 @@
 !crates
 !crates/**
 !Dockerfile
+!artifacts
+!artifacts/forum.wasm

@@ -21,8 +21,29 @@ permissions:
   packages: write
 
 jobs:
+  program:
+    name: build forum program
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.94.1
+          targets: wasm32-unknown-unknown
+
+      - run: RUSTFLAGS="-C target-feature=+simd128" cargo build --locked -p ech-board-program --target wasm32-unknown-unknown --profile guest
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: forum-wasm
+          path: target/wasm32-unknown-unknown/guest/ech_board_program.wasm
+          if-no-files-found: error
+          retention-days: 1
+
   build:
     name: build (${{ matrix.arch }})
+    needs: program
     strategy:
       fail-fast: false
       matrix:
@@ -36,6 +57,13 @@ jobs:
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: forum-wasm
+          path: artifacts
+
+      - run: mv artifacts/ech_board_program.wasm artifacts/forum.wasm
 
       - uses: docker/setup-buildx-action@v3
 
