@@ -125,6 +125,7 @@ export function PostBody(props: {
   }
   const lineCount = createMemo(() => postLineCount(props.post.parts ?? [], expandFolds()))
   const long = () => lineCount() > 15
+  const hasBody = () => props.post.media.length > 0 || (props.post.parts !== null ? props.post.parts.length > 0 : props.post.plain.length > 0)
   const fullTime = () => {
     if (!props.post.createdAt) return ''
     const d = new Date(props.post.createdAt)
@@ -156,7 +157,7 @@ export function PostBody(props: {
         tooltip: !!props.tooltip,
       })}
     >
-      <div class={'mb-1.5 flex items-center gap-1.5 text-sm text-secondary'}>
+      <div class={'flex items-center gap-1.5 text-sm text-secondary'} classList={{ 'mb-1.5': hasBody() }}>
         <Show when={selectable()}>
           <span
             role="checkbox"
