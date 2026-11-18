@@ -44,7 +44,7 @@ export function createThreadScroll(total: Accessor<number>, revision: Accessor<n
     }
     const bottom = y >= edge - 8
     if (!intent && bottom) following = true
-    if (!intent && following && lastEdge !== null && previousTotal > 0 && edge > lastEdge) intent = { target: 'bottom', animated: false }
+    if (!intent && following && lastEdge !== null && previousTotal > 0 && edge > lastEdge && !document.querySelector('[data-tooltip-layer]')) intent = { target: 'bottom', animated: false }
     lastEdge = edge
     setViewport({ y, edge, visible })
     const next = intent

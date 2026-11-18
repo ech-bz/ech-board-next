@@ -75,7 +75,13 @@ export function PostTooltipProvider(props: {
   })
 
   const open = (anchor: HTMLElement, target: PostTooltipTarget) => {
-    if (current.some((entry) => entry.anchor === anchor)) return
+    const same = current.find((entry) => entry.target.board === target.board && entry.target.number === target.number && entry.target.forumId === target.forumId)
+    if (same) {
+      same.setAnchor(anchor)
+      clearClose()
+      return
+    }
+    if (current.some((entry) => entry.anchor() === anchor)) return
     clearClose()
     let nested = false
     for (let i = current.length - 1; i >= 0; i--) {
@@ -86,9 +92,11 @@ export function PostTooltipProvider(props: {
       }
     }
     const id = controller.openPreview(target)
+    const [anchorSignal, setAnchorSignal] = createSignal(anchor)
     const entry: Entry = {
       id,
-      anchor,
+      anchor: anchorSignal,
+      setAnchor: setAnchorSignal,
       target,
     }
     if (nested) {
@@ -99,7 +107,7 @@ export function PostTooltipProvider(props: {
     }
   }
 
-  const isOpen = (anchor: HTMLElement) => current.some((entry) => entry.anchor === anchor)
+  const isOpen = (anchor: HTMLElement) => current.some((entry) => entry.anchor() === anchor)
   const api: Api = { open, isOpen }
 
   const isOver = (el: HTMLElement | null | undefined, e: PointerEvent): boolean => {
@@ -114,7 +122,7 @@ export function PostTooltipProvider(props: {
     let deeperKept = false
     let deepestKept = -1
     for (let i = current.length - 1; i >= 0; i--) {
-      const inOwn = isOver(elements.get(current[i].id), e) || isOver(current[i].anchor, e)
+      const inOwn = isOver(elements.get(current[i].id), e) || isOver(current[i].anchor(), e)
       const stay: boolean = inOwn || deeperKept
       if (stay && deepestKept === -1) deepestKept = i
       deeperKept = stay

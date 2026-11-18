@@ -1,5 +1,5 @@
 import { cva } from 'class-variance-authority'
-import { createSignal, onCleanup, Show } from 'solid-js'
+import { createEffect, createSignal, onCleanup, Show } from 'solid-js'
 
 import type { Accessor } from 'solid-js'
 import { useForumQueries } from '../../bindings/forum'
@@ -8,11 +8,12 @@ import type { PostTooltipTarget } from './usePostTooltip'
 
 export interface Entry {
   id: number
-  anchor: HTMLElement
+  anchor: Accessor<HTMLElement>
+  setAnchor: (el: HTMLElement) => void
   target: PostTooltipTarget
 }
 
-const tooltipLayerVariants = cva('absolute z-tooltip w-max transition-opacity duration-[150ms]', {
+const tooltipLayerVariants = cva('absolute z-tooltip w-max max-w-full transition-opacity duration-[150ms]', {
   variants: {
     hidden: {
       true: 'invisible',
@@ -26,7 +27,6 @@ const tooltipLayerVariants = cva('absolute z-tooltip w-max transition-opacity du
     },
   },
 })
-const tooltipLoadingVariants = cva('h-6 w-tooltip')
 const TOOLTIP_OFFSET_X = 24
 
 export function TooltipLayer(props: {
@@ -39,7 +39,13 @@ export function TooltipLayer(props: {
   let root: HTMLDivElement | undefined
   const [pos, setPos] = createSignal<{ left: number; top: number } | null>(null)
   const [shown, setShown] = createSignal(false)
-  const enter = requestAnimationFrame(() => requestAnimationFrame(() => setShown(true)))
+  let enter = 0
+  let entered = false
+  const fadeIn = () => {
+    if (entered) return
+    entered = true
+    enter = requestAnimationFrame(() => requestAnimationFrame(() => setShown(true)))
+  }
 
   onCleanup(() => cancelAnimationFrame(enter))
 
@@ -65,9 +71,11 @@ export function TooltipLayer(props: {
   }
 
   const measure = () => {
-    if (!root) return
+    if (!root || !root.isConnected) return
+    const anchor = props.entry.anchor()
+    if (!anchor.isConnected) return
     const el = root
-    const ar = props.entry.anchor.getBoundingClientRect()
+    const ar = anchor.getBoundingClientRect()
     const { left: wallLeft, right: wallRight } = wall()
     const { tr, bottom, right } = edges(el)
     const width = tr.width
@@ -83,13 +91,20 @@ export function TooltipLayer(props: {
       const r = b.getBoundingClientRect()
       if (r.top > topLimit && r.top < bottomLimit) bottomLimit = r.top
     }
-    const top = ar.bottom + outerHeight > bottomLimit ? ar.top - outerHeight : ar.bottom
+    const below = ar.bottom
+    const above = ar.top - outerHeight
+    const top = below + outerHeight <= bottomLimit || above < topLimit ? below : above
     const left = Math.max(wallLeft, Math.min(ar.left + TOOLTIP_OFFSET_X, wallRight - width - overhang))
     setPos({ left: left + window.scrollX, top: top + window.scrollY })
+    fadeIn()
   }
 
   window.addEventListener('resize', measure)
   const observer = new ResizeObserver(measure)
+  createEffect(() => {
+    props.entry.anchor()
+    requestAnimationFrame(measure)
+  })
   onCleanup(() => {
     window.removeEventListener('resize', measure)
     observer.disconnect()
@@ -106,27 +121,26 @@ export function TooltipLayer(props: {
   }
 
   return (
-    <div
-      ref={(el) => {
-        root = el
-        props.register(el)
-        if (el) {
-          observer.observe(el)
-          const parent = props.entry.anchor.closest<HTMLElement>('[data-tooltip-layer]')
-          if (parent) observer.observe(parent)
-        }
-        measure()
-      }}
-      data-tooltip-layer=""
-      class={tooltipLayerVariants({ hidden: !pos(), shown: shown() && !props.closing?.(), closing: props.closing?.() })}
-      style={pos() ? { left: `${pos()!.left}px`, top: `${pos()!.top}px` } : undefined}
-    >
-      <Show when={post()} fallback={<div class={tooltipLoadingVariants()} />}>
-        {(rec) => (
+    <Show when={post()}>
+      {(rec) => (
+        <div
+          ref={(el) => {
+            root = el
+            props.register(el)
+            if (el) {
+              observer.observe(el)
+              const parent = props.entry.anchor().closest<HTMLElement>('[data-tooltip-layer]')
+              if (parent) observer.observe(parent)
+              requestAnimationFrame(measure)
+            }
+          }}
+          data-tooltip-layer=""
+          class={tooltipLayerVariants({ hidden: !pos(), shown: shown() && !props.closing?.(), closing: props.closing?.() })}
+          style={pos() ? { left: `${pos()!.left}px`, top: `${pos()!.top}px` } : { left: '0px', top: '0px' }}
+        >
           <PostBody
             post={rec()}
             ctx={{
-
               relayUrl: context()!.relayUrl,
               forumId: context()!.forumId,
               boardId: context()!.boardId,
@@ -138,8 +152,8 @@ export function TooltipLayer(props: {
             boardPage={props.boardPage}
             tooltip
           />
-        )}
-      </Show>
-    </div>
+        </div>
+      )}
+    </Show>
   )
 }
