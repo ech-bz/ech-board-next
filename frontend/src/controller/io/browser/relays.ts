@@ -1,7 +1,7 @@
 import { forumKey } from '../../../model/selectors/forum'
 import type { ForumInfo } from '../../../model/state/navigation'
 
-export const SERVER_URL = (import.meta.env.VITE_ECH_SERVER ?? 'https://testnewech.duckdns.org/next/').replace(/\/$/, '')
+export const SERVER_URL = (import.meta.env.VITE_ECH_SERVER ?? 'https://newech.duckdns.org').replace(/\/$/, '')
 export const DEFAULT_RELAY_URL = SERVER_URL
 
 const TABS_KEY = 'ech-forum/relay-tabs'
