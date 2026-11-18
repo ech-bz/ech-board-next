@@ -279,8 +279,10 @@ impl PageResources for ThreadMeta {
 impl PageResources for ThreadPreview {
     fn resources(&self) -> Resources {
         let mut resources = self.thread.resources();
-        if !self.thread.deleted {
-            for post in self.posts.values() {
+        for post in self.posts.values() {
+            if self.thread.deleted {
+                resources.transaction(post.genesis);
+            } else {
                 resources.extend(&post.resources());
             }
         }
