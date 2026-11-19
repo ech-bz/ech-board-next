@@ -132,6 +132,10 @@ fn decode_expected(function: &str, args: &[u8]) -> Option<Expected> {
             let (hashes,): (Vec<Hash>,) = bcs::from_bytes(rest).ok()?;
             expected.add(Kind::Reaction, hashes);
         }
+        "forum.ban" | "board.ban" | "thread.ban" => {
+            let (_, reason, _): (Hash, Option<Hash>, Option<u64>) = bcs::from_bytes(rest).ok()?;
+            expected.add(Kind::Plaintext, reason);
+        }
         _ => {}
     }
     Some(expected)

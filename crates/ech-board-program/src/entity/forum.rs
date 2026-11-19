@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use ech_board_entity::{entity, Entity};
-use ech_db_guest::{BigLog, Bind};
+use ech_db_guest::{BigLog, Bind, Txid};
 
 use crate::component::bans::{Ban, Bans, BansGate};
 use crate::component::permissions::Permissions;
@@ -141,7 +141,7 @@ impl Forum {
 
     pub(crate) fn ban(
         forum: &mut Write<Forum>,
-        target: Esid,
+        target: Txid,
         reason_hash: Option<Hash>,
         expires: Option<u64>,
     ) -> Result<()> {
@@ -153,11 +153,9 @@ impl Forum {
         if expires.is_some_and(|expires| expires <= now) {
             return Err(ForumError::InvalidBanExpiry);
         }
-        let sid = Context::sid(&target)?;
         forum.bans.ban(
-            sid,
             Ban {
-                esid: target,
+                target,
                 reason_hash,
                 expires,
             },
@@ -166,22 +164,20 @@ impl Forum {
         Ok(())
     }
 
-    pub(crate) fn unban(forum: &mut Write<Forum>, target: Esid) -> Result<()> {
+    pub(crate) fn unban(forum: &mut Write<Forum>, target: Txid) -> Result<()> {
         Self::check_bans(forum)?;
         if forum.permissions() < Permissions::ForumMod {
             return Err(ForumError::NotAuthorized);
         }
-        let sid = Context::sid(&target)?;
-        forum.bans.unban(&sid, &target)?;
+        forum.bans.unban(target)?;
         Ok(())
     }
 
     pub(crate) fn ban_list(
         forum: &Read<Forum>,
-        after: Option<Esid>,
+        after: Option<Txid>,
         limit: u32,
     ) -> Result<Vec<Ban>> {
-        let after = after.as_ref().map(Context::sid).transpose()?;
-        forum.bans.entries(after.as_ref(), limit as usize)
+        forum.bans.list(after.as_ref(), limit as usize)
     }
 }

@@ -3,13 +3,14 @@ use std::collections::{BTreeMap, HashSet};
 use serde::{Deserialize, Serialize};
 
 use ech_board_entity::{entity, Entity, Stored};
-use ech_db_guest::{Author, BigMap, Bind};
+use ech_db_guest::{Author, BigMap, Bind, Txid};
 
+use crate::component::bans::{BanScope, Bans};
 use crate::component::permissions::Permissions;
 use crate::context::{Context, ServerContext};
 use crate::entity::{transactions, Board, Forum, Page, Read, Thread, User, Write};
 use crate::error::{ForumError, Result};
-use crate::types::{Esid, Hash, Sid, EDIT_WINDOW_MS};
+use crate::types::{Hash, Sid, EDIT_WINDOW_MS};
 
 #[derive(Bind, Serialize, Deserialize, Clone, PartialEq, Eq, Debug)]
 pub struct PostKey {
@@ -38,7 +39,6 @@ pub struct PostV1 {
     pub voted: BigMap<Sid, Vec<Hash>>,
     pub reacted: BigMap<Sid, Hash>,
     pub mod_note_hash: Option<Hash>,
-    pub banned: Option<Esid>,
     pub postcount: Option<u64>,
     pub threadcount: Option<u64>,
 }
@@ -47,6 +47,7 @@ pub struct PostV1 {
 pub struct PostPage {
     pub post: Entity<Post>,
     pub my_reactions: BTreeMap<Hash, Hash>,
+    pub bans: BTreeMap<BanScope, Vec<Txid>>,
 }
 
 impl Post {
@@ -132,7 +133,6 @@ impl Post {
                 voted: BigMap::new(),
                 reacted: BigMap::new(),
                 mod_note_hash: None,
-                banned: None,
                 postcount: requests.postcount.then_some(user.post_count),
                 threadcount: requests.postcount.then_some(user.thread_count),
             }),
@@ -190,7 +190,6 @@ impl Post {
                 voted: BigMap::new(),
                 reacted: BigMap::new(),
                 mod_note_hash: None,
-                banned: None,
                 postcount: None,
                 threadcount: None,
             }),
@@ -273,13 +272,17 @@ impl Post {
     pub(crate) fn get(post: &Read<Post>) -> Result<Page<PostPage>> {
         let entity = (**post).clone();
         let reactions = Post::my_reactions(std::iter::once(&entity))?;
+        let forum = Forum::current()?;
+        let board = Board::open(entity.key.board.clone())?;
         let thread = Thread::open(entity.key.board.clone(), entity.thread)?;
+        let bans = Bans::filter(&forum, &board, &thread, &[entity.genesis])?;
         let transactions = transactions(vec![entity.genesis, thread.genesis])?;
         let entry = (thread.id(), bcs::to_bytes(&thread).expect("thread encodes"));
         Ok(Page {
             view: PostPage {
                 post: entity,
                 my_reactions: reactions,
+                bans,
             },
             threads: vec![entry],
             transactions,
@@ -412,19 +415,6 @@ impl Post {
 
     pub(crate) fn unban_media(post: &mut Write<Post>, hashes: Vec<Hash>) -> Result<()> {
         Self::set_media(post, hashes, false)
-    }
-
-    pub(crate) fn set_banned(post: &mut Write<Post>, banned: Option<Esid>) -> Result<()> {
-        let forum = Forum::current()?;
-        let board = Board::open(post.key.board.clone())?;
-        let thread = Thread::open(post.key.board.clone(), post.thread)?;
-        Thread::check_bans(&thread)?;
-        if Thread::permissions(&thread, &forum, &board)? < Permissions::ThreadMod {
-            return Err(ForumError::NotAuthorized);
-        }
-        post.banned = banned;
-        post.save()?;
-        Ok(())
     }
 
     pub(crate) fn set_mod_note(post: &mut Write<Post>, value: Option<Hash>) -> Result<()> {

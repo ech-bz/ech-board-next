@@ -177,6 +177,7 @@ impl Hub {
                             }
                             pending.push(Pending {
                                 txid,
+                                tx: record.tx.clone(),
                                 function: record.tx.user.call.function.clone(),
                                 reaction,
                                 changes,
@@ -313,6 +314,17 @@ fn emit(
             return;
         }
     };
+    let mut transactions = resources.transactions;
+    let txid = hex_of(entry.txid.as_bytes());
+    if !transactions.iter().any(|item| item.hash == txid) {
+        match to_bytes(&entry.tx) {
+            Ok(bytes) => transactions.push(BlobPayload {
+                hash: txid,
+                value: hex_of(&bytes),
+            }),
+            Err(error) => tracing::warn!(%error, txid = %entry.txid, "journal tx encode"),
+        }
+    }
     hub.publish(Event {
         txid: entry.txid.to_string(),
         function: entry.function,
@@ -323,7 +335,7 @@ fn emit(
             entities,
             contents: resources.contents,
             attachments: resources.attachments,
-            transactions: resources.transactions,
+            transactions,
         },
     });
 }
@@ -355,6 +367,7 @@ fn decode_changes(result: &[u8]) -> Vec<Changed> {
 
 struct Pending {
     txid: Txid,
+    tx: Tx,
     function: String,
     reaction: Option<ReactionEvent>,
     changes: Vec<Changed>,

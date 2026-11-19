@@ -64,7 +64,6 @@ pub fn registry() -> Functions<ForumError> {
     functions.add("post.react", Post::react);
     functions.add("post.ban_media", Post::ban_media);
     functions.add("post.unban_media", Post::unban_media);
-    functions.add("post.set_banned", Post::set_banned);
     functions.add("post.set_mod_note", Post::set_mod_note);
 
     functions.add("user.get", User::get);

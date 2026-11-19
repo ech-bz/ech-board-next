@@ -5,6 +5,7 @@ use futures_util::stream::{self, StreamExt, TryStreamExt};
 use serde::{Deserialize, Serialize};
 
 use ech_board_entity::{Entity, Stored};
+use ech_board_program::component::bans::Ban;
 use ech_board_program::entity::{
     Board, BoardPage, Forum, ForumKey, ForumPage, Post, PostPage, PostV1, Thread, ThreadKey,
     ThreadMeta, ThreadPage, ThreadPreview,
@@ -344,6 +345,17 @@ impl PageResources for PostV1 {
 impl PageResources for PostPage {
     fn resources(&self) -> Resources {
         self.post.resources()
+    }
+}
+
+impl PageResources for Vec<Ban> {
+    fn resources(&self) -> Resources {
+        let mut resources = Resources::default();
+        resources.text(
+            Kind::Plaintext,
+            self.iter().filter_map(|ban| ban.reason_hash),
+        );
+        resources
     }
 }
 

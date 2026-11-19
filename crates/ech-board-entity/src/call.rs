@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use ech_db_guest::Esid;
+use ech_db_guest::{Esid, Txid};
 use serde::de::DeserializeOwned;
 
 use crate::{Entity, EntityError, Stored};
@@ -85,6 +85,7 @@ value_arguments! {
     [] u64,
     [] String,
     [] Esid,
+    [] Txid,
     [<const LENGTH: usize>] [u8; LENGTH],
     [<T: DeserializeOwned + 'static>] Option<T>,
     [<T: DeserializeOwned + 'static>] Vec<T>,

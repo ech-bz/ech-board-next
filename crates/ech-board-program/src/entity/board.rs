@@ -3,9 +3,9 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 use serde::{Deserialize, Serialize};
 
 use ech_board_entity::{entity, Entity};
-use ech_db_guest::Bind;
+use ech_db_guest::{Bind, Txid};
 
-use crate::component::bans::{Ban, Bans, BansGate};
+use crate::component::bans::{Ban, BanScope, Bans, BansGate};
 use crate::component::board_index::{BoardIndex, BoardOrderKey};
 use crate::component::permissions::Permissions;
 use crate::context::Context;
@@ -58,6 +58,7 @@ pub struct BoardCursor {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct BoardPage {
     pub my_reactions: BTreeMap<Hash, Hash>,
+    pub bans: BTreeMap<BanScope, Vec<Txid>>,
     pub threads: Vec<ThreadPreview>,
     pub next: Option<BoardCursor>,
 }
@@ -227,6 +228,14 @@ impl Board {
     ) -> Result<Page<BoardPage>> {
         let (numbers, next) = board.paginate(cursor)?;
         let threads = Self::previews(board, &numbers)?;
+        let forum = Forum::current()?;
+        let mut bans: BTreeMap<BanScope, Vec<Txid>> = BTreeMap::new();
+        for preview in &threads {
+            let own: Vec<Txid> = preview.posts.values().map(|post| post.genesis).collect();
+            for (scope, found) in Bans::filter(&forum, board, &preview.thread, &own)? {
+                bans.entry(scope).or_default().extend(found);
+            }
+        }
         let mut txids = Vec::new();
         let mut entries = Vec::with_capacity(threads.len());
         for thread in &threads {
@@ -244,6 +253,7 @@ impl Board {
                 my_reactions: Post::my_reactions(
                     threads.iter().flat_map(|thread| thread.posts.values()),
                 )?,
+                bans,
                 threads,
                 next,
             },
@@ -276,7 +286,7 @@ impl Board {
 
     pub(crate) fn ban(
         board: &mut Write<Board>,
-        target: Esid,
+        target: Txid,
         reason_hash: Option<Hash>,
         expires: Option<u64>,
     ) -> Result<()> {
@@ -288,11 +298,9 @@ impl Board {
         if expires.is_some_and(|expires| expires <= now) {
             return Err(ForumError::InvalidBanExpiry);
         }
-        let sid = Context::sid(&target)?;
         board.bans.ban(
-            sid,
             Ban {
-                esid: target,
+                target,
                 reason_hash,
                 expires,
             },
@@ -301,23 +309,21 @@ impl Board {
         Ok(())
     }
 
-    pub(crate) fn unban(board: &mut Write<Board>, target: Esid) -> Result<()> {
+    pub(crate) fn unban(board: &mut Write<Board>, target: Txid) -> Result<()> {
         Self::check_bans(board)?;
         if board.permissions(&*Forum::current()?) < Permissions::BoardMod {
             return Err(ForumError::NotAuthorized);
         }
-        let sid = Context::sid(&target)?;
-        board.bans.unban(&sid, &target)?;
+        board.bans.unban(target)?;
         Ok(())
     }
 
     pub(crate) fn ban_list(
         board: &Read<Board>,
-        after: Option<Esid>,
+        after: Option<Txid>,
         limit: u32,
     ) -> Result<Vec<Ban>> {
-        let after = after.as_ref().map(Context::sid).transpose()?;
-        board.bans.entries(after.as_ref(), limit as usize)
+        board.bans.list(after.as_ref(), limit as usize)
     }
 
     pub(crate) fn set_readonly(board: &mut Write<Board>, value: bool) -> Result<()> {

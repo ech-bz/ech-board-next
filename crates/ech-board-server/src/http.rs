@@ -21,6 +21,7 @@ use ech_board_program::context::UserRequests;
 use ech_board_program::entity::{
     Board, BoardKey, BoardPage, Forum, ForumPage, Page, PostPage, Thread, ThreadMeta, ThreadPage,
 };
+use ech_board_program::component::bans::Ban;
 use ech_board_program::types::{Esid, Hash};
 use ech_db_protocol::id::Txid;
 use ech_db_protocol::value::{Author, Tx, UserPart};
@@ -146,12 +147,18 @@ const THREAD_BOARD_EVENTS: &[&str] = &[
     "board.set_reactions",
     "board.add_moderator",
     "board.remove_moderator",
+    "board.ban",
+    "board.unban",
+    "thread.ban",
+    "thread.unban",
 ];
 
 const THREAD_FORUM_EVENTS: &[&str] = &[
     "forum.add_moderator",
     "forum.remove_moderator",
     "forum.set_title",
+    "forum.ban",
+    "forum.unban",
 ];
 
 enum Subscription {
@@ -579,6 +586,10 @@ async fn hydrate(app: &App, function: &str, result: Vec<u8>) -> Result<Vec<u8>, 
             view::<ThreadPage>(app, &result).await
         }
         "post.get" => view::<PostPage>(app, &result).await,
+        "forum.ban_list" | "board.ban_list" | "thread.ban_list" => {
+            let bans: Vec<Ban> = from_bytes(&result)?;
+            loaded(app, bans, BTreeMap::new(), BTreeMap::new()).await
+        }
         _ => Ok(result),
     }
 }
@@ -592,10 +603,21 @@ where
         tracing::debug_span!(target: "latency", "query.decode_page", bytes = result.len())
             .in_scope(|| from_bytes(result))?;
     drop(decode);
+    let threads = page.threads.into_iter().collect();
+    let transactions = page.transactions.into_iter().collect();
+    loaded(app, page.view, threads, transactions).await
+}
+
+async fn loaded<T>(
+    app: &App,
+    view: T,
+    threads: BTreeMap<Hash, Vec<u8>>,
+    transactions: BTreeMap<Hash, Tx>,
+) -> Result<Vec<u8>, DomainError>
+where
+    T: PageResources + Serialize,
+{
     let load = Timer::new("resources");
-    let threads: BTreeMap<Hash, Vec<u8>> = page.threads.into_iter().collect();
-    let transactions: BTreeMap<Hash, Tx> = page.transactions.into_iter().collect();
-    let view = page.view;
     let resources = view.resources();
     let loaded = resources
         .load_page(&app.content, &threads, &transactions, view)
