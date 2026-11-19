@@ -38,15 +38,13 @@ export function createThreadScroll(total: Accessor<number>, revision: Accessor<n
     const y = window.scrollY
     const edge = Math.max(0, document.documentElement.scrollHeight - window.innerHeight)
     const visible = document.visibilityState === 'visible'
-    if (!visible) {
-      setViewport({ y, edge, visible })
-      return
-    }
-    const bottom = y >= edge - 8
-    if (!intent && bottom) following = true
-    if (!intent && following && lastEdge !== null && previousTotal > 0 && edge > lastEdge && !document.querySelector('[data-tooltip-layer]')) intent = { target: 'bottom', animated: false }
+    const grew = lastEdge !== null && edge > lastEdge
     lastEdge = edge
     setViewport({ y, edge, visible })
+    if (!visible) return
+    const bottom = y >= edge - 8
+    if (!intent && bottom) following = true
+    if (!intent && following && previousTotal > 0 && grew && !document.querySelector('[data-tooltip-layer]')) intent = { target: 'bottom', animated: false }
     const next = intent
     if (!next) return
     if (next.target === 'post') {
@@ -77,6 +75,10 @@ export function createThreadScroll(total: Accessor<number>, revision: Accessor<n
   const yieldBar = (event: PointerEvent) => {
     if (event.clientX >= document.documentElement.clientWidth) stopFollowing()
   }
+  const visibility = () => {
+    if (document.visibilityState !== 'visible') lastEdge = null
+    schedule()
+  }
   const observer = new ResizeObserver(schedule)
   observer.observe(document.body)
   window.addEventListener('scroll', schedule, { passive: true })
@@ -85,7 +87,7 @@ export function createThreadScroll(total: Accessor<number>, revision: Accessor<n
   window.addEventListener('touchstart', yieldScroll, { passive: true })
   window.addEventListener('keydown', yieldScroll)
   document.addEventListener('pointerdown', yieldBar, { passive: true })
-  document.addEventListener('visibilitychange', schedule)
+  document.addEventListener('visibilitychange', visibility)
   createEffect(() => {
     const count = total()
     const currentRevision = revision()
@@ -100,7 +102,7 @@ export function createThreadScroll(total: Accessor<number>, revision: Accessor<n
       return
     }
     if (missed) { stopFollowing(); schedule(); return }
-    if (count > previous && following) {
+    if (count > previous && following && document.visibilityState === 'visible') {
       const now = performance.now()
       request({ target: 'bottom', animated: now - lastFollowAt > 250 })
       lastFollowAt = now
@@ -121,7 +123,7 @@ export function createThreadScroll(total: Accessor<number>, revision: Accessor<n
     window.removeEventListener('touchstart', yieldScroll)
     window.removeEventListener('keydown', yieldScroll)
     document.removeEventListener('pointerdown', yieldBar)
-    document.removeEventListener('visibilitychange', schedule)
+    document.removeEventListener('visibilitychange', visibility)
   })
   return {
     viewport,

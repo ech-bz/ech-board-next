@@ -10,7 +10,7 @@ export function createThreadUnread(total: Accessor<number>, reloadSeq: Accessor<
     const count = total()
     const reloadSequence = reloadSeq()
     const fact = viewport()
-    controller.observeUnread({ total: count, reloadSequence, visible: fact.visible, atBottom: fact.y >= fact.edge - 0.5 }, source)
+    controller.observeUnread({ total: count, reloadSequence, visible: document.visibilityState === 'visible', atBottom: fact.y >= fact.edge - 0.5 }, source)
   }
   controller.beginUnread(reloadSeq())
   createEffect(() => {
