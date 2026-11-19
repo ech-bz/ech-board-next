@@ -45,7 +45,11 @@ export function postFields(model: ForumState, root: string, id: string) {
       const parts = post().parts
       return partsToPlainText(parts, true, { forumId: root, board: post().board })
     },
-    refs: () => model.references[referenceKey(root, numberKey(post().board, post().number))]?.items ?? [],
+    refs: () => {
+      const items = model.references[referenceKey(root, numberKey(post().board, post().number))]?.items ?? []
+      if (model.preferences.showDeleted) return items
+      return items.filter((ref) => !scope().entities.posts[ref.postId]?.deleted)
+    },
     refsRevision: () => model.references[referenceKey(root, numberKey(post().board, post().number))]?.revision ?? 0,
     media: () => postMedia(post(), scope()),
     reactions: () => {
