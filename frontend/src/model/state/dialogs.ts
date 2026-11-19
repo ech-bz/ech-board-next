@@ -4,7 +4,6 @@ export interface DialogState {
   topic: string | null
   moderators: { kind: 'forum' | 'board' | 'thread'; threadId?: string } | null
   banTarget: { postIds: string[]; threadId: string; deletePosts: boolean } | null
-  banId: boolean
   bans: { title: string; kind: 'forum' | 'board' | 'thread'; id: string } | null
   boardSettings: boolean
   createBoard: string | null
@@ -13,4 +12,4 @@ export interface DialogState {
   authorHistory: string | null
 }
 
-export const emptyDialogs = (): DialogState => ({ topic: null, moderators: null, banTarget: null, banId: false, bans: null, boardSettings: false, createBoard: null, forumTitle: null, logs: null, authorHistory: null })
+export const emptyDialogs = (): DialogState => ({ topic: null, moderators: null, banTarget: null, bans: null, boardSettings: false, createBoard: null, forumTitle: null, logs: null, authorHistory: null })

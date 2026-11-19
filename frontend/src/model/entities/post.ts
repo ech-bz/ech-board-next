@@ -1,4 +1,5 @@
 import type { PostPart } from '../content/postPart'
+import type { BanScope } from '../rules/permissions'
 import type { PostRole } from '../rules/roles'
 import type { Counter, Entity } from './entity'
 import type { Identity } from './identity'
@@ -25,7 +26,8 @@ export interface Post extends Entity {
   readonly votes: Counter[]
   readonly reactionCounts: Counter[]
   readonly moderatorNoteHash: Uint8Array | null
-  readonly bannedBy: Identity | null
+  readonly txid: Uint8Array
+  readonly bannedScopes: BanScope[]
   readonly threadId: string
   readonly relNum: number | null
   readonly op: boolean
@@ -45,8 +47,6 @@ export interface Post extends Entity {
   readonly myReactionBase: string | null
   readonly reactionPending: boolean
   readonly repliedMine: boolean
-  readonly banned: boolean
-  readonly bannedLevel: string | null
   readonly mine: boolean
   readonly role: PostRole
   readonly canEdit: boolean

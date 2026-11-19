@@ -1,8 +1,10 @@
 import type { Thread } from '../../model/entities/thread'
 
+import { toHex } from '../../model/content/hex'
 import type { Post } from '../../model/entities/post'
-import { canBanById, canSelectAllFromAuthor, type BanScope } from '../../model/rules/permissions'
+import { canSelectAllFromAuthor } from '../../model/rules/permissions'
 import { useForumController, useForumQueries } from '../bindings/forum'
+import { banScopeLabel } from '../banScopeLabel'
 import { useEntityActions } from '../entityActions'
 import { useI18n } from '../i18n'
 import { usePostSelection } from '../postSelection/PostSelectionProvider'
@@ -25,7 +27,6 @@ export function PostMenu(props: { post: Post; closed: boolean; threadObject?: Th
       result.push(...threadModItems(t, actions, { threadId: rec.threadId, closed: props.closed, deleted: rec.hidden }))
       result.push({ label: t('mod.moderators'), onClick: () => actions.openThreadModerators(rec.threadId) })
       result.push({ label: t('mod.bans'), onClick: () => actions.openBans(t('mod.bans'), 'thread', rec.threadId) })
-      if (actions.canBanAny() && canBanById(actions.roleKinds())) result.push({ label: t('mod.banId'), onClick: () => actions.openBanId() })
       if (selection?.canSelect() && canSelectAllFromAuthor(actions.roleKinds())) result.push(author())
       result.push({ label: t('mod.debugThread'), onClick: () => actions.openLogs('thread', props.threadObject ? { kind: 'thread', id: props.threadObject.id } : undefined) })
       result.push({ label: t('mod.debugPost'), onClick: () => actions.openLogs('post', { kind: 'post', id: rec.id }) })
@@ -34,15 +35,17 @@ export function PostMenu(props: { post: Post; closed: boolean; threadObject?: Th
     const threadId = rec.threadId
     if (rec.canDelete) result.push({ label: t('mod.delete'), onClick: () => actions.runPostDelete(rec, threadId, 'delete') })
     if (rec.canRestore) result.push({ label: t('mod.restore'), onClick: () => actions.runPostDelete(rec, threadId, 'restore') })
-    if (actions.canBanAny() && !rec.hidden && !rec.banned) {
+    if (actions.canBanAny() && !rec.hidden) {
       result.push({ label: t('mod.ban'), onClick: () => actions.openBan([rec], threadId) })
     }
-    if (rec.banned && rec.bannedLevel) {
-      const info = read.info()
-      const level = rec.bannedLevel
-      const scope: BanScope = level === threadId ? 'thread' : level === info?.boardId ? 'board' : 'forum'
-      if (actions.canBanScope(scope) && info) {
-        result.push({ label: t('mod.unban'), onClick: () => actions.runUnban(rec, threadId, scope) })
+    if (rec.author) {
+      const author = rec.author
+      const target = toHex(rec.txid)
+      for (const scope of rec.bannedScopes) {
+        if (!actions.canBanScope(scope)) continue
+        const id = scope === 'thread' ? threadId : scope === 'board' ? read.info()?.boardId : ''
+        if (id === undefined) continue
+        result.push({ label: `${t('mod.unban')} (${banScopeLabel(t, scope)})`, onClick: () => actions.runUnban(target, author, scope, id) })
       }
     }
     if (selection?.canSelect() && canSelectAllFromAuthor(actions.roleKinds())) result.push(author())

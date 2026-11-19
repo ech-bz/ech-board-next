@@ -1,9 +1,10 @@
 import type { ForumState } from '../model/state/forum'
 import type { BoardCursor } from '../model/entities/board'
+import type { BanScope } from '../model/rules/permissions'
 import type { Commit } from './commit'
 import { postValue, threadValue } from './convert/versions'
 import { ForumApi } from './io/ech/forumApi'
-import type { BoardEntity, ForumEntity, PostEntity, PostPageEntity, ThreadEntity, ThreadPreviewEntity, Tx } from './io/ech/protocol/entities'
+import type { BanMapValue, BoardEntity, ForumEntity, PostEntity, PostPageEntity, ThreadEntity, ThreadPreviewEntity, Tx } from './io/ech/protocol/entities'
 import { EntityId } from './io/ech/protocol/entityId'
 import type { Media, Resources } from './io/ech/protocol/transactions'
 import * as relay from './io/ech/relay'
@@ -23,6 +24,7 @@ export interface ForumViewData {
 export interface PostCtx extends ForumViewData {
   board: BoardEntity
   myReactions: PostPageEntity['my_reactions']
+  bans: Map<BanScope, Uint8Array[]>
 }
 
 export interface ThreadViewData extends PostCtx {
@@ -42,6 +44,27 @@ export interface PostViewData extends PostCtx {
   thread: ThreadEntity
   post: PostEntity
   op: PostEntity | null
+}
+
+function toBans(values: BanMapValue): Map<BanScope, Uint8Array[]> {
+  const bans = new Map<BanScope, Uint8Array[]>()
+  for (const [scope, targets] of values) {
+    const key: BanScope = scope.$kind === 'Thread' ? 'thread' : scope.$kind === 'Board' ? 'board' : 'forum'
+    bans.set(key, targets)
+  }
+  return bans
+}
+
+function mergeBans(pages: Map<BanScope, Uint8Array[]>[]): Map<BanScope, Uint8Array[]> {
+  const merged = new Map<BanScope, Uint8Array[]>()
+  for (const page of pages) {
+    for (const [scope, targets] of page) {
+      const known = merged.get(scope)
+      if (known) known.push(...targets)
+      else merged.set(scope, [...targets])
+    }
+  }
+  return merged
 }
 
 function resources(pages: Resources<unknown>[]) {
@@ -102,6 +125,7 @@ export function createForumGateway(model: ForumState, commit: Commit) {
       threadId: EntityId.thread(board, number),
       thread,
       myReactions: new Map(pages.flatMap((page) => [...page.view.my_reactions])),
+      bans: mergeBans(pages.map((page) => toBans(page.view.bans))),
       posts,
       contentMap: new Map([...context.contentMap, ...content.contentMap]),
       mediaMeta: new Map([...context.mediaMeta, ...content.mediaMeta]),
@@ -119,6 +143,7 @@ export function createForumGateway(model: ForumState, commit: Commit) {
       boardId: EntityId.board(slug),
       threads: response.view.threads,
       myReactions: response.view.my_reactions,
+      bans: toBans(response.view.bans),
       next: response.view.next,
       contentMap: new Map([...context.contentMap, ...content.contentMap]),
       mediaMeta: new Map([...context.mediaMeta, ...content.mediaMeta]),
@@ -147,6 +172,7 @@ export function createForumGateway(model: ForumState, commit: Commit) {
       post,
       op: opPage.view.post,
       myReactions: new Map([...postPage.view.my_reactions, ...opPage.view.my_reactions]),
+      bans: mergeBans([toBans(postPage.view.bans), toBans(opPage.view.bans)]),
       contentMap: new Map([...context.contentMap, ...content.contentMap]),
       mediaMeta: new Map([...context.mediaMeta, ...content.mediaMeta]),
       transactions: new Map([...context.transactions, ...content.transactions]),

@@ -16,6 +16,7 @@ import type { PostLifetime } from './retention'
 import type { RelayDescriptor, SessionState } from './session'
 import type { ThreadPosts } from './threadPosts'
 import { emptyUnread, type UnreadState } from './unread'
+import type { BanScope } from '../rules/permissions'
 
 export interface ReactionSelection {
   seq: bigint
@@ -56,6 +57,7 @@ export interface ForumScope {
   loadedThreads: Record<string, boolean>
   myReactions: Record<string, ReactionSelection>
   pendingReactions: Record<string, PendingReaction>
+  postBans: Record<string, BanScope[]>
 }
 
 export interface PostPreview {
@@ -143,5 +145,6 @@ export function initialForumScope(root: string, relayUrl: string): ForumScope {
     loadedThreads: {},
     myReactions: {},
     pendingReactions: {},
+    postBans: {},
   }
 }

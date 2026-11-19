@@ -1,6 +1,6 @@
 import { cva } from 'class-variance-authority'
 import { createEffect, For, onCleanup, Show } from 'solid-js'
-import { canBanById, canBoardSettings } from '../../model/rules/permissions'
+import { canBoardSettings } from '../../model/rules/permissions'
 import { useBoardInfo, useForumController, useLoadingMore, useThreadIds } from '../bindings/forum'
 import { useIsMobile } from '../components/Gallery/useIsMobile'
 import { IconButton } from '../components/IconButton'
@@ -53,7 +53,6 @@ export function BoardPage(props: { forumId: string; slug: string; heading: strin
     if (!board) return items
     items.push({ label: t('mod.debug'), onClick: () => ea.openLogs('board', { kind: 'board', id: board.id }) })
     items.push({ label: t('mod.bans'), onClick: () => ea.openBans(t('mod.bans'), 'board', board.id) })
-    if (ea.canBanAny() && canBanById(ea.roleKinds())) items.push({ label: t('mod.banId'), onClick: () => ea.openBanId() })
     items.push({ label: t('mod.moderators'), onClick: () => ea.openBoardModerators() })
     if (canBoardSettings(ea.roleKinds())) items.push({ label: t('mod.manageBoard'), onClick: () => ea.openBoardSettings() })
     return items

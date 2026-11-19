@@ -23,14 +23,6 @@ export function createPostCommands(model: ForumState, commit: Commit, gateway: F
       const scope = model.scopes[forumKey(data.forumId)]
       return { post: scope.entities.posts[id], board: scope.entities.boards[EntityId.board(data.board.key.slug)], thread: scope.entities.threads[data.threadId] }
     },
-    async refetchPost(id: string, root = model.page.forumId) {
-      const scope = root ? model.scopes[forumKey(root)] : null
-      if (!scope) return
-      const data = await readPost(scope.relayUrl, id)
-      if (model.scopes[scope.root] !== scope) return
-      const changes = postChanges(data)
-      receive(changes)
-    },
     addContent(hash: string, bytes: Uint8Array, root = model.page.forumId) {
       const scope = root ? model.scopes[forumKey(root)] : null
       if (scope) receive({ scope: { forumId: scope.root, relayUrl: scope.relayUrl }, contents: [[hash, bytes]] })

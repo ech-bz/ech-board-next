@@ -33,6 +33,6 @@ export function convertPost(entity: PostEntity, model: ForumState, root: string,
     votes: value.votes.map(([hash, count]) => ({ hash: hash.slice(), count: BigInt(count) })),
     reactionCounts: value.reactions.map(([hash, count]) => ({ hash: hash.slice(), count: BigInt(count) })),
     moderatorNoteHash: value.mod_note_hash?.slice() ?? null,
-    bannedBy: value.banned ? convertIdentity(value.banned) : null,
+    txid: entity.genesis.slice(),
   }, postFields(model, root, id), postEquality)
 }

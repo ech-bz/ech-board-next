@@ -10,11 +10,10 @@ export function createOverlayCommands(commit: Commit) {
     openModerators(kind: 'forum' | 'board' | 'thread', threadId?: string) { commit({ type: 'dialogs.patch', value: { moderators: { kind, threadId } } }) },
     openBoardSettings() { commit({ type: 'dialogs.patch', value: { boardSettings: true } }) },
     openBan(postIds: string[], threadId: string, deletePosts = false) { commit({ type: 'dialogs.patch', value: { banTarget: { postIds, threadId, deletePosts } } }) },
-    openBanId() { commit({ type: 'dialogs.patch', value: { banId: true } }) },
     openBans(title: string, kind: 'forum' | 'board' | 'thread', id: string) { commit({ type: 'dialogs.patch', value: { bans: { title, kind, id } } }) },
     openLogs(tab: EntityKind, object?: EntityObject) { commit({ type: 'dialogs.patch', value: { logs: { tab, object: object ?? null } } }) },
     openAuthorHistory(esid = '') { commit({ type: 'dialogs.patch', value: { authorHistory: esid.trim().replace(/^0x/i, '').toLowerCase() } }) },
-    closeDialog(kind: keyof DialogState) { commit({ type: 'dialogs.patch', value: { [kind]: kind === 'banId' || kind === 'boardSettings' ? false : null } }) },
+    closeDialog(kind: keyof DialogState) { commit({ type: 'dialogs.patch', value: { [kind]: kind === 'boardSettings' ? false : null } }) },
     openGallery(forumId: string, postId: string, hash: string) { commit({ type: 'gallery.set', value: { forumId: forumKey(forumId), postId, hash } }) },
     closeGallery() { commit({ type: 'gallery.set', value: null }) },
     dismissNotification(id: number) { commit({ type: 'notification.remove', value: id }) }

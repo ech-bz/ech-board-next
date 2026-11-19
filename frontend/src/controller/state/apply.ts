@@ -34,6 +34,13 @@ export function applyLocalOperation(model: ForumState, write: SetStoreFunction<F
       break
     }
     case 'bans.set': write('resources', 'bans', operation.value.key, reconcile(operation.value.value)); break
+    case 'postBans.set': {
+      const { root, id, scopes } = operation.value
+      if (!model.scopes[root]?.entities.posts[id]) break
+      if (scopes.length) write('scopes', root, 'postBans', id, reconcile(scopes))
+      else write('scopes', root, 'postBans', produce((values) => { delete values[id] }))
+      break
+    }
     case 'history.set': write('resources', 'history', operation.value.key, reconcile(operation.value.value)); break
     case 'snapshot.set': write('resources', 'snapshots', operation.value.key, reconcile(operation.value.value)); break
     case 'secret.set': write('resources', 'secrets', operation.value.key, reconcile(operation.value.value)); break

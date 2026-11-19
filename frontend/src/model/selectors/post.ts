@@ -75,11 +75,10 @@ export function postFields(model: ForumState, root: string, id: string) {
       return pending && pending.base === base ? pending.local : base
     },
     myReactionBase: () => scope().myReactions[id]?.value ?? null,
+    bannedScopes: () => scope().postBans[id] ?? [],
     reactionPending: () => scope().pendingReactions[id] !== undefined,
     repliedMine: () => false,
     hidden: () => post().deleted || post().op && (thread()?.deleted ?? false),
-    banned: () => post().bannedBy !== null,
-    bannedLevel: () => optionalIdentityKey(post().bannedBy),
     mine: () => {
       const author = post().author
       return author !== null && (scope().authors[author]?.mine ?? false)

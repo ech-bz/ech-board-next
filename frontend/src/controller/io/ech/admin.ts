@@ -4,7 +4,9 @@ import { AuthorHistoryPageSchema, HistoryPageSchema } from "./protocol/entities"
 import { toHex } from '../../../model/content/hex'
 import type { HistoryKind } from '../../../model/state/inspection'
 import { Calls, type ForumApi } from "./forumApi"
-import { BanEntriesSchema, decodeEntity, type BanEntry } from "./protocol/entities"
+import { BanEntriesSchema, decodeEntity, type BanValue } from "./protocol/entities"
+import { parseResources } from "./relay"
+import type { Resources } from "./protocol/transactions"
 export async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, init)
   if (!response.ok) throw await responseError(response)
@@ -39,7 +41,7 @@ export async function fetchBans(
   api: ForumApi,
   kind: "forum" | "board" | "thread",
   id: string,
-): Promise<BanEntry[]> {
+): Promise<Resources<BanValue[]>> {
   const call =
     kind === "thread"
       ? Calls.thread.ban_list(id, null, 50)
@@ -47,7 +49,7 @@ export async function fetchBans(
         ? Calls.board.ban_list(id, null, 50)
         : Calls.forum.ban_list(null, 50)
   const [bytes] = await api.query([call])
-  return BanEntriesSchema.parse(bytes)
+  return parseResources<BanValue[]>(bytes, BanEntriesSchema)
 }
 
 export interface EntitySnapshot {

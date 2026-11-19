@@ -1,4 +1,5 @@
 import { toHex } from '../../model/content/hex'
+import type { BanScope } from '../../model/rules/permissions'
 import { emptyDialogs } from '../../model/state/dialogs'
 import type { ForumState } from '../../model/state/forum'
 import type { Operation } from '../commit'
@@ -30,8 +31,20 @@ function myReactions(posts: readonly PostEntity[], values: PostPageEntity['my_re
   })
 }
 
+function bans(posts: readonly PostEntity[], values: Map<BanScope, Uint8Array[]>): EntityUpdate['bans'] {
+  const byTxid = new Map(posts.map((post) => [toHex(post.genesis), EntityId.post(post.key.board, Number(post.key.number))]))
+  const entries: (readonly [string, BanScope])[] = []
+  for (const [scope, targets] of values) {
+    for (const target of targets) {
+      const id = byTxid.get(toHex(target))
+      if (id) entries.push([id, scope])
+    }
+  }
+  return entries
+}
+
 export function threadChanges(data: ThreadViewData): EntityUpdate {
-  return { ...resources(data), myReactions: myReactions(data.posts, data.myReactions), boards: [...data.boards, data.board], threads: [data.thread], posts: data.posts, retention: 'loaded', loadedThread: data.threadId }
+  return { ...resources(data), myReactions: myReactions(data.posts, data.myReactions), bans: bans(data.posts, data.bans), boards: [...data.boards, data.board], threads: [data.thread], posts: data.posts, retention: 'loaded', loadedThread: data.threadId }
 }
 
 export function boardChanges(data: BoardViewData, append = false): EntityUpdate {
@@ -39,6 +52,7 @@ export function boardChanges(data: BoardViewData, append = false): EntityUpdate 
   return {
     ...resources(data),
     myReactions: myReactions(posts, data.myReactions),
+    bans: bans(posts, data.bans),
     boards: [...data.boards, data.board],
     threads: data.threads.map((page) => page.thread),
     posts,
@@ -49,7 +63,7 @@ export function boardChanges(data: BoardViewData, append = false): EntityUpdate 
 
 export function postChanges(data: PostViewData): EntityUpdate {
   const posts = data.op && data.op.key.number !== data.post.key.number ? [data.post, data.op] : [data.post]
-  return { ...resources(data), myReactions: myReactions(posts, data.myReactions), boards: [...data.boards, data.board], threads: [data.thread], posts }
+  return { ...resources(data), myReactions: myReactions(posts, data.myReactions), bans: bans(posts, data.bans), boards: [...data.boards, data.board], threads: [data.thread], posts }
 }
 
 export function pageReplacement(model: ForumState, page: ForumState['page']): Operation[] {

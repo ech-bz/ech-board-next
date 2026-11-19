@@ -57,7 +57,6 @@ export const ArgumentSchemas: Record<string, BcsType<any, any>> = {
   'post.react': bcs.struct('Arguments', { post: Hash, old: optionalHash, reaction: Hash }),
   'post.ban_media': bcs.struct('Arguments', { post: Hash, hashes }),
   'post.unban_media': bcs.struct('Arguments', { post: Hash, hashes }),
-  'post.set_banned': bcs.struct('Arguments', { post: Hash, banned: bcs.option(EsidSchema) }),
   'post.set_mod_note': bcs.struct('Arguments', { post: Hash, value: optionalHash }),
   'user.get': bcs.struct('Arguments', {}),
   'debug.entity': bcs.struct('Arguments', { namespace: bcs.string(), id: Hash }),
@@ -69,7 +68,7 @@ for (const scope of ['forum', 'board', 'thread']) {
   const entity = { [scope]: Hash }
   ArgumentSchemas[`${scope}.add_moderator`] = bcs.struct('Arguments', { ...entity, member: EsidSchema })
   ArgumentSchemas[`${scope}.remove_moderator`] = bcs.struct('Arguments', { ...entity, member: EsidSchema })
-  ArgumentSchemas[`${scope}.ban`] = bcs.struct('Arguments', { ...entity, target: EsidSchema, reason_hash: optionalHash, expires: bcs.option(bcs.u64()) })
-  ArgumentSchemas[`${scope}.unban`] = bcs.struct('Arguments', { ...entity, target: EsidSchema })
-  ArgumentSchemas[`${scope}.ban_list`] = bcs.struct('Arguments', { ...entity, after: bcs.option(EsidSchema), limit: bcs.u32() })
+  ArgumentSchemas[`${scope}.ban`] = bcs.struct('Arguments', { ...entity, target: Hash, reason_hash: optionalHash, expires: bcs.option(bcs.u64()) })
+  ArgumentSchemas[`${scope}.unban`] = bcs.struct('Arguments', { ...entity, target: Hash })
+  ArgumentSchemas[`${scope}.ban_list`] = bcs.struct('Arguments', { ...entity, after: bcs.option(Hash), limit: bcs.u32() })
 }

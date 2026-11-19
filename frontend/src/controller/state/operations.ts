@@ -1,5 +1,6 @@
 import type { ForumState, PendingReaction, PostPreview, ReactionSelection } from '../../model/state/forum'
 import type { BanListState, HistoryState, SnapshotState } from '../../model/state/inspection'
+import type { BanScope } from '../../model/rules/permissions'
 import type { SecretState } from '../../model/state/resources'
 import type { EntityUpdate } from './entities.types'
 
@@ -19,6 +20,7 @@ interface OperationValues {
   'draft.patch': { mode: 'reply' | 'thread'; value: Partial<Omit<ForumState['drafts']['reply'], 'revision'>> }
   'operations.patch': Partial<ForumState['operations']>
   'bans.set': { key: string; value: BanListState }
+  'postBans.set': { root: string; id: string; scopes: BanScope[] }
   'history.set': { key: string; value: HistoryState }
   'snapshot.set': { key: string; value: SnapshotState }
   'secret.set': { key: string; value: SecretState }

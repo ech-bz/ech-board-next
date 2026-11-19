@@ -35,6 +35,17 @@ export function pageSnapshot(updates: EntityUpdate[], page: ForumState['page']):
     }
   }
   const postIds = new Set(posts.map((post) => EntityId.post(post.key.board, Number(post.key.number))))
+  const bans: NonNullable<EntityUpdate['bans']>[number][] = []
+  const seen = new Set<string>()
+  for (const update of updates) {
+    for (const [id, scope] of update.bans ?? []) {
+      if (!postIds.has(id)) continue
+      const key = `${id}:${scope}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      bans.push([id, scope])
+    }
+  }
   const snapshot: EntityUpdate = {
     ...initial,
     forums: latest(updates.flatMap((update) => update.forums ?? []), () => EntityId.forum()),
@@ -42,6 +53,7 @@ export function pageSnapshot(updates: EntityUpdate[], page: ForumState['page']):
     threads,
     posts,
     myReactions: [...myReactions].filter(([id]) => postIds.has(id)),
+    bans,
     contents: new Map(updates.flatMap((update) => [...update.contents ?? []])),
     attachments: new Map(updates.flatMap((update) => [...update.attachments ?? []])),
     transactions: new Map(updates.flatMap((update) => [...update.transactions ?? []])),

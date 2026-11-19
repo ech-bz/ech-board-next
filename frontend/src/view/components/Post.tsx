@@ -269,7 +269,7 @@ export function PostBody(props: {
           threads: props.post.threadcount?.toString() ?? '',
         })}</div>
       </Show>
-      <Show when={props.post.banned}>
+      <Show when={props.post.bannedScopes.length > 0}>
         <div class={'mt-5 text-warn italic'}>{t('post.authorBanned')}</div>
       </Show>
       <Show when={props.post.reactions.length > 0}>

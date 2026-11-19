@@ -40,10 +40,6 @@ export function canSelectAllFromAuthor(_roles: RoleKind[]): boolean {
   return false
 }
 
-export function canBanById(_roles: RoleKind[]): boolean {
-  return false
-}
-
 export function roleForPostAction(action: PostAction, options: RoleOption[]): RoleOption | null {
   const allowed = POST_ACTION_ROLES[action]
   return options.find(o => allowed.includes(o.kind) && signable(o)) ?? null

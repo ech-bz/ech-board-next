@@ -1,5 +1,4 @@
 import { createRoot } from 'solid-js'
-import type { Post } from '../model/entities/post'
 import { withThreadRoles } from '../model/rules/roles'
 import { createQueries } from '../model/selectors/queries'
 import { initializeModel } from './bootstrap'
@@ -25,7 +24,6 @@ import { createForumGateway } from './forumGateway'
 import { createReceiver } from './ingestion/receive'
 import { writeClipboard } from './io/browser/clipboard'
 import { synchronizeDeadlines } from './synchronization/deadlines'
-import { createPostRefresh } from './synchronization/postRefresh'
 import { createRealtime } from './synchronization/realtime'
 
 export function createController() {
@@ -50,7 +48,6 @@ export function createController() {
     const navigation = createNavigation(model, write, gateway, receive, ready, realtime, isDisposed)
     const posts = createPostCommands(model, write, gateway, receive)
     const previews = createPreviewCommands(model, write, gateway, receive, isDisposed)
-    const refreshPost = createPostRefresh(posts.refetchPost)
     synchronizeDeadlines(model, write)
     let nextNotification = 1
     const notify = (error: unknown) => write({ type: 'notification.add', value: { id: nextNotification++, message: failure(error) } })
@@ -67,7 +64,6 @@ export function createController() {
         threadNumber: (id: string) => read.threadObject(id)?.number ?? null,
         rolesForThread: (id: string) => withThreadRoles(read.roles(), read.rolesForThread(id)),
         onPostContent: (hash: string, bytes: Uint8Array) => posts.addContent(hash, bytes, info.forumId),
-        onPostDone: (post: Post) => refreshPost(post.id, info.forumId),
         onError: notify,
       }
     }, model, write, gateway)

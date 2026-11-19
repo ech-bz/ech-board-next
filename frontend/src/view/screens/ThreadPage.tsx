@@ -1,7 +1,7 @@
 import { useLocation } from '@solidjs/router'
 import { cva } from 'class-variance-authority'
 import { createMemo, Show } from 'solid-js'
-import { canBanById, canPostAction } from '../../model/rules/permissions'
+import { canPostAction } from '../../model/rules/permissions'
 import { useForumController, useForumQueries, usePage } from '../bindings/forum'
 import { useIsMobile } from '../components/Gallery/useIsMobile'
 import { IncrementalList } from '../components/IncrementalList'
@@ -37,7 +37,6 @@ export function ThreadPage(props: { forumId: string; slug: string; threadNum: nu
     const items = threadModItems(t, ea, { threadId: current.id, closed: current.closed, deleted: current.deleted })
     items.push({ label: t('mod.moderators'), onClick: () => ea.openThreadModerators(current.id) })
     items.push({ label: t('mod.bans'), onClick: () => ea.openBans(t('mod.bans'), 'thread', current.id) })
-    if (ea.canBanAny() && canBanById(ea.roleKinds())) items.push({ label: t('mod.banId'), onClick: () => ea.openBanId() })
     return items
   }
   return (

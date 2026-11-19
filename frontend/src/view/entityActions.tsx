@@ -14,8 +14,8 @@ export interface EntityActions {
   runThreadCloseDelete: (threadId: string) => void
   runThreadEditTopic: (threadId: string, topic: string) => void
   runPostDelete: (post: Post, threadId: string, action: 'delete' | 'restore') => void
-  runBan: (post: Post, threadId: string, scope: BanScope, mask: number, durationMs: number, reason: string) => void
-  runUnban: (post: Post, threadId: string, scope: BanScope) => void
+  runBan: (post: Post, threadId: string, scope: BanScope, durationMs: number, reason: string) => void
+  runUnban: (target: string, author: string, scope: BanScope, id: string) => void
   runBanMedia: (post: Post, threadId: string, hashes: Uint8Array[]) => void
   runUnbanMedia: (post: Post, threadId: string, hashes: Uint8Array[]) => void
   roleKinds: Accessor<RoleKind[]>
@@ -37,7 +37,6 @@ export interface EntityActions {
   openForumModerators: () => void
   openBoardSettings: () => void
   openBan: (posts: Post[], threadId: string, deletePosts?: boolean) => void
-  openBanId: () => void
   openBans: (title: string, kind: 'forum' | 'board' | 'thread', id: string) => void
   openLogs: (tab: 'forum' | 'board' | 'thread' | 'post', object?: EntityObject) => void
   canBanAny: Accessor<boolean>
@@ -59,8 +58,8 @@ export function EntityActionsProvider(props: { roles: RoleOption[]; children: JS
     runThreadCloseDelete: (threadId) => mod.runThreadCloseDelete(threadId),
     runThreadEditTopic: (threadId, topic) => mod.runThreadEditTopic(threadId, topic),
     runPostDelete: (post, threadId, action) => mod.runPostDelete(post, action, threadId),
-    runBan: (post, threadId, scope, mask, durationMs, reason) => mod.runBan(post, threadId, scope, mask, durationMs, reason),
-    runUnban: (post, threadId, scope) => mod.runUnban(post, threadId, scope),
+    runBan: (post, threadId, scope, durationMs, reason) => mod.runBan(post, threadId, scope, durationMs, reason),
+    runUnban: (target, author, scope, id) => mod.runUnban(target, author, scope, id),
     runBanMedia: (post, threadId, hashes) => mod.runPostBanMedia(post, threadId, hashes),
     runUnbanMedia: (post, threadId, hashes) => mod.runPostUnbanMedia(post, threadId, hashes),
     roleKinds: () => props.roles.map((role) => role.kind),
@@ -93,7 +92,6 @@ export function EntityActionsProvider(props: { roles: RoleOption[]; children: JS
     openForumModerators: () => modals.openForumModerators(),
     openBoardSettings: () => modals.openBoardSettings(),
     openBan: (posts, threadId, deletePosts) => modals.openBan(posts, threadId, deletePosts),
-    openBanId: () => modals.openBanId(),
     openBans: (title, kind, id) => modals.openBans(title, kind, id),
     openLogs: (tab, object) => modals.openLogs(tab, object),
     canBanAny: () => canBanAny(props.roles.map((role) => role.kind)),

@@ -23,7 +23,6 @@ export interface ModalsApi {
   openForumModerators: () => void
   openBoardSettings: () => void
   openBan: (posts: Post[], threadId: string, deletePosts?: boolean) => void
-  openBanId: () => void
   openBans: (title: string, kind: 'forum' | 'board' | 'thread', id: string) => void
   openLogs: (tab: LogsTab, object?: EntityObject) => void
 }
@@ -43,7 +42,6 @@ export function ModalsProvider(props: { roles: RoleOption[]; relayUrl: string; c
     return target.kind === 'forum' ? read.forumModerators() : read.info()?.moderators ?? null
   }
   const banTarget = () => model.dialogs.banTarget
-  const banIdOpen = () => model.dialogs.banId
   const bans = () => model.dialogs.bans
   const boardSettings = () => model.dialogs.boardSettings
   const logs = () => model.dialogs.logs
@@ -55,7 +53,6 @@ export function ModalsProvider(props: { roles: RoleOption[]; relayUrl: string; c
     openForumModerators: () => controller.openModerators('forum'),
     openBoardSettings: controller.openBoardSettings,
     openBan: (posts, threadId, deletePosts) => controller.openBan(posts.map((post) => post.id), threadId, deletePosts),
-    openBanId: controller.openBanId,
     openBans: controller.openBans,
     openLogs: controller.openLogs,
   }
@@ -101,27 +98,17 @@ export function ModalsProvider(props: { roles: RoleOption[]; relayUrl: string; c
       <Show when={moderators()}>
         {(value) => <ModeratorsModal moderators={value()} onClose={() => controller.closeDialog('moderators')} />}
       </Show>
-      <Show when={banTarget() || banIdOpen()}>
+      <Show when={banTarget()}>
         <BanModal
-          mode={banIdOpen() ? 'id' : 'post'}
           roleKinds={roleKinds()}
           busy={mod.busy()}
-          onClose={() => {
-            controller.closeDialog('banTarget')
-            controller.closeDialog('banId')
-          }}
-          onBan={async (scope, mask, durationMs, reason, idHex) => {
-            if (idHex != null) {
-              const threadId = read.threadId()
-              await mod.runBanId(idHex, scope === 'thread' ? (threadId ?? '') : '', scope as BanScope, mask, durationMs, reason)
-              controller.closeDialog('banId')
-              return
-            }
+          onClose={() => controller.closeDialog('banTarget')}
+          onBan={async (scope, durationMs, reason) => {
             const target = banTarget()
             if (!target) return
             const posts = target.postIds.flatMap((id) => { const post = read.get(id); return post ? [post] : [] })
-            if (posts.length === 1) await mod.runBan(posts[0], target.threadId, scope, mask, durationMs, reason)
-            else await mod.runBatchBan(posts, target.threadId, scope, mask, durationMs, reason)
+            if (posts.length === 1) await mod.runBan(posts[0], target.threadId, scope, durationMs, reason)
+            else await mod.runBatchBan(posts, target.threadId, scope, durationMs, reason)
             if (target.deletePosts) {
               if (posts.length === 1) await mod.runPostDelete(posts[0], 'delete', target.threadId)
               else await mod.runBatchPostDelete(posts, target.threadId)

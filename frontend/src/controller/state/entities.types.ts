@@ -2,12 +2,14 @@ import type { Media } from '../../model/entities/media'
 import type { BoardCursor } from '../../model/entities/board'
 import type { PostPreview, ReactionSelection } from '../../model/state/forum'
 import type { PostRetention } from '../../model/state/retention'
+import type { BanScope } from '../../model/rules/permissions'
 import type { BoardEntity, ForumEntity, PostEntity, ThreadEntity, Tx } from '../io/ech/protocol/entities'
 
 export interface EntityUpdate {
   txid?: string
   transactions?: ReadonlyMap<string, Tx>
   myReactions?: ReadonlyArray<readonly [string, ReactionSelection]>
+  bans?: ReadonlyArray<readonly [string, BanScope]>
   scope: { forumId: string; relayUrl: string }
   posts?: readonly PostEntity[]
   threads?: readonly ThreadEntity[]
