@@ -10,7 +10,7 @@ use actix_web::http::header;
 use actix_web::{web, HttpRequest, HttpResponse};
 use bcs::{from_bytes, to_bytes};
 use futures_util::future::try_join_all;
-use futures_util::stream::{self, StreamExt as _};
+use futures_util::stream::{self, StreamExt as _, TryStreamExt as _};
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 use tracing::Instrument;
@@ -36,6 +36,8 @@ use crate::timing::{self, Timer};
 
 const CONTENT_TYPE: &str = "application/octet-stream";
 const HISTORY_LIMIT: u32 = 64;
+const TRANSACTIONS_LIMIT: usize = 256;
+const TRANSACTIONS_CONCURRENCY: usize = 16;
 const BODY_LIMIT: usize = 200 * 1024 * 1024;
 
 pub fn routes(config: &mut web::ServiceConfig) {
@@ -62,6 +64,7 @@ pub fn routes(config: &mut web::ServiceConfig) {
             web::get().to(debug_history),
         )
         .route("/api/history/author/{esid}", web::get().to(author_history))
+        .route("/api/transactions", web::post().to(transactions))
         .route("/api/content", web::post().to(assets::content_put))
         .route("/api/media", web::post().to(assets::media_put))
         .route(
@@ -679,6 +682,24 @@ async fn author_history(
     let from = query.from.as_deref().map(str::parse::<Txid>).transpose()?;
     let page = app.forum.author_history(&esid, from, query.limit).await?;
     Ok(encoded(&to_bytes(&page)?))
+}
+
+async fn transactions(app: web::Data<App>, body: web::Bytes) -> Result<HttpResponse, DomainError> {
+    let txids: Vec<Txid> = from_bytes(&body)?;
+    if txids.is_empty() || txids.len() > TRANSACTIONS_LIMIT {
+        return Err(DomainError::BadRequest(format!(
+            "txids must be between 1 and {TRANSACTIONS_LIMIT}"
+        )));
+    }
+    let loaded: Vec<(Hash, Tx)> = stream::iter(txids)
+        .map(|txid| {
+            let forum = app.forum.clone();
+            async move { Ok::<_, DomainError>((*txid.as_array(), forum.record(txid).await?.tx)) }
+        })
+        .buffer_unordered(TRANSACTIONS_CONCURRENCY)
+        .try_collect()
+        .await?;
+    Ok(encoded(&to_bytes(&BTreeMap::from_iter(loaded))?))
 }
 
 fn client_ip(req: &HttpRequest) -> Option<IpAddr> {

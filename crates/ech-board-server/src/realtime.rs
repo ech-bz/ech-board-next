@@ -61,6 +61,24 @@ impl ReactionEvent {
     }
 }
 
+fn target_scope(function: &str, args: &[u8]) -> Option<(String, String)> {
+    let scope: Hash = match function {
+        "thread.ban" | "thread.unban" => bcs::from_bytes::<(Hash, Hash, Option<Hash>, Option<u64>)>(args)
+            .map(|value| value.0)
+            .or_else(|_| bcs::from_bytes::<(Hash, Hash)>(args).map(|value| value.0))
+            .ok()?,
+        "board.ban" | "board.unban" => bcs::from_bytes::<(Hash, Hash, Option<Hash>, Option<u64>)>(args)
+            .map(|value| value.0)
+            .or_else(|_| bcs::from_bytes::<(Hash, Hash)>(args).map(|value| value.0))
+            .ok()?,
+        _ => return None,
+    };
+    Some(match function {
+        "thread.ban" | "thread.unban" => (String::new(), hex_of(&scope)),
+        _ => (hex_of(&scope), String::new()),
+    })
+}
+
 #[derive(Clone, Serialize)]
 pub struct EventPayload {
     pub entities: Vec<EntityPayload>,
@@ -229,7 +247,9 @@ impl Hub {
                                 continue;
                             }
                             let (board, thread) = match hub.scope(&payloads) {
-                                Ok(scope) => scope,
+                                Ok((board, thread)) if !board.is_empty() || !thread.is_empty() => (board, thread),
+                                Ok(_) => target_scope(&entry.function, &entry.tx.user.call.args)
+                                    .unwrap_or_default(),
                                 Err(error) => {
                                     tracing::warn!(%error, txid = %entry.txid, "journal scope");
                                     continue;
