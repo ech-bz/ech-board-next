@@ -9,6 +9,7 @@ export const APPEARANCES: { id: string; label: string; file?: string; theme: The
   { id: 'gurochan', label: 'Gurochan', file: 'gurochan.css', theme: 'light' },
   { id: 'neutron', label: 'Neutron', file: 'neutron.css', theme: 'dark' },
   { id: 'dark_oled', label: 'Dark OLED', file: 'dark_oled.css', theme: 'dark' },
+  { id: 'ejchan', label: 'Ejchan', file: 'ejchan.css', theme: 'dark' },
   { id: 'yotsuba_b', label: 'Yotsuba B', file: 'yotsuba_b.css', theme: 'light', enabled: false },
   { id: 'futaba', label: 'Futaba', file: 'futaba.css', theme: 'light', enabled: false },
   { id: 'burichan', label: 'Burichan', file: 'burichan.css', theme: 'light', enabled: false },

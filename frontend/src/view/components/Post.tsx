@@ -156,6 +156,7 @@ export function PostBody(props: {
         selected: selected(),
         tooltip: !!props.tooltip,
       })}
+      style={{ 'border-width': 'var(--post-border-width, 0px)', 'border-color': 'var(--post-border, transparent)' }}
     >
       <div class={'flex items-center gap-1.5 text-sm text-secondary'} classList={{ 'mb-1.5': hasBody() }}>
         <Show when={selectable()}>

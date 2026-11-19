@@ -28,6 +28,7 @@ export function AppearanceView() {
     { id: 'gurochan', label: 'Gurochan' },
     { id: 'neutron', label: 'Neutron' },
     { id: 'dark_oled', label: 'Dark OLED' },
+    { id: 'ejchan', label: 'Ejchan' },
   ]
   return (
     <div class={pageVariants()}>

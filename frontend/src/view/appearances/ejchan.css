@@ -1,0 +1,39 @@
+:root {
+  color-scheme: dark;
+  --color-bg: #3a3852;
+  --color-panel1: #3a3852;
+  --color-panel2: #35334b;
+  --color-panel3: #4f4d6e;
+  --color-hover: #454362;
+  --color-active: #4f4d6e;
+  --color-mine: #45435f;
+  --color-replied-mine: #463c34;
+  --color-spoiler: #2e2d3a;
+  --color-fg: #e8e1e1;
+  --color-secondary: #9a94a8;
+  --color-accent: #d5ae96;
+  --color-accent-hover: #e9cbb5;
+  --color-success: #228854;
+  --color-danger: #d05c5c;
+  --color-warn: #f0b36b;
+  --color-quote: #ff9130;
+  --color-glass1: rgba(70, 70, 100, 0.85);
+  --color-glass2: rgba(100, 100, 127, 0.6);
+  --color-chip: rgba(255, 255, 255, 0.07);
+  --color-shade: rgba(0, 0, 0, 0.6);
+  --color-track: rgba(255, 255, 255, 0.3);
+  --color-separator: rgba(96, 96, 96, 0.6);
+  --color-reaction: rgba(213, 174, 150, 0.19);
+  --color-toggle-track: rgba(120, 120, 128, 0.32);
+  --color-toggle-on: #34c759;
+  --post-border-width: 1px;
+  --post-border: var(--color-accent);
+}
+
+article.bg-mine {
+  --post-border: var(--color-success);
+}
+
+article.bg-replied-mine {
+  --post-border: var(--color-warn);
+}
