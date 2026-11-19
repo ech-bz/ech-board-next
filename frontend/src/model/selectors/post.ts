@@ -8,7 +8,7 @@ import type { Post } from '../entities/post'
 import { optionalIdentityKey } from '../rules/identity'
 import { canPostAction, canUnbanMedia, type PostAction } from '../rules/permissions'
 import { postRole } from '../rules/roles'
-import { numberKey, referenceKey, scopeModerators } from '../selectors/forum'
+import { forumKey, numberKey, referenceKey, scopeModerators } from '../selectors/forum'
 import type { ForumState } from '../state/forum'
 
 export function postFields(model: ForumState, root: string, id: string) {
@@ -77,7 +77,21 @@ export function postFields(model: ForumState, root: string, id: string) {
     myReactionBase: () => scope().myReactions[id]?.value ?? null,
     bannedScopes: () => scope().postBans[id] ?? [],
     reactionPending: () => scope().pendingReactions[id] !== undefined,
-    repliedMine: () => false,
+    repliedMine: () => {
+      const targets = model.outgoing[referenceKey(root, id)]
+      if (!targets) return false
+      const prefix = `${forumKey(root)}:`
+      for (const target of targets) {
+        if (!target.startsWith(prefix)) continue
+        const rest = target.slice(prefix.length)
+        const slash = rest.lastIndexOf('/')
+        if (slash < 0) continue
+        const targetId = scope().postIds[numberKey(rest.slice(0, slash), Number(rest.slice(slash + 1)))]
+        const author = targetId ? scope().entities.posts[targetId]?.author : null
+        if (author && scope().authors[author]?.mine) return true
+      }
+      return false
+    },
     hidden: () => post().deleted || post().op && (thread()?.deleted ?? false),
     mine: () => {
       const author = post().author
