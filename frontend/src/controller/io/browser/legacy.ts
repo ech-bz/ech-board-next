@@ -5,7 +5,6 @@ const DROPPED = [
   'ech-board-auto-refresh',
   'ech-board-default-forum',
   'ech-board-expand-threads',
-  'ech-board-hidden-threads',
   'ech-board-hide-thread-btn',
   'ech-board-keypair',
   'ech-board-live',
