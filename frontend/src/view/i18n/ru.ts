@@ -259,7 +259,7 @@ export const ru = {
   'logs.emptyPost': 'Введите номер поста для поиска.',
   'common.loading': 'Загрузка…',
   'history.title': 'История',
-  'history.author': 'История транзакций автора',
+  'history.author': 'История транзакций',
   'history.loading': 'Загрузка…',
   'history.noEvents': 'Событий нет.',
   'history.loadingMore': 'Загрузка…',

@@ -261,7 +261,7 @@ export const en: Dict = {
   'logs.emptyPost': 'Enter a post number to search.',
   'common.loading': 'Loading…',
   'history.title': 'History',
-  'history.author': 'Author transaction history',
+  'history.author': 'Transaction history',
   'history.loading': 'Loading…',
   'history.noEvents': 'No events.',
   'history.loadingMore': 'Loading…',
