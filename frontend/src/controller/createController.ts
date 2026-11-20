@@ -87,6 +87,7 @@ export function createController() {
       selection: createSelectionCommands(model, read, moderation, write),
       ...createUnreadCommands(model, write),
       loadBans: inspection.loadBans,
+      transaction: inspection.transaction,
       loadSnapshot: inspection.loadSnapshot,
       loadHistory: inspection.loadHistory,
       revealSecret: secrets.revealSecret,

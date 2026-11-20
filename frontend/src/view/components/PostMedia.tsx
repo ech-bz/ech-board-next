@@ -14,7 +14,7 @@ const mediaRowVariants = cva('flex select-none items-center gap-1 overflow-x-aut
     },
   },
 })
-const mediaTrackVariants = cva('mt-1.5 h-1 w-full rounded-sm bg-chip')
+const mediaTrackVariants = cva('mt-1.5 h-1 w-full overflow-hidden rounded-sm bg-chip')
 const mediaThumbVariants = cva('relative h-1 rounded-sm bg-toggle-track transition-colors duration-150 hover:bg-track before:absolute before:-inset-y-1 before:inset-x-0 before:content-[""]')
 
 export function PostMedia(props: { post: Post; onOpen: (media: MediaInfo, rect?: SourceRect) => void }) {

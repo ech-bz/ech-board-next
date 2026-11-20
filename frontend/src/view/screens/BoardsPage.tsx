@@ -61,6 +61,7 @@ export function BoardsPage(props: {
     )
     items.push(
       { label: t('mod.debug'), onClick: () => ea.openLogs('forum') },
+      { label: t('tx.title'), onClick: () => ea.openTransaction('') },
       { label: t('mod.bans'), onClick: () => {
         const forum = read.forumObject()
         if (forum) ea.openBans(t('mod.bans'), 'forum', forum.id)

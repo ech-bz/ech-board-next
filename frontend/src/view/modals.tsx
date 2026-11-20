@@ -14,6 +14,7 @@ import { ForumTitleModal } from './components/ForumTitleModal'
 import { LogsModal, type LogsTab } from './components/LogsModal/LogsModal'
 import { ModeratorsModal } from './components/ModeratorsModal'
 import { ThreadTopicModal } from './components/ThreadTopicModal'
+import { TransactionModal } from './components/TransactionModal'
 import { useMod } from './mod'
 
 export interface ModalsApi {
@@ -24,6 +25,7 @@ export interface ModalsApi {
   openBoardSettings: () => void
   openBan: (posts: Post[], threadId: string, deletePosts?: boolean) => void
   openBans: (title: string, kind: 'forum' | 'board' | 'thread', id: string) => void
+  openTransaction: (txid: string) => void
   openLogs: (tab: LogsTab, object?: EntityObject) => void
 }
 
@@ -54,6 +56,7 @@ export function ModalsProvider(props: { roles: RoleOption[]; relayUrl: string; c
     openBoardSettings: controller.openBoardSettings,
     openBan: (posts, threadId, deletePosts) => controller.openBan(posts.map((post) => post.id), threadId, deletePosts),
     openBans: controller.openBans,
+    openTransaction: controller.openTransaction,
     openLogs: controller.openLogs,
   }
 
@@ -133,6 +136,9 @@ export function ModalsProvider(props: { roles: RoleOption[]; relayUrl: string; c
       </Show>
       <Show when={model.dialogs.authorHistory !== null}>
         <AuthorHistoryModal esid={model.dialogs.authorHistory ?? ''} relayUrl={props.relayUrl} onClose={() => controller.closeDialog('authorHistory')} />
+      </Show>
+      <Show when={model.dialogs.transaction !== null}>
+        <TransactionModal txid={model.dialogs.transaction ?? ''} relayUrl={props.relayUrl} onClose={() => controller.closeDialog('transaction')} />
       </Show>
       <Show when={boardSettings() && read.boardObject() && read.info()}>
         <BoardSettingsModal

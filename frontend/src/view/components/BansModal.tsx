@@ -6,13 +6,14 @@ import { resourceKey } from '../../model/state/resources'
 import { useForumController, useForumModel } from '../bindings/forum'
 import { useI18n } from '../i18n'
 import { useMod } from '../mod'
+import { useModals } from '../modals'
 import { Button } from './Button'
 import { Modal } from './Modal'
 
 const errorVariants = cva('my-1 text-md text-danger')
 const emptyVariants = cva('my-1 text-md text-secondary')
-const rowVariants = cva('flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-separator py-2')
-const targetVariants = cva('font-mono text-sm')
+const rowVariants = cva('flex flex-col items-start gap-1 border-b border-separator py-2 sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-x-3 sm:gap-y-1')
+const targetVariants = cva('self-start border-0 bg-transparent p-0 text-left font-mono text-sm text-accent cursor-pointer hover:underline break-all')
 const dateVariants = cva('text-sm text-secondary whitespace-nowrap')
 const reasonVariants = cva('min-w-0 flex-1 break-words')
 
@@ -22,6 +23,7 @@ export function BansModal(props: { title: string; relayUrl: string; kind: 'forum
   const controller = useForumController()
   const model = useForumModel()
   const mod = useMod()
+  const modals = useModals()
   const state = () => model.resources.bans[resourceKey(props.relayUrl, props.kind, props.id)]
   const bans = () => state()?.items ?? []
   const loading = () => state()?.loading ?? false
@@ -41,12 +43,12 @@ export function BansModal(props: { title: string; relayUrl: string; kind: 'forum
           <For each={bans()}>
             {(ban) => (
               <div class={rowVariants()}>
-                <span class={targetVariants()} title={ban.target}>{shortHex(ban.target)}</span>
+                <button type="button" class={targetVariants()} title={ban.target} onClick={() => modals.openTransaction(ban.target)}>{shortHex(ban.target)}</button>
                 <span class={reasonVariants()}>{ban.reason ? ban.reason : t('bans.noData')}</span>
                 <span class={dateVariants()}>{ban.expires === null ? t('bans.permanent') : new Date(ban.expires).toLocaleString()}</span>
                 <Button
                   size="sm"
-                  class="ml-auto whitespace-nowrap"
+                  class="self-start whitespace-nowrap sm:ml-auto"
                   disabled={mod.busy()}
                   onClick={async () => {
                     await mod.runUnban(ban.target, ban.author, props.kind, props.id)

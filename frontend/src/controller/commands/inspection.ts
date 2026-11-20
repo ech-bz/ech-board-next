@@ -22,6 +22,11 @@ export function createInspectionCommands(model: ForumState, commit: Commit, gate
   const finish = (key: string, id: number) => { if (requests.get(key)?.id === id) requests.delete(key) }
 
   return {
+    async transaction(relayUrl: string, txid: string) {
+      const api = await gateway.connect(relayUrl)
+      const transactions = await api.transactions([txid])
+      return transactions.get(`0x${txid.replace(/^0x/, '')}`) ?? null
+    },
     async loadBans(relayUrl: string, kind: EntityKind, id: string) {
       if (kind === 'post') return
       const key = resourceKey(relayUrl, kind, id)

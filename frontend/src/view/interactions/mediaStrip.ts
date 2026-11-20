@@ -98,11 +98,13 @@ export function createMediaStrip() {
     observer.observe(el)
     el.addEventListener('scroll', syncMediaBox, { passive: true })
     el.addEventListener('click', onMediaClickCapture, true)
+    window.addEventListener('resize', syncMediaBox)
     syncMediaBox()
     onCleanup(() => {
       observer.disconnect()
       el.removeEventListener('scroll', syncMediaBox)
       el.removeEventListener('click', onMediaClickCapture, true)
+      window.removeEventListener('resize', syncMediaBox)
     })
   })
   return { setMediaEl, mediaDragging, mediaMask, mediaThumbGeom, onMediaPointerDown, onMediaPointerMove, onMediaPointerUp, onThumbPointerDown, onThumbPointerMove, onThumbPointerUp }
