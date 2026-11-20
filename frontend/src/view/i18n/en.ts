@@ -9,6 +9,8 @@ export const en: Dict = {
   'forum.boardSlug': 'Board address',
   'forum.boardSlugHint': '1–32 characters: a–z, 0–9 and hyphens. No slashes.',
   'forum.boardDescription': 'Description (optional)',
+  'forum.addRelay': 'Add relay',
+  'forum.relayPlaceholder': 'https://…',
   'error.Server.NotFound': 'Content not found',
   'error.Server.BadRequest': 'Invalid request: {reason}',
   'error.Server.Program': 'Program error: {reason}',

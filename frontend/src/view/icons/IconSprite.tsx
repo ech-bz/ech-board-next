@@ -24,6 +24,7 @@ export function IconSprite() {
         <g id="icon-chevron-left"><path d="m15 18-6-6 6-6"/></g>
         <g id="icon-chevron-right"><path d="m9 18 6-6-6-6"/></g>
         <g id="icon-check"><path d="M20 6 9 17l-5-5"/></g>
+        <g id="icon-plus"><path d="M5 12h14"/><path d="M12 5v14"/></g>
         <g id="icon-panel-left-close"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m16 15-3-3 3-3"/></g>
         <g id="icon-panel-left-open"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m14 9 3 3-3 3"/></g>
         <g id="icon-key-round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></g>

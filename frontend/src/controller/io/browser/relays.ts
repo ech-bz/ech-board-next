@@ -5,7 +5,6 @@ export const SERVER_URL = (import.meta.env.VITE_ECH_SERVER ?? 'https://newech.du
 export const DEFAULT_RELAY_URL = SERVER_URL
 
 const TABS_KEY = 'ech-forum/relay-tabs'
-const DEFAULT_FORUM_KEY = 'ech-forum/default-forum'
 
 export function loadForums(): ForumInfo[] {
   try {
@@ -18,7 +17,7 @@ export function loadForums(): ForumInfo[] {
         const url = new URL(value)
         if (url.protocol !== 'http:' && url.protocol !== 'https:') return []
         const relayUrl = url.host === window.location.host ? SERVER_URL : value.replace(/\/$/, '')
-        return [{ forumId, relayUrl, host: new URL(relayUrl).host }]
+        return [{ forumId, relayUrl }]
       } catch { return [] }
     })
   } catch { return [] }
@@ -26,15 +25,4 @@ export function loadForums(): ForumInfo[] {
 
 export function saveForums(forums: readonly ForumInfo[]): void {
   localStorage.setItem(TABS_KEY, JSON.stringify(Object.fromEntries(forums.map((forum) => [forum.forumId, forum.relayUrl]))))
-}
-
-export function loadDefaultForumId(): string | null {
-  try {
-    const value = localStorage.getItem(DEFAULT_FORUM_KEY)
-    return value ? forumKey(value) : null
-  } catch { return null }
-}
-
-export function saveDefaultForumId(forumId: string): void {
-  localStorage.setItem(DEFAULT_FORUM_KEY, forumId)
 }

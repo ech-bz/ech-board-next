@@ -1,11 +1,13 @@
 import { A } from '@solidjs/router'
 import { cva } from 'class-variance-authority'
-import { For, Show } from 'solid-js'
+import { createSignal, For, Show } from 'solid-js'
 import { roleForForumSettings } from '../../model/rules/permissions'
 import type { BoardInfo, ForumInfo } from '../../model/state/navigation'
 import { useForumController, useForumQueries } from '../bindings/forum'
+import { Field } from '../components/Field'
 import { ForumPage } from '../components/ForumPage'
 import { useIsMobile } from '../components/Gallery/useIsMobile'
+import { IconButton } from '../components/IconButton'
 import { DropdownMenu, type MenuItem } from '../components/Menu/DropdownMenu'
 import { PageHeader } from '../components/PageHeader'
 import { TabBar } from '../components/TabBar'
@@ -13,13 +15,15 @@ import { useEntityActions } from '../entityActions'
 import { useErrors } from '../errors'
 import { useI18n } from '../i18n'
 import { ChevronRightIcon } from '../icons/ChevronRightIcon'
+import { PlusIcon } from '../icons/PlusIcon'
 import { useMobileTabs } from '../interactions/mobileNav'
 import { useRoutes } from '../route'
 
 const pageVariants = cva('flex min-h-screen min-w-0 flex-col')
 const screenVariants = cva('flex min-h-dvh flex-col')
 const chipsRowVariants = cva('flex items-center gap-2 overflow-x-auto px-4 pb-2.5 pt-0.5 [scrollbar-width:none]')
-const chipVariants = cva('flex cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-2 text-sm', {
+const relayRowVariants = cva('flex items-center gap-2 px-4 pb-2.5')
+const chipVariants = cva('flex min-h-[38px] cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-2 text-sm', {
   variants: {
     active: {
       true: 'bg-accent text-[#101d29]',
@@ -42,6 +46,7 @@ export function BoardsPage(props: {
   boards: BoardInfo[]
   forums: ForumInfo[]
   onSelectForum: (forum: ForumInfo) => void
+  onAddRelay: (url: string) => void
 }) {
   const { boardPath } = useRoutes()
   const { t } = useI18n()
@@ -51,6 +56,15 @@ export function BoardsPage(props: {
   const read = useForumQueries()
   const mobile = useIsMobile()
   const tabs = useMobileTabs()
+  const [addOpen, setAddOpen] = createSignal(false)
+  const [relayInput, setRelayInput] = createSignal('')
+  const addRelay = () => {
+    const value = relayInput().trim()
+    if (!value) return
+    setRelayInput('')
+    setAddOpen(false)
+    props.onAddRelay(value)
+  }
   const forumMenu = (): MenuItem[] => {
     const items: MenuItem[] = [
       { label: t('forum.copyEsid'), onClick: () => { void controller.copyForumEsid(props.forumId).catch(reportError) } },
@@ -71,7 +85,10 @@ export function BoardsPage(props: {
     return items
   }
   const totalPosts = () => props.boards.reduce((sum, board) => sum + board.count, 0)
-  const host = () => props.forums.find((forum) => forum.forumId === props.forumId)?.host ?? ''
+  const host = () => {
+    const forum = props.forums.find((entry) => entry.forumId === props.forumId)
+    return forum ? new URL(forum.relayUrl).host : ''
+  }
   const forumPage = () => <ForumPage boardsCount={props.boards.length} totalPosts={totalPosts()} />
   return (
     <section class={mobile() ? screenVariants() : pageVariants()}>
@@ -92,11 +109,31 @@ export function BoardsPage(props: {
                 <span class={chipLogoVariants()}>
                   <img class="h-full w-auto" src="/static/logo.svg" alt="" />
                 </span>
-                {forum.host}
+                {new URL(forum.relayUrl).host}
               </button>
             )}
           </For>
+          <button type="button" class={chipVariants()} aria-label={t('forum.addRelay')} onClick={() => setAddOpen(!addOpen())}>
+            <PlusIcon width={16} height={16} />
+          </button>
         </div>
+        <Show when={addOpen()}>
+          <div class={relayRowVariants()}>
+            <Field
+              as="input"
+              grow="min-w-0"
+              value={relayInput()}
+              placeholder={t('forum.relayPlaceholder')}
+              onInput={(e) => setRelayInput(e.currentTarget.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') addRelay()
+              }}
+            />
+            <IconButton size="md" shape="rounded" variant="glass" aria-label={t('forum.addRelay')} onClick={addRelay}>
+              <PlusIcon width={16} height={16} />
+            </IconButton>
+          </div>
+        </Show>
         <div class={contentPadVariants()}>
           {forumPage()}
           <div class={listVariants()}>

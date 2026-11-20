@@ -32,11 +32,13 @@ export function createController() {
     let disposed = false
     const isDisposed = () => disposed
     const write: Commit = (...operations) => { if (!disposed) commit(...operations) }
+    let nextNotification = 1
+    const notify = (error: unknown) => write({ type: 'notification.add', value: { id: nextNotification++, message: failure(error) } })
     const read = createQueries(model)
     const gateway = createForumGateway(model, write)
     const { receive, prepare } = createReceiver(model, write, isDisposed)
     const startup = new AbortController()
-    const ready = initializeModel(model, write, gateway, startup.signal).catch((error) => {
+    const ready = initializeModel(model, write, gateway, startup.signal, notify).catch((error) => {
       write({ type: 'navigation.patch', value: { loading: false, error: failure(error) } })
     })
     const realtime = createRealtime(model, write, gateway, receive, prepare, isDisposed, () => {
@@ -45,12 +47,10 @@ export function createController() {
       navigation.invalidateRoute()
       void navigation.navigate(route, true)
     })
-    const navigation = createNavigation(model, write, gateway, receive, ready, realtime, isDisposed)
+    const navigation = createNavigation(model, write, gateway, receive, ready, realtime, isDisposed, notify)
     const posts = createPostCommands(model, write, gateway, receive)
     const previews = createPreviewCommands(model, write, gateway, receive, isDisposed)
     synchronizeDeadlines(model, write)
-    let nextNotification = 1
-    const notify = (error: unknown) => write({ type: 'notification.add', value: { id: nextNotification++, message: failure(error) } })
     const inspection = createInspectionCommands(model, write, gateway)
     const secrets = createSecretCommands(model, write)
     const posting = createPostSubmit(model.operations, write, notify)

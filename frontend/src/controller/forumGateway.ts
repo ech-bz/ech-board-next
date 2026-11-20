@@ -8,6 +8,7 @@ import type { BanMapValue, BoardEntity, ForumEntity, PostEntity, PostPageEntity,
 import { EntityId } from './io/ech/protocol/entityId'
 import type { Media, Resources } from './io/ech/protocol/transactions'
 import * as relay from './io/ech/relay'
+import { relayEndpoint } from './io/ech/resolve'
 
 export const clean = (s: string) => s.replace(/^0x/, '')
 
@@ -79,7 +80,8 @@ export function createForumGateway(model: ForumState, commit: Commit) {
   const pending = new Map<string, Promise<ForumApi>>()
 
   async function connect(base: string): Promise<ForumApi> {
-    const key = base.replace(/\/$/, '').replace(/\/api$/, '')
+    const endpoint = await relayEndpoint(base)
+    const key = endpoint.replace(/\/$/, '').replace(/\/api$/, '')
     const known = model.relays[key]
     if (known) return new ForumApi(known, model.session)
     const running = pending.get(key)

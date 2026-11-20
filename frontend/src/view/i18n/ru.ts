@@ -7,6 +7,8 @@ export const ru = {
   'forum.boardSlug': 'Адрес доски',
   'forum.boardSlugHint': 'От 1 до 32 символов: a–z, 0–9 и дефис. Без слешей.',
   'forum.boardDescription': 'Описание (необязательно)',
+  'forum.addRelay': 'Добавить relay',
+  'forum.relayPlaceholder': 'https://…',
   'error.Server.NotFound': 'Содержимое не найдено',
   'error.Server.BadRequest': 'Некорректный запрос: {reason}',
   'error.Server.Program': 'Ошибка программы: {reason}',

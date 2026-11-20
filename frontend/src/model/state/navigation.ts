@@ -14,7 +14,6 @@ export type Route =
 export interface ForumInfo {
   forumId: string
   relayUrl: string
-  host: string
 }
 
 export interface BoardInfo {

@@ -97,6 +97,10 @@ function Shell() {
     return null
   }
   const currentForum = () => forums().find((forum) => forum.forumId === context()?.forumId) ?? null
+  const forumHost = () => {
+    const forum = currentForum()
+    return forum ? new URL(forum.relayUrl).host : undefined
+  }
   const selectForum = (forum: ForumInfo) => {
     nav.navigate({ page: 'boards', forumId: forum.forumId })
   }
@@ -120,6 +124,7 @@ function Shell() {
       setting={setting()}
       onToggleCollapsed={store.toggleSidebar}
       onSelectForum={selectForum}
+      onAddRelay={(url) => { void store.addRelay(url) }}
       onSelectBoard={(board) => nav.navigate({ page: 'board', forumId: context()!.forumId, slug: board.slug })}
       onOpenSetting={(slug) => nav.navigate({ page: 'settings', setting: slug })}
       settingsHref="/settings"
@@ -153,7 +158,7 @@ function Shell() {
                               forumId={r().forumId ?? ''}
                               slug={r().slug}
                               heading={boardHeading()}
-                              host={currentForum()?.host}
+                              host={forumHost()}
                             />
                           )}
                         </Show>
@@ -166,6 +171,7 @@ function Shell() {
                             boards={boards()}
                             forums={forums()}
                             onSelectForum={selectForum}
+                            onAddRelay={(url) => { void store.addRelay(url) }}
                           />
                         </Show>
                         <Show when={route().page === 'settings' ? true : null}>

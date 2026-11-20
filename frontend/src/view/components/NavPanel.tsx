@@ -9,11 +9,13 @@ import { KeyRoundIcon } from '../icons/KeyRoundIcon'
 import { PaletteIcon } from '../icons/PaletteIcon'
 import { PanelLeftCloseIcon } from '../icons/PanelLeftCloseIcon'
 import { PanelLeftOpenIcon } from '../icons/PanelLeftOpenIcon'
+import { PlusIcon } from '../icons/PlusIcon'
 import { SettingsIcon } from '../icons/SettingsIcon'
 import type { Section } from '../nav'
 import { settingKeyToSlug, useRoutes, type SettingSlug } from '../route'
 import { settingLabel } from '../settings'
 import { Capsule } from './Capsule'
+import { Field } from './Field'
 import { IconButton } from './IconButton'
 
 const navScrollVariants = cva('flex-1 min-h-0 overflow-y-auto')
@@ -47,6 +49,7 @@ const forumMenuVariants = cva('absolute left-0 right-0 top-[calc(100%+6px)] z-20
 const forumMenuItemVariants = cva('grid w-full cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-2.5 rounded-md bg-transparent px-2 py-2 text-left text-fg hover:bg-hover')
 const forumItemSubVariants = cva('mt-0.5 text-sm text-secondary')
 const forumItemCheckVariants = cva('text-lg text-accent')
+const forumAddVariants = cva('mt-1.5 flex items-center gap-2 px-1 pb-0.5')
 const sectionLabelVariants = cva('px-4 pb-1.5 pt-2.5 text-sm uppercase tracking-wider text-secondary collapsed:hidden')
 const navListVariants = cva('px-2 collapsed:flex collapsed:w-full collapsed:flex-col collapsed:items-center collapsed:px-1')
 const navItemVariants = cva('grid cursor-pointer grid-cols-[44px_1fr_auto] items-center gap-1.5 px-2 py-2.5 rounded-md collapsed:flex collapsed:w-full collapsed:justify-center collapsed:py-2.5 hover:bg-hover no-underline', {
@@ -84,6 +87,7 @@ export function NavPanel(props: {
   setting: SettingSlug | null
   onToggleCollapsed: () => void
   onSelectForum: (forum: ForumInfo) => void
+  onAddRelay: (url: string) => void
   onSelectBoard: (board: BoardInfo) => void
   onOpenSetting: (setting: SettingSlug) => void
   settingsHref: string
@@ -92,6 +96,14 @@ export function NavPanel(props: {
   const { boardPath } = useRoutes()
   const { t } = useI18n()
   const [forumMenuOpen, setForumMenuOpen] = createSignal(false)
+  const [relayInput, setRelayInput] = createSignal('')
+  const addRelay = () => {
+    const value = relayInput().trim()
+    if (!value) return
+    setRelayInput('')
+    setForumMenuOpen(false)
+    props.onAddRelay(value)
+  }
   const isActiveSetting = (name: string) => settingKeyToSlug(name) === props.setting
   const title = () => (props.section === 'boards' ? t('ui.boards') : t('ui.settings'))
   return (
@@ -126,7 +138,7 @@ export function NavPanel(props: {
                 <img class={logoImgVariants()} src="/static/logo.svg" alt="" />
               </div>
               <div style={{ flex: 1 }}>
-                <div class={strongVariants()}>{props.forum ? props.forum.host : ''}</div>
+                <div class={strongVariants()}>{props.forum ? new URL(props.forum.relayUrl).host : ''}</div>
                 <div class={subVariants()}>{t('ui.currentForum')}</div>
               </div>
               <div class={chevronVariants()}>
@@ -141,7 +153,7 @@ export function NavPanel(props: {
                       <img class={logoImgVariants()} src="/static/logo.svg" alt="" />
                     </div>
                     <div>
-                      <div class={strongVariants()}>{forum.host}</div>
+                      <div class={strongVariants()}>{new URL(forum.relayUrl).host}</div>
                       <div class={forumItemSubVariants()}>{forum.forumId.slice(0, 8)}</div>
                     </div>
                     <div class={forumItemCheckVariants()}>
@@ -152,6 +164,21 @@ export function NavPanel(props: {
                   </button>
                 )}
               </For>
+              <div class={forumAddVariants()}>
+                <Field
+                  as="input"
+                  grow="min-w-0"
+                  value={relayInput()}
+                  placeholder={t('forum.relayPlaceholder')}
+                  onInput={(e) => setRelayInput(e.currentTarget.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') addRelay()
+                  }}
+                />
+                <IconButton size="md" shape="rounded" variant="glass" aria-label={t('forum.addRelay')} onClick={addRelay}>
+                  <PlusIcon width={16} height={16} />
+                </IconButton>
+              </div>
             </div>
           </div>
           <div class={sectionLabelVariants()}>{t('ui.boards')}</div>

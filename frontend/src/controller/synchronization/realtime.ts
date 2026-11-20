@@ -8,6 +8,7 @@ import type { PrepareEntities, Receive } from '../ingestion/receive'
 import { pageSnapshot } from '../ingestion/snapshot'
 import type { RealtimeEvent } from '../io/ech/protocol/events'
 import { RealtimeClient, type Subscription } from '../io/ech/realtime'
+import { relayEndpoint } from '../io/ech/resolve'
 import type { EntityUpdate } from '../state/entities.types'
 
 export function createRealtime(model: ForumState, commit: Commit, gateway: ForumGateway, receive: Receive, prepare: PrepareEntities, isDisposed: () => boolean, restore: () => void) {
@@ -69,8 +70,9 @@ export function createRealtime(model: ForumState, commit: Commit, gateway: Forum
     receiveEvent,
     async begin(relayUrl: string, subscription: Subscription) {
       events = Promise.resolve()
+      const endpoint = await relayEndpoint(relayUrl)
       commit({ type: 'realtime.set', value: { phase: 'loading', events: [] } })
-      await client.begin(relayUrl, subscription)
+      await client.begin(endpoint, subscription)
       commit({ type: 'navigation.patch', value: { reconnecting: false } })
       return client.revision
     },

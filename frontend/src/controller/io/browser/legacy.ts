@@ -13,6 +13,7 @@ const DROPPED = [
   'ech-board-relay-tabs',
   'ech-board-scale-thumbs',
   'ech-board-sort-replies',
+  'ech-forum/default-forum',
   'hidden-threads',
 ]
 

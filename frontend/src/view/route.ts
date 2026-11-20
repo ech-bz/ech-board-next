@@ -46,7 +46,7 @@ export function composePath(forumId: string, slug: string, defaultForumId: strin
 export function parseRoute(path: string, defaultForumId: string | null): Route {
   const [pathname, hash] = path.split('#')
   const parts = pathname.split('/').filter(Boolean)
-  if (parts.length === 0) return { page: 'boards' }
+  if (parts.length === 0) return defaultForumId ? { page: 'boards', forumId: defaultForumId } : { page: 'boards' }
   if (parts[0] === 'settings') {
     if (parts.length === 1) return { page: 'settings' }
     if (parts.length === 2 && settingSlugToKey(parts[1])) return { page: 'settings', setting: parts[1] as SettingSlug }
