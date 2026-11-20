@@ -10,3 +10,8 @@ export function identityKey(identity: Identity): string {
 export function optionalIdentityKey(identity: Identity | null): string | null {
   return identity ? identityKey(identity) : null
 }
+
+export function parseEsid(value: string): string | null {
+  const clean = value.replace(/^0x/, '')
+  return clean.length === 192 && /^[0-9a-fA-F]+$/.test(clean) ? clean.toLowerCase() : null
+}

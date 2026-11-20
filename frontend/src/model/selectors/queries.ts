@@ -99,6 +99,7 @@ export function createQueries(model: ForumState) {
     pinnedNumbers: () => currentBoard(model)?.pinned ?? [],
     isThreadPinned: (id: string) => threadById(model, id)?.isPinned ?? false,
     boardModerators: () => currentBoard(model)?.moderators ?? [],
+    boardModeratorsOf: (id: string) => currentScope(model)?.entities.boards[id]?.moderators ?? [],
     moderatorsOf: (id: string) => threadModerators(model, id),
     rolesForThread: (id: string) => {
       const scope = currentScope(model), thread = threadById(model, id)

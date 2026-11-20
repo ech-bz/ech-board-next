@@ -24,6 +24,7 @@ export function PostMenu(props: { post: Post; closed: boolean; threadObject?: Th
       result.push(...threadModItems(t, actions, { threadId: rec.threadId, closed: props.closed, deleted: rec.hidden }))
       result.push({ label: t('mod.moderators'), onClick: () => actions.openThreadModerators(rec.threadId) })
       result.push({ label: t('mod.bans'), onClick: () => actions.openBans(t('mod.bans'), 'thread', rec.threadId) })
+      if (rec.author && actions.canGrantRole()) result.push({ label: t('mod.grantRole'), onClick: () => actions.openGrantRole(rec.id, rec.threadId) })
       if (selection?.canSelect() && canSelectAllFromAuthor(actions.roleKinds())) result.push(author())
       result.push({ label: t('mod.debugThread'), onClick: () => actions.openLogs('thread', props.threadObject ? { kind: 'thread', id: props.threadObject.id } : undefined) })
       result.push({ label: t('mod.debugPost'), onClick: () => actions.openLogs('post', { kind: 'post', id: rec.id }) })
@@ -37,6 +38,9 @@ export function PostMenu(props: { post: Post; closed: boolean; threadObject?: Th
     }
     if (rec.author && rec.bannedScopes.length > 0 && rec.bannedScopes.some((scope) => actions.canBanScope(scope))) {
       result.push({ label: t('mod.unban'), onClick: () => actions.openUnban(rec.id, threadId) })
+    }
+    if (rec.author && actions.canGrantRole()) {
+      result.push({ label: t('mod.grantRole'), onClick: () => actions.openGrantRole(rec.id, threadId) })
     }
     if (selection?.canSelect() && canSelectAllFromAuthor(actions.roleKinds())) result.push(author())
     result.push({ label: t('mod.debugPost'), onClick: () => actions.openLogs('post', { kind: 'post', id: rec.id }) })

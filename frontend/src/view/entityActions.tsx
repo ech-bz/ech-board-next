@@ -1,7 +1,7 @@
 import { createContext, useContext, type Accessor, type JSX } from 'solid-js'
 import type { EntityObject } from '../model/entities/entity'
 import type { Post } from '../model/entities/post'
-import { canBan, canBanAny, roleForThreadAction, type BanScope, type ThreadAction } from '../model/rules/permissions'
+import { canBan, canBanAny, canBoardCore, canThreadAdminMgmt, roleForThreadAction, type BanScope, type ThreadAction } from '../model/rules/permissions'
 import { withThreadRoles, type RoleKind, type RoleOption } from '../model/rules/roles'
 import { useForumController, useForumQueries } from './bindings/forum'
 import { useMod } from './mod'
@@ -40,9 +40,11 @@ export interface EntityActions {
   openBans: (title: string, kind: 'forum' | 'board' | 'thread', id: string) => void
   openTransaction: (txid: string) => void
   openUnban: (postId: string, threadId: string) => void
+  openGrantRole: (postId: string, threadId: string) => void
   openLogs: (tab: 'forum' | 'board' | 'thread' | 'post', object?: EntityObject) => void
   canBanAny: Accessor<boolean>
   canBanScope: (scope: BanScope) => boolean
+  canGrantRole: Accessor<boolean>
   busy: Accessor<boolean>
 }
 
@@ -97,9 +99,14 @@ export function EntityActionsProvider(props: { roles: RoleOption[]; children: JS
     openBans: (title, kind, id) => modals.openBans(title, kind, id),
     openTransaction: (txid) => modals.openTransaction(txid),
     openUnban: (postId, threadId) => modals.openUnban(postId, threadId),
+    openGrantRole: (postId, threadId) => modals.openGrantRole(postId, threadId),
     openLogs: (tab, object) => modals.openLogs(tab, object),
     canBanAny: () => canBanAny(props.roles.map((role) => role.kind)),
     canBanScope: (scope) => canBan(scope, props.roles.map((role) => role.kind)),
+    canGrantRole: () => {
+      const kinds = props.roles.map((role) => role.kind)
+      return canThreadAdminMgmt(kinds) || canBoardCore(kinds)
+    },
     busy: mod.busy,
   }
   return <EntityActionsContext.Provider value={value}>{props.children}</EntityActionsContext.Provider>

@@ -84,6 +84,10 @@ export function canBoardCore(roles: RoleKind[]): boolean {
   return hasRole(roles, FORUM_MOD_ROLES)
 }
 
+export function canThreadAdminMgmt(roles: RoleKind[]): boolean {
+  return hasRole(roles, THREAD_ADMIN_MGMT_ROLES)
+}
+
 export function canThreadPin(roles: RoleKind[]): boolean {
   return hasRole(roles, PIN_ROLES)
 }

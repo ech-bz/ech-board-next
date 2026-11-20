@@ -2,11 +2,12 @@ import { createContext, Show, useContext, type JSX } from 'solid-js'
 import type { EntityObject } from '../model/entities/entity'
 import type { Post } from '../model/entities/post'
 import { identityKey as esidHex } from '../model/rules/identity'
-import { canBoardCore, canBoardSettings, roleForForumSettings, type BanScope } from '../model/rules/permissions'
+import { canBoardCore, canBoardSettings, canThreadAdminMgmt, roleForForumSettings, type BanScope } from '../model/rules/permissions'
 import type { RoleKind, RoleOption } from '../model/rules/roles'
 import { useForumController, useForumModel, useForumQueries } from './bindings/forum'
 import { BanModal } from './components/BanModal'
 import { AuthorHistoryModal } from './components/AuthorHistoryModal'
+import { GrantRoleModal } from './components/GrantRoleModal'
 import { BansModal } from './components/BansModal'
 import { BoardSettingsModal } from './components/BoardSettingsModal'
 import { CreateBoardModal } from './components/CreateBoardModal'
@@ -28,6 +29,7 @@ export interface ModalsApi {
   openBans: (title: string, kind: 'forum' | 'board' | 'thread', id: string) => void
   openTransaction: (txid: string) => void
   openUnban: (postId: string, threadId: string) => void
+  openGrantRole: (postId: string, threadId: string) => void
   openLogs: (tab: LogsTab, object?: EntityObject) => void
 }
 
@@ -60,6 +62,7 @@ export function ModalsProvider(props: { roles: RoleOption[]; relayUrl: string; c
     openBans: controller.openBans,
     openTransaction: controller.openTransaction,
     openUnban: controller.openUnban,
+    openGrantRole: controller.openGrantRole,
     openLogs: controller.openLogs,
   }
 
@@ -146,6 +149,17 @@ export function ModalsProvider(props: { roles: RoleOption[]; relayUrl: string; c
       <Show when={model.dialogs.unbanTarget} keyed>
         {(target) => <UnbanModal postId={target.postId} threadId={target.threadId} onClose={() => controller.closeDialog('unbanTarget')} />}
       </Show>
+      <Show when={model.dialogs.grantTarget} keyed>
+        {(target) => (
+          <GrantRoleModal
+            postId={target.postId}
+            threadId={target.threadId}
+            canThread={canThreadAdminMgmt(roleKinds())}
+            canBoard={canBoardCore(roleKinds())}
+            onClose={() => controller.closeDialog('grantTarget')}
+          />
+        )}
+      </Show>
       <Show when={boardSettings() && read.boardObject() && read.info()}>
         <BoardSettingsModal
           onClose={() => controller.closeDialog('boardSettings')}
@@ -167,8 +181,8 @@ export function ModalsProvider(props: { roles: RoleOption[]; relayUrl: string; c
             runBoardSetIgnoreForumBans: (v) => mod.runBoardSetIgnoreForumBans(v),
             runBoardSetReactions: (vals) => mod.runBoardSetReactions(vals),
             runBoardSetPinned: (pinned) => mod.runBoardSetPinned(pinned),
-            runBoardAddModerator: (addr) => mod.runBoardAddModerator(addr),
-            runBoardDelModerator: (addr) => mod.runBoardDelModerator(addr),
+            runBoardAddModerator: (addr) => mod.runBoardAddModerator(read.info()!.boardId, addr),
+            runBoardDelModerator: (addr) => mod.runBoardDelModerator(read.info()!.boardId, addr),
           }}
         />
       </Show>

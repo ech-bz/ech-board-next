@@ -15,6 +15,7 @@ export function createOverlayCommands(commit: Commit) {
     openAuthorHistory(esid = '') { commit({ type: 'dialogs.patch', value: { authorHistory: esid.trim().replace(/^0x/i, '').toLowerCase() } }) },
     openTransaction(txid: string) { commit({ type: 'dialogs.patch', value: { transaction: txid.replace(/^0x/i, '').toLowerCase() } }) },
     openUnban(postId: string, threadId: string) { commit({ type: 'dialogs.patch', value: { unbanTarget: { postId, threadId } } }) },
+    openGrantRole(postId: string, threadId: string) { commit({ type: 'dialogs.patch', value: { grantTarget: { postId, threadId } } }) },
     closeDialog(kind: keyof DialogState) { commit({ type: 'dialogs.patch', value: { [kind]: kind === 'boardSettings' ? false : null } }) },
     openGallery(forumId: string, postId: string, hash: string) { commit({ type: 'gallery.set', value: { forumId: forumKey(forumId), postId, hash } }) },
     closeGallery() { commit({ type: 'gallery.set', value: null }) },

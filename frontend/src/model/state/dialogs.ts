@@ -12,6 +12,7 @@ export interface DialogState {
   authorHistory: string | null
   transaction: string | null
   unbanTarget: { postId: string; threadId: string } | null
+  grantTarget: { postId: string; threadId: string } | null
 }
 
-export const emptyDialogs = (): DialogState => ({ topic: null, moderators: null, banTarget: null, bans: null, boardSettings: false, createBoard: null, forumTitle: null, logs: null, authorHistory: null, transaction: null, unbanTarget: null })
+export const emptyDialogs = (): DialogState => ({ topic: null, moderators: null, banTarget: null, bans: null, boardSettings: false, createBoard: null, forumTitle: null, logs: null, authorHistory: null, transaction: null, unbanTarget: null, grantTarget: null })

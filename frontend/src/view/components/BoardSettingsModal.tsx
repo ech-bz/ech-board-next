@@ -8,6 +8,7 @@ import { useI18n } from '../i18n'
 
 import { fromHex, toHex } from '../../model/content/hex'
 import type { Board } from '../../model/entities/board'
+import { parseEsid } from '../../model/rules/identity'
 
 import { Button } from './Button'
 import { Field } from './Field'
@@ -27,11 +28,6 @@ const listItemVariants = cva('flex items-center gap-2 rounded-md bg-panel2 px-2.
 const listRemoveVariants = cva('cursor-pointer border-0 bg-transparent text-fg')
 const toggleLabelVariants = cva('flex items-center gap-2 text-lg')
 const hiddenInputVariants = cva('hidden')
-
-function parseEsid(s: string): string | null {
-  const clean = s.replace(/^0x/, '')
-  return clean.length === 192 && /^[0-9a-fA-F]+$/.test(clean) ? clean.toLowerCase() : null
-}
 
 export interface BoardModActions {
   busy: boolean

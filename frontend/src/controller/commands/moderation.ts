@@ -17,6 +17,7 @@ import {
   roleForBoardSoft,
   roleForPostAction,
   roleForThreadAction,
+  roleForThreadAdminMgmt,
   SELF_MOD_WINDOW_MS,
 } from '../../model/rules/permissions'
 import type { RoleOption } from '../../model/rules/roles'
@@ -357,11 +358,21 @@ export function createModActions(getEnv: () => ModEnv, model: ForumState, commit
       await submit(env, role, Calls.board.set_pinned(env.boardId, pinned))
     })
 
-  const runBoardAddModerator = (target: string) =>
-    boardSetting((env) => Calls.board.add_moderator(env.boardId, target.replace(/^0x/, '')), roleForBoardCore(getEnv().roles))
+  const runBoardAddModerator = (boardId: string, target: string) =>
+    runAction(async () => {
+      const env = getEnv()
+      const role = roleForBoardCore(env.roles)
+      if (!signable(role)) throw new Error('no role for board settings')
+      await submit(env, role, Calls.board.add_moderator(boardId, target.replace(/^0x/, '')))
+    })
 
-  const runBoardDelModerator = (target: string) =>
-    boardSetting((env) => Calls.board.remove_moderator(env.boardId, target.replace(/^0x/, '')), roleForBoardCore(getEnv().roles))
+  const runBoardDelModerator = (boardId: string, target: string) =>
+    runAction(async () => {
+      const env = getEnv()
+      const role = roleForBoardCore(env.roles)
+      if (!signable(role)) throw new Error('no role for board settings')
+      await submit(env, role, Calls.board.remove_moderator(boardId, target.replace(/^0x/, '')))
+    })
 
   const runBoardClose = (value: boolean) =>
     boardSetting((env) => Calls.board.set_readonly(env.boardId, value), roleForBoardCore(getEnv().roles))
@@ -369,25 +380,25 @@ export function createModActions(getEnv: () => ModEnv, model: ForumState, commit
   const runThreadSetAdmin = (threadId: string, target: string | null) =>
     runAction(async () => {
       const env = getEnv()
-      const role = roleForThreadAction('edit_topic', env.rolesForThread(threadId))
+      const role = roleForThreadAdminMgmt(env.rolesForThread(threadId))
       if (!signable(role)) throw new Error('no role for thread admin')
-      await submit(env, role, Calls.thread.set_admin(threadId, target))
+      await submit(env, role, Calls.thread.set_admin(threadId, target && target.replace(/^0x/, '')))
     })
 
   const runThreadAddModerator = (threadId: string, target: string) =>
     runAction(async () => {
       const env = getEnv()
-      const role = roleForThreadAction('edit_topic', env.rolesForThread(threadId))
+      const role = roleForThreadAdminMgmt(env.rolesForThread(threadId))
       if (!signable(role)) throw new Error('no role for thread moderators')
-      await submit(env, role, Calls.thread.add_moderator(threadId, target))
+      await submit(env, role, Calls.thread.add_moderator(threadId, target.replace(/^0x/, '')))
     })
 
   const runThreadDelModerator = (threadId: string, target: string) =>
     runAction(async () => {
       const env = getEnv()
-      const role = roleForThreadAction('edit_topic', env.rolesForThread(threadId))
+      const role = roleForThreadAdminMgmt(env.rolesForThread(threadId))
       if (!signable(role)) throw new Error('no role for thread moderators')
-      await submit(env, role, Calls.thread.remove_moderator(threadId, target))
+      await submit(env, role, Calls.thread.remove_moderator(threadId, target.replace(/^0x/, '')))
     })
 
   return {
