@@ -1,10 +1,8 @@
 import type { Thread } from '../../model/entities/thread'
 
-import { toHex } from '../../model/content/hex'
 import type { Post } from '../../model/entities/post'
 import { canSelectAllFromAuthor } from '../../model/rules/permissions'
-import { useForumController, useForumQueries } from '../bindings/forum'
-import { banScopeLabel } from '../banScopeLabel'
+import { useForumController } from '../bindings/forum'
 import { useEntityActions } from '../entityActions'
 import { useI18n } from '../i18n'
 import { usePostSelection } from '../postSelection/PostSelectionProvider'
@@ -14,7 +12,6 @@ import { DropdownMenu, type MenuItem } from './Menu/DropdownMenu'
 export function PostMenu(props: { post: Post; closed: boolean; threadObject?: Thread; onEdit?: (id: string) => void }) {
   const { t } = useI18n()
   const actions = useEntityActions()
-  const read = useForumQueries()
   const controller = useForumController()
   const selection = usePostSelection()
   const items = (): MenuItem[] => {
@@ -38,15 +35,8 @@ export function PostMenu(props: { post: Post; closed: boolean; threadObject?: Th
     if (actions.canBanAny() && !rec.hidden) {
       result.push({ label: t('mod.ban'), onClick: () => actions.openBan([rec], threadId) })
     }
-    if (rec.author) {
-      const author = rec.author
-      const target = toHex(rec.txid)
-      for (const scope of rec.bannedScopes) {
-        if (!actions.canBanScope(scope)) continue
-        const id = scope === 'thread' ? threadId : scope === 'board' ? read.info()?.boardId : ''
-        if (id === undefined) continue
-        result.push({ label: `${t('mod.unban')} (${banScopeLabel(t, scope)})`, onClick: () => actions.runUnban(target, author, scope, id) })
-      }
+    if (rec.author && rec.bannedScopes.length > 0 && rec.bannedScopes.some((scope) => actions.canBanScope(scope))) {
+      result.push({ label: t('mod.unban'), onClick: () => actions.openUnban(rec.id, threadId) })
     }
     if (selection?.canSelect() && canSelectAllFromAuthor(actions.roleKinds())) result.push(author())
     result.push({ label: t('mod.debugPost'), onClick: () => actions.openLogs('post', { kind: 'post', id: rec.id }) })

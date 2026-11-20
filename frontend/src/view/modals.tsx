@@ -15,6 +15,7 @@ import { LogsModal, type LogsTab } from './components/LogsModal/LogsModal'
 import { ModeratorsModal } from './components/ModeratorsModal'
 import { ThreadTopicModal } from './components/ThreadTopicModal'
 import { TransactionModal } from './components/TransactionModal'
+import { UnbanModal } from './components/UnbanModal'
 import { useMod } from './mod'
 
 export interface ModalsApi {
@@ -26,6 +27,7 @@ export interface ModalsApi {
   openBan: (posts: Post[], threadId: string, deletePosts?: boolean) => void
   openBans: (title: string, kind: 'forum' | 'board' | 'thread', id: string) => void
   openTransaction: (txid: string) => void
+  openUnban: (postId: string, threadId: string) => void
   openLogs: (tab: LogsTab, object?: EntityObject) => void
 }
 
@@ -57,6 +59,7 @@ export function ModalsProvider(props: { roles: RoleOption[]; relayUrl: string; c
     openBan: (posts, threadId, deletePosts) => controller.openBan(posts.map((post) => post.id), threadId, deletePosts),
     openBans: controller.openBans,
     openTransaction: controller.openTransaction,
+    openUnban: controller.openUnban,
     openLogs: controller.openLogs,
   }
 
@@ -139,6 +142,9 @@ export function ModalsProvider(props: { roles: RoleOption[]; relayUrl: string; c
       </Show>
       <Show when={model.dialogs.transaction !== null}>
         <TransactionModal txid={model.dialogs.transaction ?? ''} relayUrl={props.relayUrl} onClose={() => controller.closeDialog('transaction')} />
+      </Show>
+      <Show when={model.dialogs.unbanTarget} keyed>
+        {(target) => <UnbanModal postId={target.postId} threadId={target.threadId} onClose={() => controller.closeDialog('unbanTarget')} />}
       </Show>
       <Show when={boardSettings() && read.boardObject() && read.info()}>
         <BoardSettingsModal
