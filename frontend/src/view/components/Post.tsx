@@ -61,7 +61,7 @@ const postTextVariants = cva('post-text whitespace-pre-wrap break-words', {
   defaultVariants: { state: 'expanded' },
 })
 
-const reactionVariants = cva('inline-flex cursor-pointer items-center justify-center rounded-full border-0 px-2 py-1 gap-1 text-sm text-fg text-bold leading-none hover:bg-hover', {
+const reactionVariants = cva('inline-flex cursor-pointer items-center justify-center rounded-full border-0 px-2 py-0.5 gap-1 text-sm text-fg text-bold leading-none hover:bg-hover', {
   variants: {
     active: {
       true: 'bg-reaction',
@@ -283,7 +283,7 @@ export function PostBody(props: {
                 onClick={() => void react(item.hex)}
                 class={reactionVariants({ active: item.hex === props.post.myReaction })}
               >
-                <img src={item.url} alt="" class={'size-4'} />
+                <img src={item.url} alt="" class={'size-5'} />
                 {item.count}
               </button>
             )}
