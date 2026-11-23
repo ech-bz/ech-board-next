@@ -34,14 +34,14 @@ export interface EntityActions {
   openThreadTopic: (threadId: string) => void
   openThreadModerators: (threadId: string) => void
   openBoardModerators: () => void
-  openForumModerators: () => void
+  openForumModerators: (forumId: string) => void
   openBoardSettings: () => void
   openBan: (posts: Post[], threadId: string, deletePosts?: boolean) => void
-  openBans: (title: string, kind: 'forum' | 'board' | 'thread', id: string) => void
-  openTransaction: (txid: string) => void
+  openBans: (title: string, kind: 'forum' | 'board' | 'thread', id: string, relayUrl?: string) => void
+  openTransaction: (txid: string, relayUrl?: string) => void
   openUnban: (postId: string, threadId: string) => void
   openGrantRole: (postId: string, threadId: string) => void
-  openLogs: (tab: 'forum' | 'board' | 'thread' | 'post', object?: EntityObject) => void
+  openLogs: (tab: 'forum' | 'board' | 'thread' | 'post', object?: EntityObject, relayUrl?: string) => void
   canBanAny: Accessor<boolean>
   canBanScope: (scope: BanScope) => boolean
   canGrantRole: Accessor<boolean>
@@ -93,14 +93,14 @@ export function EntityActionsProvider(props: { roles: RoleOption[]; children: JS
     openThreadTopic: (threadId) => modals.openThreadTopic(threadId),
     openThreadModerators: (threadId) => modals.openThreadModerators(threadId),
     openBoardModerators: () => modals.openBoardModerators(),
-    openForumModerators: () => modals.openForumModerators(),
+    openForumModerators: (forumId) => modals.openForumModerators(forumId),
     openBoardSettings: () => modals.openBoardSettings(),
     openBan: (posts, threadId, deletePosts) => modals.openBan(posts, threadId, deletePosts),
-    openBans: (title, kind, id) => modals.openBans(title, kind, id),
-    openTransaction: (txid) => modals.openTransaction(txid),
+    openBans: (title, kind, id, relayUrl) => modals.openBans(title, kind, id, relayUrl),
+    openTransaction: (txid, relayUrl) => modals.openTransaction(txid, relayUrl),
     openUnban: (postId, threadId) => modals.openUnban(postId, threadId),
     openGrantRole: (postId, threadId) => modals.openGrantRole(postId, threadId),
-    openLogs: (tab, object) => modals.openLogs(tab, object),
+    openLogs: (tab, object, relayUrl) => modals.openLogs(tab, object, relayUrl),
     canBanAny: () => canBanAny(props.roles.map((role) => role.kind)),
     canBanScope: (scope) => canBan(scope, props.roles.map((role) => role.kind)),
     canGrantRole: () => {

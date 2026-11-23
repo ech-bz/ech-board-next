@@ -49,6 +49,7 @@ export function createController() {
       void navigation.navigate(route, true)
     })
     const navigation = createNavigation(model, write, gateway, receive, ready, realtime, isDisposed, notify)
+    void ready.then(() => navigation.loadForums())
     const posts = createPostCommands(model, write, gateway, receive)
     const previews = createPreviewCommands(model, write, gateway, receive, isDisposed)
     synchronizeDeadlines(model, write)

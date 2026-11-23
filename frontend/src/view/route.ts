@@ -34,10 +34,6 @@ function isDefaultForum(forumId: string, def: string | null): boolean {
   return a === b || a.startsWith(b) || b.startsWith(a)
 }
 
-export function boardsPath(forumId: string, defaultForumId: string | null): string {
-  return isDefaultForum(forumId, defaultForumId) ? '/' : `/forum/${forumId}`
-}
-
 export function boardPath(forumId: string, slug: string, defaultForumId: string | null): string {
   return isDefaultForum(forumId, defaultForumId) ? `/${slug}` : `/forum/${forumId}/${slug}`
 }
@@ -54,7 +50,7 @@ export function composePath(forumId: string, slug: string, defaultForumId: strin
 export function parseRoute(path: string, defaultForumId: string | null): Route {
   const [pathname, hash] = path.split('#')
   const parts = pathname.split('/').filter(Boolean)
-  if (parts.length === 0) return defaultForumId ? { page: 'boards', forumId: defaultForumId } : { page: 'boards' }
+  if (parts.length === 0) return { page: 'boards' }
   if (parts[0] === 'settings') {
     if (parts.length === 1) return { page: 'settings' }
     if (parts.length === 2) {
@@ -64,7 +60,6 @@ export function parseRoute(path: string, defaultForumId: string | null): Route {
     return { page: 'boards' }
   }
   if (parts[0] === 'forum') {
-    if (parts.length === 2) return { page: 'boards', forumId: parts[1] }
     if (parts.length === 3) return { page: 'board', forumId: parts[1], slug: parts[2] }
     if (parts.length === 4 && parts[3] === 'new') return { page: 'compose', forumId: parts[1], slug: parts[2] }
     if (parts.length === 4 && /^\d+$/.test(parts[3])) {
@@ -89,7 +84,7 @@ export function parseRoute(path: string, defaultForumId: string | null): Route {
 }
 
 export function routeToPath(r: Route, defaultForumId: string | null): string {
-  if (r.page === 'boards') return r.forumId ? boardsPath(r.forumId, defaultForumId) : '/'
+  if (r.page === 'boards') return '/'
   if (r.page === 'board') return boardPath(r.forumId, r.slug, defaultForumId)
   if (r.page === 'thread') return threadPath(r.forumId, r.slug, r.threadNum, r.postNum, defaultForumId)
   if (r.page === 'compose') return composePath(r.forumId, r.slug, defaultForumId)
@@ -107,7 +102,7 @@ export function depthOf(r: Route): number {
 export function parentRoute(r: Route): Route | null {
   if (r.page === 'thread') return { page: 'board', forumId: r.forumId, slug: r.slug }
   if (r.page === 'compose') return { page: 'board', forumId: r.forumId, slug: r.slug }
-  if (r.page === 'board') return { page: 'boards', forumId: r.forumId }
+  if (r.page === 'board') return { page: 'boards' }
   if (r.page === 'settings' && r.setting) return { page: 'settings' }
   return null
 }
@@ -115,7 +110,6 @@ export function parentRoute(r: Route): Route | null {
 export function useRoutes() {
   const model = useForumModel()
   return {
-    boardsPath: (forumId: string) => boardsPath(forumId, model.navigation.defaultForumId),
     boardPath: (forumId: string, slug: string) => boardPath(forumId, slug, model.navigation.defaultForumId),
     threadPath: (forumId: string, slug: string, threadNum: number, postNum?: number) => threadPath(forumId, slug, threadNum, postNum, model.navigation.defaultForumId),
     composePath: (forumId: string, slug: string) => composePath(forumId, slug, model.navigation.defaultForumId),

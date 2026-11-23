@@ -11,10 +11,17 @@ import { currentBoard, currentScope, forumKey, numberKey, referenceKey, scopeMod
 export function createQueries(model: ForumState) {
   const collections = createCollections(model)
   const get = (id: string, root = model.page.forumId): Post | undefined => root ? model.scopes[forumKey(root)]?.entities.posts[id] : undefined
+  const boardsOf = (forumId: string): BoardInfo[] => {
+    const scope = model.scopes[forumKey(forumId)]
+    return scope ? Object.values(scope.entities.boards).map((board) => ({ slug: board.slug, id: board.id, title: board.description, count: board.postCount })).sort((left, right) => right.count - left.count) : []
+  }
   const boards = (): BoardInfo[] => {
     const root = model.navigation.context?.forumId
-    const scope = root ? model.scopes[forumKey(root)] : null
-    return scope ? Object.values(scope.entities.boards).map((board) => ({ slug: board.slug, id: board.id, title: board.description, count: board.postCount })).sort((left, right) => right.count - left.count) : []
+    return root ? boardsOf(root) : []
+  }
+  const forumObjectOf = (forumId: string) => {
+    const scope = model.scopes[forumKey(forumId)]
+    return scope ? Object.values(scope.entities.forums)[0] ?? null : null
   }
   const info = createMemo((): StaticInfo | null => {
     const scope = currentScope(model)
@@ -36,14 +43,15 @@ export function createQueries(model: ForumState) {
     return post && scope.entities.boards[scope.boardIds[post.board]] && scope.entities.threads[post.threadId] ? post : undefined
   }
   return {
-    boards, info, get, roles, previewPost,
+    boards, boardsOf, info, get, roles, previewPost,
     postId(board: string, number: number, root: string): string | undefined {
       return model.scopes[forumKey(root)]?.postIds[numberKey(board, number)]
     },
     forumObject() {
-      const scope = currentScope(model)
-      return scope ? Object.values(scope.entities.forums)[0] ?? null : null
+      const root = model.navigation.context?.forumId
+      return root ? forumObjectOf(root) : null
     },
+    forumObjectOf,
     galleryCollection() {
       const empty = { items: [] as MediaReference[], index: -1, revision: 0 }
       const selected = model.gallery
@@ -75,8 +83,8 @@ export function createQueries(model: ForumState) {
       const selected = model.gallery
       return selected && reference ? model.scopes[selected.forumId]?.entities.posts[reference.postId]?.media.find((item) => item.hash === reference.hash && !item.banned && !item.missing) : undefined
     },
-    forumModerators() {
-      const scope = currentScope(model)
+    forumModeratorsOf(forumId: string) {
+      const scope = model.scopes[forumKey(forumId)]
       return scope ? scopeModerators(scope, '') : null
     },
     postsOf: (showDeleted: boolean) => showDeleted ? collections.postIds() : collections.visiblePostIds(),

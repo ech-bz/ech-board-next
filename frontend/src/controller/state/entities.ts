@@ -177,8 +177,13 @@ export function createEntityUpdates(model: ForumState, write: SetStoreFunction<F
     write('scopes', produce((scopes) => { delete scopes[root] }))
   }
   const reset = () => {
-    for (const root of Object.keys(model.scopes)) lifecycle.releaseScope(root)
-    write('scopes', reconcile({}))
+    for (const root of Object.keys(model.scopes)) {
+      const scope = model.scopes[root]
+      if (!scope) continue
+      lifecycle.releaseScope(root)
+      const fresh = initialForumScope(root, scope.relayUrl)
+      write('scopes', root, reconcile({ ...fresh, entities: { ...fresh.entities, forums: scope.entities.forums, boards: scope.entities.boards } }))
+    }
     write('references', reconcile({}))
     write('outgoing', reconcile({}))
   }

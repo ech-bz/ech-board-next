@@ -4,7 +4,7 @@ export type SettingKey = 'Account' | 'Appearance'
 
 
 export type Route =
-  | { page: 'boards'; forumId?: string }
+  | { page: 'boards' }
   | { page: 'board'; forumId: string; slug: string }
   | { page: 'thread'; forumId: string; slug: string; threadNum: number; replyTo?: number; scrollTo?: 'top' | 'bottom'; postNum?: number }
   | { page: 'compose'; forumId: string; slug: string }
@@ -29,6 +29,7 @@ export interface NavigationState {
   lastContentRoute: Route | null
   context: { forumId: string; relayUrl: string } | null
   forums: ForumInfo[]
+  forumErrors: Record<string, Failure | null>
   loading: boolean
   refreshing: boolean
   reconnecting: boolean

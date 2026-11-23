@@ -2,9 +2,10 @@ import { Router, Route as RouterRoute, useLocation } from '@solidjs/router'
 import { cva } from 'class-variance-authority'
 import { createEffect, createMemo, Show } from 'solid-js'
 import type { ForumRuntime } from '../controller/createController'
-import type { ForumInfo } from '../model/state/navigation'
+import { forumKey } from '../model/selectors/forum'
 import { ForumProvider, useForumController, useForumModel, useForumQueries } from './bindings/forum'
 import { GalleryProvider } from './components/Gallery/GalleryProvider'
+import { useIsMobile } from './components/Gallery/useIsMobile'
 import { NavPanel, type Section } from './components/NavPanel'
 import { PostTooltipProvider } from './components/preview/PostTooltipProvider'
 import { StateScreen } from './components/StateScreen'
@@ -13,13 +14,13 @@ import { ComposerBridgeProvider } from './composerBridge'
 import { createHeldPageHeight } from './effects/heldPageHeight'
 import { EntityActionsProvider } from './entityActions'
 import { errorMessage } from './errors'
-import { I18nProvider } from './i18n'
+import { I18nProvider, useI18n } from './i18n'
 import { IconSprite } from './icons/IconSprite'
 import { ModalsProvider } from './modals'
 import { NavProvider, useNav } from './nav'
 import { parseRoute } from './route'
 import { BoardPage } from './screens/BoardPage'
-import { BoardsPage } from './screens/BoardsPage'
+import { BoardsScreen } from './screens/BoardsScreen'
 import { ComposePage } from './screens/ComposePage'
 import { SettingsPage } from './screens/SettingsPage'
 import { ThreadPage } from './screens/ThreadPage'
@@ -43,6 +44,7 @@ const mainVariants = cva('min-h-dvh min-w-0 max-[899px]:ml-0', {
   },
   defaultVariants: { offset: 'nav' },
 })
+const placeholderVariants = cva('flex min-h-dvh items-center justify-center p-8 text-secondary')
 
 function Shell() {
   const store = useForumController()
@@ -50,10 +52,11 @@ function Shell() {
   const model = useForumModel()
   const location = useLocation()
   const nav = useNav()
+  const { t } = useI18n()
+  const mobile = useIsMobile()
   const context = () => model.navigation.context
   const roles = read.roles
   const boards = read.boards
-  const forums = () => model.navigation.forums
   const collapsed = () => model.navigation.collapsed
   const loading = () => model.navigation.loading
   const error = () => model.navigation.error
@@ -63,6 +66,7 @@ function Shell() {
   createEffect(() => {
     const current = parseRoute(location.pathname + location.hash, model.navigation.defaultForumId)
     void store.navigate(current).then((redirect) => { if (redirect) nav.navigate(redirect) })
+    if (current.page === 'boards' && location.pathname !== '/') nav.home()
   })
   createEffect(() => {
     for (const item of model.notifications) {
@@ -96,15 +100,11 @@ function Shell() {
     }
     return null
   }
-  const currentForum = () => forums().find((forum) => forum.forumId === context()?.forumId) ?? null
-  const forumHost = () => {
-    const forum = currentForum()
+  const goSection = (next: Section) => nav.section(next)
+  const forumHost = (forumId: string) => {
+    const forum = model.navigation.forums.find((item) => forumKey(item.forumId) === forumKey(forumId))
     return forum ? new URL(forum.relayUrl).host : undefined
   }
-  const selectForum = (forum: ForumInfo) => {
-    nav.navigate({ page: 'boards', forumId: forum.forumId })
-  }
-  const goSection = (next: Section) => nav.section(next)
   const boardHeading = () => {
     const board = currentBoard()
     if (!board) return ''
@@ -117,15 +117,8 @@ function Shell() {
     <NavPanel
       collapsed={collapsed()}
       section={section()}
-      forums={forums()}
-      forum={currentForum()}
-      boards={boards()}
-      board={currentBoard()}
       setting={setting()}
       onToggleCollapsed={store.toggleSidebar}
-      onSelectForum={selectForum}
-      onAddRelay={(url) => { void store.addRelay(url) }}
-      onSelectBoard={(board) => nav.navigate({ page: 'board', forumId: context()!.forumId, slug: board.slug })}
       onOpenSetting={(slug) => nav.navigate({ page: 'settings', setting: slug })}
       settingsHref="/settings"
       onNavigateSection={goSection}
@@ -133,8 +126,7 @@ function Shell() {
   )
 
   return (
-    <I18nProvider>
-      <ModalsProvider roles={roles()} relayUrl={context()?.relayUrl ?? ''}>
+    <ModalsProvider roles={roles()} relayUrl={context()?.relayUrl ?? ''}>
         <EntityActionsProvider roles={roles()}>
           <ComposerBridgeProvider>
             <GalleryProvider>
@@ -145,7 +137,7 @@ function Shell() {
                   <aside class={asideVariants({ collapsed: collapsed() })}>{panel()}</aside>
                   <main ref={held.ref} class={mainVariants({ offset: collapsed() ? 'collapsed' : 'nav' })} style={{ 'min-height': loading() || refreshing() ? `${held.height()}px` : '' }}>
                     <Show
-                      when={context() && !loading()}
+                      when={!loading()}
                       fallback={<StateScreen error={error()} />}
                     >
                       <Show when={!error()} fallback={<StateScreen error={error()} />}>
@@ -158,7 +150,7 @@ function Shell() {
                               forumId={r().forumId ?? ''}
                               slug={r().slug}
                               heading={boardHeading()}
-                              host={forumHost()}
+                              host={forumHost(r().forumId)}
                             />
                           )}
                         </Show>
@@ -166,13 +158,9 @@ function Shell() {
                           {(r) => <ComposePage forumId={r().forumId ?? ''} slug={r().slug} heading={boardHeading()} />}
                         </Show>
                         <Show when={route().page === 'boards' ? true : null}>
-                          <BoardsPage
-                            forumId={context()!.forumId}
-                            boards={boards()}
-                            forums={forums()}
-                            onSelectForum={selectForum}
-                            onAddRelay={(url) => { void store.addRelay(url) }}
-                          />
+                          <Show when={!mobile()} fallback={<BoardsScreen />}>
+                            <div class={placeholderVariants()}>{t('ui.boardSelectText')}</div>
+                          </Show>
                         </Show>
                         <Show when={route().page === 'settings' ? true : null}>
                           <SettingsPage setting={setting()} baseHref="/settings" />
@@ -187,7 +175,6 @@ function Shell() {
           </ComposerBridgeProvider>
         </EntityActionsProvider>
       </ModalsProvider>
-    </I18nProvider>
   )
 }
 
@@ -197,7 +184,9 @@ export default function App(props: { runtime: ForumRuntime }) {
       <Router>
         <RouterRoute path="*" component={() => (
           <NavProvider>
-            <Shell />
+            <I18nProvider>
+              <Shell />
+            </I18nProvider>
           </NavProvider>
         )}
         />

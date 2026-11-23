@@ -112,7 +112,7 @@ export function initialForumState(): ForumState {
     operations: { posting: false, uploadProgress: null, moderating: false, reacting: {}, selectionProgress: null },
     resources: { bans: {}, history: {}, snapshots: {}, secrets: {}, reactions: {} },
     notifications: [],
-    navigation: { defaultForumId: null, route: null, lastContentRoute: null, context: null, forums: [], loading: true, refreshing: false, reconnecting: false, error: null, collapsed: false },
+    navigation: { defaultForumId: null, route: null, lastContentRoute: null, context: null, forums: [], forumErrors: {}, loading: true, refreshing: false, reconnecting: false, error: null, collapsed: false },
     scopes: {},
     references: {},
     outgoing: {},

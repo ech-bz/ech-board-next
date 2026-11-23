@@ -7,6 +7,7 @@ export type Section = 'boards' | 'settings'
 export interface Nav {
   navigate: (route: Route) => void
   navigatePath: (path: string) => void
+  home: () => void
   back: () => void
   section: (section: Section) => void
 }
@@ -31,6 +32,7 @@ export function NavProvider(props: { children: JSX.Element }) {
     router(to, { replace })
   }
   const navigatePath = (path: string) => go(parseRoute(path, model.navigation.defaultForumId))
+  const home = () => router('/', { replace: true })
   const back = () => {
     if (canGoBack) {
       router(-1)
@@ -54,9 +56,9 @@ export function NavProvider(props: { children: JSX.Element }) {
       return
     }
     if (from.page === 'boards') return
-    go({ page: 'boards', forumId: model.navigation.context?.forumId })
+    go({ page: 'boards' })
   }
-  return <NavContext.Provider value={{ navigate: go, navigatePath, back, section }}>{props.children}</NavContext.Provider>
+  return <NavContext.Provider value={{ navigate: go, navigatePath, home, back, section }}>{props.children}</NavContext.Provider>
 }
 
 export function useNav(): Nav {

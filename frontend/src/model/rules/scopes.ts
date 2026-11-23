@@ -6,6 +6,7 @@ export function heldForumRoots(model: ForumState): Set<string> {
   const hold = (root: string | null | undefined) => { if (root) roots.add(forumKey(root)) }
   hold(model.navigation.context?.forumId)
   hold(model.page.forumId)
+  for (const forum of model.navigation.forums) hold(forum.forumId)
   hold(model.gallery?.forumId)
   for (const preview of Object.values(model.previews)) hold(preview.forumId)
   for (const draft of Object.values(model.drafts)) hold(draft.editing?.forumId)

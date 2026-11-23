@@ -23,14 +23,14 @@ export interface ModalsApi {
   openThreadTopic: (threadId: string) => void
   openThreadModerators: (threadId: string) => void
   openBoardModerators: () => void
-  openForumModerators: () => void
+  openForumModerators: (forumId: string) => void
   openBoardSettings: () => void
   openBan: (posts: Post[], threadId: string, deletePosts?: boolean) => void
-  openBans: (title: string, kind: 'forum' | 'board' | 'thread', id: string) => void
-  openTransaction: (txid: string) => void
+  openBans: (title: string, kind: 'forum' | 'board' | 'thread', id: string, relayUrl?: string) => void
+  openTransaction: (txid: string, relayUrl?: string) => void
   openUnban: (postId: string, threadId: string) => void
   openGrantRole: (postId: string, threadId: string) => void
-  openLogs: (tab: LogsTab, object?: EntityObject) => void
+  openLogs: (tab: LogsTab, object?: EntityObject, relayUrl?: string) => void
 }
 
 const ModalsCtx = createContext<ModalsApi>()
@@ -45,7 +45,7 @@ export function ModalsProvider(props: { roles: RoleOption[]; relayUrl: string; c
     const target = model.dialogs.moderators
     if (!target) return null
     if (target.kind === 'thread') return read.moderatorsOf(target.threadId!)
-    return target.kind === 'forum' ? read.forumModerators() : read.info()?.moderators ?? null
+    return target.kind === 'forum' ? read.forumModeratorsOf(target.forumId ?? '') : read.info()?.moderators ?? null
   }
   const banTarget = () => model.dialogs.banTarget
   const bans = () => model.dialogs.bans
@@ -56,7 +56,7 @@ export function ModalsProvider(props: { roles: RoleOption[]; relayUrl: string; c
     openThreadTopic: controller.openThreadTopic,
     openThreadModerators: (id) => controller.openModerators('thread', id),
     openBoardModerators: () => controller.openModerators('board'),
-    openForumModerators: () => controller.openModerators('forum'),
+    openForumModerators: (forumId) => controller.openModerators('forum', undefined, forumId),
     openBoardSettings: controller.openBoardSettings,
     openBan: (posts, threadId, deletePosts) => controller.openBan(posts.map((post) => post.id), threadId, deletePosts),
     openBans: controller.openBans,
@@ -70,22 +70,22 @@ export function ModalsProvider(props: { roles: RoleOption[]; relayUrl: string; c
     <ModalsCtx.Provider value={api}>
       {props.children}
       <Show when={model.dialogs.forumTitle} keyed>
-        {(forumId) => (
+        {(dialog) => (
           <ForumTitleModal
-            initial={read.forumObject()?.title ?? ''}
+            initial={read.forumObjectOf(dialog.forumId)?.title ?? ''}
             busy={mod.busy()}
-            allowed={!!roleForForumSettings(props.roles)}
-            onSave={(title) => { void controller.setForumTitle(forumId, title) }}
+            allowed={!!roleForForumSettings(read.forumObjectOf(dialog.forumId)?.roles ?? [])}
+            onSave={(title) => { void controller.setForumTitle(dialog.forumId, title) }}
             onClose={() => controller.closeDialog('forumTitle')}
           />
         )}
       </Show>
       <Show when={model.dialogs.createBoard} keyed>
-        {(forumId) => (
+        {(dialog) => (
           <CreateBoardModal
             busy={mod.busy()}
-            allowed={!!roleForForumSettings(props.roles)}
-            onCreate={(slug, description) => { void controller.createBoard(forumId, slug, description) }}
+            allowed={!!roleForForumSettings(read.forumObjectOf(dialog.forumId)?.roles ?? [])}
+            onCreate={(slug, description) => { void controller.createBoard(dialog.forumId, slug, description) }}
             onClose={() => controller.closeDialog('createBoard')}
           />
         )}
@@ -127,13 +127,13 @@ export function ModalsProvider(props: { roles: RoleOption[]; relayUrl: string; c
         />
       </Show>
       <Show when={bans()}>
-        {(value) => <BansModal title={value().title} relayUrl={props.relayUrl} kind={value().kind} id={value().id} onClose={() => controller.closeDialog('bans')} />}
+        {(value) => <BansModal title={value().title} relayUrl={value().relayUrl ?? props.relayUrl} kind={value().kind} id={value().id} onClose={() => controller.closeDialog('bans')} />}
       </Show>
       <Show when={logs()}>
         {(state) => (
           <LogsModal
             tab={state().tab}
-            relayUrl={props.relayUrl}
+            relayUrl={state().relayUrl ?? props.relayUrl}
             boardId={read.info()?.boardId}
             object={state().object}
             onClose={() => controller.closeDialog('logs')}
@@ -143,8 +143,10 @@ export function ModalsProvider(props: { roles: RoleOption[]; relayUrl: string; c
       <Show when={model.dialogs.authorHistory !== null}>
         <AuthorHistoryModal esid={model.dialogs.authorHistory ?? ''} relayUrl={props.relayUrl} onClose={() => controller.closeDialog('authorHistory')} />
       </Show>
-      <Show when={model.dialogs.transaction !== null}>
-        <TransactionModal txid={model.dialogs.transaction ?? ''} relayUrl={props.relayUrl} onClose={() => controller.closeDialog('transaction')} />
+      <Show when={model.dialogs.transaction} keyed>
+        {(dialog) => (
+          <TransactionModal txid={dialog.txid} relayUrl={dialog.relayUrl ?? props.relayUrl} onClose={() => controller.closeDialog('transaction')} />
+        )}
       </Show>
       <Show when={model.dialogs.unbanTarget} keyed>
         {(target) => <UnbanModal postId={target.postId} threadId={target.threadId} onClose={() => controller.closeDialog('unbanTarget')} />}

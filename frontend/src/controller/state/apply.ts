@@ -21,6 +21,7 @@ export function applyLocalOperation(model: ForumState, write: SetStoreFunction<F
     case 'preferences.patch': write('preferences', operation.value); break
     case 'operations.patch': write('operations', operation.value); break
     case 'navigation.patch': write('navigation', operation.value); break
+    case 'forum.error': write('navigation', 'forumErrors', produce((errors) => { errors[operation.value.forumId] = operation.value.error })); break
     case 'relay.set': write('relays', operation.value.key, reconcile(operation.value.value)); break
     case 'draft.patch': {
       const { mode, value } = operation.value
