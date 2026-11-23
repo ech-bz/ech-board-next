@@ -2,12 +2,14 @@ import { A } from '@solidjs/router'
 import { cva } from 'class-variance-authority'
 import { Show } from 'solid-js'
 import { AccountView } from '../components/AccountView'
+import { AboutView } from '../components/AboutView'
 import { AppearanceView } from '../components/AppearanceView'
 import { useIsMobile } from '../components/Gallery/useIsMobile'
 import { PageHeader } from '../components/PageHeader'
 import { TabBar } from '../components/TabBar'
 import { useI18n } from '../i18n'
 import { ChevronRightIcon } from '../icons/ChevronRightIcon'
+import { InfoIcon } from '../icons/InfoIcon'
 import { PaletteIcon } from '../icons/PaletteIcon'
 import { UserIcon } from '../icons/UserIcon'
 import { useMobileTabs } from '../interactions/mobileNav'
@@ -28,7 +30,7 @@ const mobileRowIconVariants = cva('text-xl font-semibold text-accent leading-non
 const mobileRowTitleVariants = cva('text-xl leading-none')
 const mobileRowChevronVariants = cva('text-3xl text-secondary leading-none')
 
-const SETTING_KEYS: Record<SettingSlug, string> = { account: 'Account', appearance: 'Appearance' }
+const SETTING_KEYS: Record<SettingSlug, string> = { account: 'Account', appearance: 'Appearance', about: 'About' }
 
 export function SettingsPage(props: { setting: SettingSlug | null; baseHref: string }) {
   const { t } = useI18n()
@@ -37,11 +39,11 @@ export function SettingsPage(props: { setting: SettingSlug | null; baseHref: str
   const tabs = useMobileTabs()
   const key = () => (props.setting ? SETTING_KEYS[props.setting] : null)
   const label = () => (key() ? settingLabel(key()!, t) : t('ui.settings'))
-  const view = () => (
-    <Show when={key() === 'Appearance'} fallback={<AccountView />}>
-      <AppearanceView />
-    </Show>
-  )
+  const view = () => {
+    if (key() === 'Appearance') return <AppearanceView />
+    if (key() === 'About') return <AboutView />
+    return <AccountView />
+  }
   return (
     <Show
       when={mobile()}
@@ -83,6 +85,7 @@ function SettingsList(props: { baseHref: string }) {
       <div class={mobileListVariants()}>
         <SettingsLink name="Account" baseHref={props.baseHref} />
         <SettingsLink name="Appearance" baseHref={props.baseHref} />
+        <SettingsLink name="About" baseHref={props.baseHref} />
       </div>
     </div>
   )
@@ -104,7 +107,7 @@ function SettingsLink(props: { name: string; baseHref: string }) {
       }}
     >
       <div class={mobileRowIconVariants()}>
-        <Show when={props.name === 'Account'} fallback={<PaletteIcon width={18} height={18} />}>
+        <Show when={props.name === 'Account'} fallback={<Show when={props.name === 'About'} fallback={<PaletteIcon width={18} height={18} />}><InfoIcon width={18} height={18} /></Show>}>
           <UserIcon width={18} height={18} />
         </Show>
       </div>

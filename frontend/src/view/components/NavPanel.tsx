@@ -2,6 +2,7 @@ import { cva } from 'class-variance-authority'
 import { For, Show, type JSX } from 'solid-js'
 import { useI18n } from '../i18n'
 import { BoardsIcon } from '../icons/BoardsIcon'
+import { InfoIcon } from '../icons/InfoIcon'
 import { PaletteIcon } from '../icons/PaletteIcon'
 import { PanelLeftCloseIcon } from '../icons/PanelLeftCloseIcon'
 import { PanelLeftOpenIcon } from '../icons/PanelLeftOpenIcon'
@@ -52,7 +53,7 @@ const spacerVariants = cva('flex-1')
 export type { Section }
 
 const ACCOUNT_SECTIONS: string[] = ['Account']
-const APP_SECTIONS: string[] = ['Appearance']
+const APP_SECTIONS: string[] = ['Appearance', 'About']
 
 export function NavPanel(props: {
   collapsed: boolean
@@ -100,7 +101,9 @@ export function NavPanel(props: {
             <For each={APP_SECTIONS}>
               {(name) => (
                 <SettingItem name={name} settingsHref={props.settingsHref} active={isActiveSetting(name)} onOpen={props.onOpenSetting}>
-                  <PaletteIcon width={18} height={18} />
+                  <Show when={name === 'About'} fallback={<PaletteIcon width={18} height={18} />}>
+                    <InfoIcon width={18} height={18} />
+                  </Show>
                 </SettingItem>
               )}
             </For>

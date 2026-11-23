@@ -9,6 +9,12 @@ if (location.hash.startsWith('#/')) {
   history.replaceState(null, '', path)
 }
 
+if (location.search.includes('reload=')) {
+  const url = new URL(location.href)
+  url.searchParams.delete('reload')
+  history.replaceState(null, '', url)
+}
+
 render(() => {
   const runtime = createController()
   onCleanup(runtime.commands.dispose)
