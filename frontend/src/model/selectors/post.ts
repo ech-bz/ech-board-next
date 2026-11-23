@@ -22,6 +22,11 @@ export function postFields(model: ForumState, root: string, id: string) {
   const board = () => scope().entities.boards[boardId()]
   const roles = () => thread()?.roles ?? board()?.roles ?? []
   const allowed = (action: PostAction) => canPostAction(action, roles().map((role) => role.kind), scope().permissionDeadlines[id] !== undefined)
+  const forumHost = (forum: string) => {
+    const key = forumKey(forum)
+    const url = model.scopes[key]?.relayUrl ?? model.navigation.forums.find((value) => value.forumId === key)?.relayUrl
+    return url ? new URL(url).host : null
+  }
 
   return {
     threadId: () => scope().threadIds[numberKey(post().board, post().threadNumber)] ?? '',
@@ -45,7 +50,7 @@ export function postFields(model: ForumState, root: string, id: string) {
     },
     plain: () => {
       const parts = post().parts
-      return partsToPlainText(parts, true, { forumId: root, board: post().board })
+      return partsToPlainText(parts, true, { forumId: root, board: post().board, forumHost })
     },
     refs: () => {
       const items = model.references[referenceKey(root, numberKey(post().board, post().number))]?.items ?? []

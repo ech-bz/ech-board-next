@@ -4,6 +4,7 @@ import type { PostPart as PostPartInput } from './postPart';
 export interface RefContext {
   forumId: string
   board: string
+  forumHost?: (forum: string) => string | null
 }
 
 export function replyLabel(reply: { forum: Uint8Array; board: string; post: number }, ctx?: RefContext): string {
@@ -11,7 +12,8 @@ export function replyLabel(reply: { forum: Uint8Array; board: string; post: numb
   if (ctx && forum === ctx.forumId) {
     return reply.board === ctx.board ? String(reply.post) : `/${reply.board}/${reply.post}`
   }
-  return `${forum}/${reply.board}/${reply.post}`
+  const host = ctx?.forumHost?.(forum) ?? null
+  return `${host ?? '???'}/${reply.board}/${reply.post}`
 }
 
 export function partsToPlainText(parts: PostPartInput[], foldsExpanded: boolean, ctx?: RefContext): string {
@@ -71,4 +73,3 @@ export function partsToEditText(parts: PostPartInput[], ctx?: RefContext): { tex
   }
   return { text: render(parts), secrets }
 }
-

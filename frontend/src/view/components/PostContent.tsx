@@ -72,6 +72,7 @@ interface RenderOpts {
   postId: ReturnType<typeof useForumQueries>['postId']
   threadPath: ReturnType<typeof useRoutes>['threadPath']
   resolveRelayUrl: (root: string) => string | null
+  forumHost: (forum: string) => string | null
   author: string | null
   hasPost: (id: string) => boolean
   relayUrl: string
@@ -112,7 +113,7 @@ function renderPart(p: PostPartInput, opts: RenderOpts, renderNested: RenderNest
   if ('ReplyTo' in p) {
     const num = p.ReplyTo.post
     const targetForumId = toHex(p.ReplyTo.forum).replace(/^0x/, '')
-    const label = `>>${replyLabel(p.ReplyTo, { forumId: opts.forumIdHex, board: opts.slug })}`
+    const label = () => `>>${replyLabel(p.ReplyTo, { forumId: opts.forumIdHex, board: opts.slug, forumHost: opts.forumHost })}`
     const localHref = () => {
       if (targetForumId !== opts.forumIdHex || p.ReplyTo.board !== opts.slug) return null
       const postId = opts.postId(p.ReplyTo.board, num, targetForumId)
@@ -129,7 +130,7 @@ function renderPart(p: PostPartInput, opts: RenderOpts, renderNested: RenderNest
       <PostRefLink
         class={'cursor-pointer text-accent'}
         href={localHref() ?? undefined}
-        label={label}
+        label={label()}
         target={target()}
         onClick={(e) => {
           e.preventDefault()
@@ -222,6 +223,10 @@ export function PostContent(props: {
   const { threadPath } = useRoutes()
   const controller = useForumController()
   const read = useForumQueries()
+  const forumHost = (forum: string) => {
+    const url = read.relayUrl(forum)
+    return url ? new URL(url).host : null
+  }
   const inputs = createMemo(
     () => ({
       parts: props.parts,
@@ -252,6 +257,7 @@ export function PostContent(props: {
       threadPath,
       author: current.author,
       resolveRelayUrl: read.relayUrl,
+      forumHost,
       hasPost: current.hasPost,
       relayUrl: current.relayUrl,
       navigate: nav.navigate,
