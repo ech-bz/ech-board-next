@@ -43,3 +43,14 @@ export function loadSidebarCollapsed(): boolean {
 export function saveSidebarCollapsed(collapsed: boolean): void {
   try { localStorage.setItem('nav-collapsed', collapsed ? '1' : '0') } catch { }
 }
+
+export function loadCollapsedForums(): string[] {
+  try {
+    const stored: unknown = JSON.parse(localStorage.getItem('nav-collapsed-forums') ?? '[]')
+    return Array.isArray(stored) ? stored.filter((value): value is string => typeof value === 'string') : []
+  } catch { return [] }
+}
+
+export function saveCollapsedForums(forumIds: readonly string[]): void {
+  try { localStorage.setItem('nav-collapsed-forums', JSON.stringify(forumIds)) } catch { }
+}

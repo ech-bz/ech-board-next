@@ -30,6 +30,7 @@ export interface NavigationState {
   context: { forumId: string; relayUrl: string } | null
   forums: ForumInfo[]
   forumErrors: Record<string, Failure | null>
+  collapsedForums: string[]
   loading: boolean
   refreshing: boolean
   reconnecting: boolean

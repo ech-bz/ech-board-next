@@ -8,7 +8,7 @@ import { failure } from '../errors'
 import type { ForumGateway } from '../forumGateway'
 import { boardChanges, forumChanges, pageReplacement, threadChanges } from '../ingestion/pages'
 import type { Receive } from '../ingestion/receive'
-import { saveSidebarCollapsed } from '../io/browser/preferences'
+import { saveCollapsedForums, saveSidebarCollapsed } from '../io/browser/preferences'
 import { saveForums } from '../io/browser/relays'
 import { relayEndpoint } from '../io/ech/resolve'
 import { EntityId } from '../io/ech/protocol/entityId'
@@ -107,6 +107,14 @@ export function createNavigation(model: ForumState, commit: Commit, gateway: For
       const collapsed = !model.navigation.collapsed
       commit({ type: 'navigation.patch', value: { collapsed } })
       saveSidebarCollapsed(collapsed)
+    },
+    toggleForum(forumId: string) {
+      const key = forumKey(forumId)
+      const collapsedForums = model.navigation.collapsedForums.includes(key)
+        ? model.navigation.collapsedForums.filter((id) => id !== key)
+        : [...model.navigation.collapsedForums, key]
+      commit({ type: 'navigation.patch', value: { collapsedForums } })
+      saveCollapsedForums(collapsedForums)
     },
     async loadMoreThreads() {
       const scope = currentScope(model), board = currentBoard(model)

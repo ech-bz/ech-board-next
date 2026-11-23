@@ -77,9 +77,8 @@ export function RelayList(props: { compact?: boolean; mobile?: boolean }) {
   const { reportError, errorMessage } = useErrors()
   const { boardPath } = useRoutes()
   const [relayInput, setRelayInput] = createSignal('')
-  const [collapsed, setCollapsed] = createSignal<string[]>([])
-  const isCollapsed = (forumId: string) => collapsed().includes(forumId)
-  const toggle = (forumId: string) => setCollapsed((prev) => prev.includes(forumId) ? prev.filter((id) => id !== forumId) : [...prev, forumId])
+  const isCollapsed = (forumId: string) => model.navigation.collapsedForums.includes(forumKey(forumId))
+  const toggle = (forumId: string) => controller.toggleForum(forumId)
   const host = (forum: ForumInfo) => new URL(forum.relayUrl).host
   const addRelay = () => {
     const value = relayInput().trim()
