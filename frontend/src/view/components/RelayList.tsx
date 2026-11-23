@@ -65,6 +65,7 @@ const addRowVariants = cva('flex items-center gap-2', {
   defaultVariants: { mobile: false },
 })
 const compactListVariants = cva('flex flex-col items-center px-1')
+const compactSeparatorVariants = cva('my-1 h-px w-full shrink-0 bg-separator')
 
 export function RelayList(props: { compact?: boolean; mobile?: boolean }) {
   const model = useForumModel()
@@ -78,7 +79,6 @@ export function RelayList(props: { compact?: boolean; mobile?: boolean }) {
   const [relayInput, setRelayInput] = createSignal('')
   const [collapsed, setCollapsed] = createSignal<string[]>([])
   const isCollapsed = (forumId: string) => collapsed().includes(forumId)
-  const contextForumId = () => model.navigation.context?.forumId ?? null
   const toggle = (forumId: string) => setCollapsed((prev) => prev.includes(forumId) ? prev.filter((id) => id !== forumId) : [...prev, forumId])
   const host = (forum: ForumInfo) => new URL(forum.relayUrl).host
   const addRelay = () => {
@@ -121,22 +121,29 @@ export function RelayList(props: { compact?: boolean; mobile?: boolean }) {
       when={!props.compact}
       fallback={(
         <div class={compactListVariants()}>
-          <For each={read.boards()}>
-            {(board) => (
-              <a
-                class="grid w-full cursor-pointer grid-cols-[44px_1fr] items-center rounded-md px-1 py-2.5 no-underline hover:bg-hover"
-                title={board.title}
-                href={boardPath(contextForumId() ?? '', board.slug)}
-                onClick={(e) => {
-                  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return
-                  const forumId = contextForumId()
-                  if (!forumId) return
-                  e.preventDefault()
-                  open(forumId, board)
-                }}
-              >
-                <div class="font-bold text-accent collapsed:whitespace-nowrap">/{board.slug}/</div>
-              </a>
+          <For each={model.navigation.forums}>
+            {(forum, index) => (
+              <>
+                <Show when={index() > 0}>
+                  <div class={compactSeparatorVariants()} />
+                </Show>
+                <For each={read.boardsOf(forum.forumId)}>
+                  {(board) => (
+                    <a
+                      class="grid w-full cursor-pointer grid-cols-[44px_1fr] items-center rounded-md px-1 py-2.5 no-underline hover:bg-hover"
+                      title={`${host(forum)}/${board.slug}/`}
+                      href={boardPath(forum.forumId, board.slug)}
+                      onClick={(e) => {
+                        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return
+                        e.preventDefault()
+                        open(forum.forumId, board)
+                      }}
+                    >
+                      <div class="font-bold text-accent collapsed:whitespace-nowrap">/{board.slug}/</div>
+                    </a>
+                  )}
+                </For>
+              </>
             )}
           </For>
         </div>
