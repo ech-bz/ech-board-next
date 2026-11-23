@@ -48,7 +48,6 @@ export interface PostViewData extends PostCtx {
 }
 
 export interface UserViewData {
-  sid: string
   genesis: string
   history: number
   postCount: number
@@ -197,7 +196,6 @@ export function createForumGateway(model: ForumState, commit: Commit) {
     if (!entity) return null
     const value = userValue(entity)
     return {
-      sid: relay.hex(entity.key),
       genesis: relay.hex(entity.genesis),
       history: Number(entity.history.length),
       postCount: Number(value.post_count),

@@ -70,9 +70,6 @@ export function UserView() {
                   {short(user().genesis)}
                 </button>
               </Row>
-              <Row label={t('settings.user.id')}>
-                <span class={valueVariants()}>{short(user().sid)}</span>
-              </Row>
             </div>
           )}
           </Show>

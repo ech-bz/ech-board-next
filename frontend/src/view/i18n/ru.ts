@@ -168,7 +168,6 @@ export const ru = {
   'settings.masterKeyTitle': 'Мастер-ключ',
   'settings.userMissing': 'В этом форуме записей пользователя ещё нет.',
   'settings.userUnavailable': 'Не удалось получить данные пользователя от этого релея.',
-  'settings.user.id': 'SID',
   'settings.user.posts': 'Отправлено постов',
   'settings.user.threads': 'Создано тредов',
   'settings.user.lastPost': 'Последний пост',

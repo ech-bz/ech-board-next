@@ -170,7 +170,6 @@ export const en: Dict = {
   'settings.masterKeyTitle': 'Master key',
   'settings.userMissing': 'There is no user record in this forum yet.',
   'settings.userUnavailable': 'This relay could not provide user data.',
-  'settings.user.id': 'SID',
   'settings.user.posts': 'Posts sent',
   'settings.user.threads': 'Threads created',
   'settings.user.lastPost': 'Last post',
