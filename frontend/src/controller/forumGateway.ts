@@ -111,7 +111,7 @@ export function createForumGateway(model: ForumState, commit: Commit) {
       api,
       data,
       context: {
-        relayUrl,
+        relayUrl: api.relay.base.replace(/\/api$/, ''),
         forumId: relay.hex(api.root),
         forum: data.forum.view,
         boards: data.boards.view.boards,

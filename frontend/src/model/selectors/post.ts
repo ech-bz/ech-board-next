@@ -23,9 +23,8 @@ export function postFields(model: ForumState, root: string, id: string) {
   const roles = () => thread()?.roles ?? board()?.roles ?? []
   const allowed = (action: PostAction) => canPostAction(action, roles().map((role) => role.kind), scope().permissionDeadlines[id] !== undefined)
   const forumHost = (forum: string) => {
-    const key = forumKey(forum)
-    const url = model.scopes[key]?.relayUrl ?? model.navigation.forums.find((value) => value.forumId === key)?.relayUrl
-    return url ? new URL(url).host : null
+    const entry = model.navigation.forums.find((value) => forumKey(value.forumId) === forum)
+    return entry ? new URL(entry.relayUrl).host : null
   }
 
   return {

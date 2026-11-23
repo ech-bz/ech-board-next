@@ -3,7 +3,8 @@ import { createMemo, type JSX } from 'solid-js'
 import { toHex } from '../../model/content/hex'
 import type { PostPart as PostPartInput } from '../../model/content/postPart'
 import { replyLabel } from '../../model/content/posts'
-import { useForumController, useForumQueries } from '../bindings/forum'
+import { forumKey } from '../../model/selectors/forum'
+import { useForumController, useForumModel, useForumQueries } from '../bindings/forum'
 
 import { useNav } from '../nav'
 import { useRoutes, type Route } from '../route'
@@ -223,9 +224,10 @@ export function PostContent(props: {
   const { threadPath } = useRoutes()
   const controller = useForumController()
   const read = useForumQueries()
+  const model = useForumModel()
   const forumHost = (forum: string) => {
-    const url = read.relayUrl(forum)
-    return url ? new URL(url).host : null
+    const entry = model.navigation.forums.find((value) => forumKey(value.forumId) === forum)
+    return entry ? new URL(entry.relayUrl).host : null
   }
   const inputs = createMemo(
     () => ({
