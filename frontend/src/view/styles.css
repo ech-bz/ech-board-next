@@ -18,6 +18,7 @@
   --color-secondary: rgba(204, 204, 204, 0.62);
   --color-accent: #88c8ff;
   --color-accent-hover: #cceeff;
+  --color-postnum: var(--color-accent);
   --color-success: #30d158;
   --color-danger: #ff453a;
   --color-warn: #ff9f0a;

@@ -26,6 +26,8 @@ export function AppearanceView() {
     { id: 'default_dark', label: t('settings.themeDefaultDark') },
     { id: 'default_light', label: t('settings.themeDefaultLight') },
     { id: 'gurochan', label: 'Gurochan' },
+    { id: 'makaba_light', label: 'Makaba Light' },
+    { id: 'makaba_dark', label: 'Makaba Dark' },
     { id: 'neutron', label: 'Neutron' },
     { id: 'dark_oled', label: 'Dark OLED' },
     { id: 'ejchan', label: 'Ejchan' },

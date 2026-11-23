@@ -193,22 +193,22 @@ export function PostBody(props: {
           </span>
           <Show when={props.post.flagUrl}>{(url) => <img class={'h-3.5 w-auto flex-none rounded-xs'} src={url()} alt="" />}</Show>
           <span class={'whitespace-nowrap'}>{fullTime()}</span>
-          <Show when={link(props.post.number)} fallback={<span class={'whitespace-nowrap text-accent'}>№{props.post.number}</span>}>
+          <Show when={link(props.post.number)} fallback={<span class={'whitespace-nowrap text-postnum'}>№{props.post.number}</span>}>
             {(href) => (
               <Show
                 when={props.boardPage}
                 fallback={
-                  <span class={'whitespace-nowrap text-accent'}>
-                    <a class={'post-num bg-transparent p-0 cursor-pointer whitespace-nowrap text-accent [font:inherit]'} href={href()} ref={(element) => { element.setAttribute("noscroll", "true"); element.setAttribute("link", "") }} classList={{ active: linkState(href()).active, inactive: !linkState(href()).active }} aria-current={linkState(href()).exact ? "page" : undefined} onClick={(e) => gotoPost(e, props.post.number)}>
+                  <span class={'whitespace-nowrap text-postnum'}>
+                    <a class={'post-num bg-transparent p-0 cursor-pointer whitespace-nowrap text-postnum [font:inherit]'} href={href()} ref={(element) => { element.setAttribute("noscroll", "true"); element.setAttribute("link", "") }} classList={{ active: linkState(href()).active, inactive: !linkState(href()).active }} aria-current={linkState(href()).exact ? "page" : undefined} onClick={(e) => gotoPost(e, props.post.number)}>
                       №
                     </a>
-                    <button type="button" class={'post-num bg-transparent p-0 cursor-pointer whitespace-nowrap text-accent [font:inherit]'} onClick={insertNo}>
+                    <button type="button" class={'post-num bg-transparent p-0 cursor-pointer whitespace-nowrap text-postnum [font:inherit]'} onClick={insertNo}>
                       {props.post.number}
                     </button>
                   </span>
                 }
               >
-                <a class={'post-num bg-transparent p-0 cursor-pointer whitespace-nowrap text-accent [font:inherit]'} href={href()} ref={(element) => { element.setAttribute("noscroll", "true"); element.setAttribute("link", "") }} classList={{ active: linkState(href()).active, inactive: !linkState(href()).active }} aria-current={linkState(href()).exact ? "page" : undefined} onClick={(e) => gotoPost(e, props.post.number)}>
+                <a class={'post-num bg-transparent p-0 cursor-pointer whitespace-nowrap text-postnum [font:inherit]'} href={href()} ref={(element) => { element.setAttribute("noscroll", "true"); element.setAttribute("link", "") }} classList={{ active: linkState(href()).active, inactive: !linkState(href()).active }} aria-current={linkState(href()).exact ? "page" : undefined} onClick={(e) => gotoPost(e, props.post.number)}>
                   №{props.post.number}
                 </a>
               </Show>

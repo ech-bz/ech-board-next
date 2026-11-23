@@ -7,6 +7,8 @@ export const APPEARANCES: { id: string; label: string; file?: string; theme: The
   { id: 'yotsuba', label: 'Yotsuba', file: 'yotsuba.css', theme: 'light' },
   { id: 'matrix', label: 'Matrix', file: 'matrix.css', theme: 'dark' },
   { id: 'gurochan', label: 'Gurochan', file: 'gurochan.css', theme: 'light' },
+  { id: 'makaba_light', label: 'Makaba Light', file: 'makaba_light.css', theme: 'light' },
+  { id: 'makaba_dark', label: 'Makaba Dark', file: 'makaba_dark.css', theme: 'dark' },
   { id: 'neutron', label: 'Neutron', file: 'neutron.css', theme: 'dark' },
   { id: 'dark_oled', label: 'Dark OLED', file: 'dark_oled.css', theme: 'dark' },
   { id: 'ejchan', label: 'Ejchan', file: 'ejchan.css', theme: 'dark' },
