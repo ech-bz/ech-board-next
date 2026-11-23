@@ -159,6 +159,7 @@ export const ru = {
   'settings.themeDefaultDark': 'Default dark',
   'settings.themeDefaultLight': 'Default light',
   'settings.masterKeyDesc': 'Из этого ключа выводятся ключи для всех ваших действий на борде. Скопируйте его, чтобы перенести на другое устройство, или вставьте сюда, чтобы восстановить. У кого он окажется, тот получит ваши права.',
+  'settings.masterKeyWarning': 'Не передавайте его никому, в том числе администрации.',
   'settings.userDesc': 'Запись пользователя в текущем форуме: сколько постов и тредов отправлено с этого мастер-ключа и когда это было в последний раз.',
   'settings.info': 'Информация',
   'settings.masterKeyTitle': 'Мастер-ключ',

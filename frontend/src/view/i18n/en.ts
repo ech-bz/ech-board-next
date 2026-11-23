@@ -161,6 +161,7 @@ export const en: Dict = {
   'settings.themeDefaultDark': 'Default dark',
   'settings.themeDefaultLight': 'Default light',
   'settings.masterKeyDesc': 'Every key for your actions on the board is derived from this one. Copy it to move to another device, or paste it here to restore. Whoever ends up with it gets your rights.',
+  'settings.masterKeyWarning': 'Do not share it with anyone, including the administration.',
   'settings.userDesc': 'Your user record in the current forum: how many posts and threads this master key has sent, and when it happened last.',
   'settings.info': 'Information',
   'settings.masterKeyTitle': 'Master key',
