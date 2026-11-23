@@ -112,45 +112,43 @@ function renderPart(p: PostPartInput, opts: RenderOpts, renderNested: RenderNest
   if ('ReplyTo' in p) {
     const num = p.ReplyTo.post
     const targetForumId = toHex(p.ReplyTo.forum).replace(/^0x/, '')
-    const sameForum = targetForumId === opts.forumIdHex
-    const sameBoard = p.ReplyTo.board === opts.slug
-    const postId = opts.postId(p.ReplyTo.board, num, targetForumId)
     const label = `>>${replyLabel(p.ReplyTo, { forumId: opts.forumIdHex, board: opts.slug })}`
-    const target = { board: p.ReplyTo.board, number: num, forumId: targetForumId, relayUrl: sameForum ? opts.relayUrl : opts.resolveRelayUrl(targetForumId) ?? undefined }
-    if (sameForum && sameBoard && postId && opts.hasPost(postId)) {
-      const localHref = opts.slug && opts.threadNum != null ? opts.threadPath(opts.forumIdHex, opts.slug, opts.threadNum, num) : `#post-${num}`
-      return (
-        <PostRefLink
-          class={'cursor-pointer text-accent'}
-          href={localHref}
-          label={label}
-          target={target}
-          onClick={(e) => {
-            e.preventDefault()
-            if (opts.slug != null && opts.threadNum != null) opts.navigate({ page: 'thread', forumId: opts.forumIdHex, slug: opts.slug, threadNum: opts.threadNum, postNum: num })
-            else scrollToPost(num)
-          }}
-        />
-      )
+    const localHref = () => {
+      if (targetForumId !== opts.forumIdHex || p.ReplyTo.board !== opts.slug) return null
+      const postId = opts.postId(p.ReplyTo.board, num, targetForumId)
+      if (!postId || !opts.hasPost(postId)) return null
+      return opts.slug && opts.threadNum != null ? opts.threadPath(opts.forumIdHex, opts.slug, opts.threadNum, num) : `#post-${num}`
     }
+    const target = () => ({
+      board: p.ReplyTo.board,
+      number: num,
+      forumId: targetForumId,
+      relayUrl: targetForumId === opts.forumIdHex ? opts.relayUrl : opts.resolveRelayUrl(targetForumId) ?? undefined,
+    })
     return (
       <PostRefLink
         class={'cursor-pointer text-accent'}
+        href={localHref() ?? undefined}
         label={label}
-        target={target}
+        target={target()}
         onClick={(e) => {
           e.preventDefault()
-          void (async () => {
-            try {
-              const relay = sameForum ? opts.relayUrl : opts.resolveRelayUrl(targetForumId) ?? opts.relayUrl
-              const data = await opts.resolvePost(relay, p.ReplyTo.board, num)
-              const slug = data.board.slug
-              const threadNum = data.thread.number
-              opts.navigate({ page: 'thread', forumId: targetForumId, slug, threadNum, postNum: num })
-            } catch {
-              return
-            }
-          })()
+          if (localHref() === null) {
+            void (async () => {
+              try {
+                const relay = targetForumId === opts.forumIdHex ? opts.relayUrl : opts.resolveRelayUrl(targetForumId) ?? opts.relayUrl
+                const data = await opts.resolvePost(relay, p.ReplyTo.board, num)
+                const slug = data.board.slug
+                const threadNum = data.thread.number
+                opts.navigate({ page: 'thread', forumId: targetForumId, slug, threadNum, postNum: num })
+              } catch {
+                return
+              }
+            })()
+            return
+          }
+          if (opts.slug != null && opts.threadNum != null) opts.navigate({ page: 'thread', forumId: opts.forumIdHex, slug: opts.slug, threadNum: opts.threadNum, postNum: num })
+          else scrollToPost(num)
         }}
       />
     )

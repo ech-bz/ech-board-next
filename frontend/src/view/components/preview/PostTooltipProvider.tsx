@@ -74,15 +74,19 @@ export function PostTooltipProvider(props: {
     })
   })
 
+  const prune = () => {
+    const dead = current.filter((entry) => !entry.anchor().isConnected)
+    if (dead.length === 0) return
+    controller.closePreviews(dead.map((entry) => entry.id))
+    controller.releasePreviews(dead.map((entry) => entry.id))
+    for (const entry of dead) elements.delete(entry.id)
+    update(current.filter((entry) => entry.anchor().isConnected))
+  }
+
   const open = (anchor: HTMLElement, target: PostTooltipTarget) => {
-    const same = current.find((entry) => entry.target.board === target.board && entry.target.number === target.number && entry.target.forumId === target.forumId)
-    if (same) {
-      same.setAnchor(anchor)
-      clearClose()
-      return
-    }
-    if (current.some((entry) => entry.anchor() === anchor)) return
     clearClose()
+    prune()
+    if (current.some((entry) => entry.anchor() === anchor)) return
     let nested = false
     for (let i = current.length - 1; i >= 0; i--) {
       const el = elements.get(current[i].id)

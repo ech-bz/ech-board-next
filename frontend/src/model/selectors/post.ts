@@ -11,6 +11,8 @@ import { postRole } from '../rules/roles'
 import { forumKey, numberKey, referenceKey, scopeModerators } from '../selectors/forum'
 import type { ForumState } from '../state/forum'
 
+const EMPTY_PARTS: Post['parts'] = []
+
 export function postFields(model: ForumState, root: string, id: string) {
   const localScope = model.scopes[root]
   const scope = () => localScope
@@ -37,9 +39,9 @@ export function postFields(model: ForumState, root: string, id: string) {
     hasText: () => post().parts.length > 0,
     parts: () => {
       const hash = post().textHash
-      if (!hash) return []
+      if (!hash) return EMPTY_PARTS
       const key = toHex(hash)
-      return scope().parts[key] ?? []
+      return scope().parts[key] ?? EMPTY_PARTS
     },
     plain: () => {
       const parts = post().parts
