@@ -46,6 +46,7 @@ const globalBarCapsuleVariants = cva('sticky bottom-3 z-header mt-auto gap-2 p-2
     },
   },
 })
+const globalBarGapVariants = cva('h-6 shrink-0')
 const spacerVariants = cva('flex-1')
 
 export type { Section }
@@ -105,6 +106,7 @@ export function NavPanel(props: {
             </For>
           </div>
         </section>
+        <div class={globalBarGapVariants()} />
         <div class={globalBarCapsuleVariants({ collapsed: props.collapsed })}>
           <IconButton
             size="xl"

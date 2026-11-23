@@ -14,31 +14,59 @@ import { Field } from './Field'
 import { IconButton } from './IconButton'
 import { DropdownMenu, type MenuItem } from './Menu/DropdownMenu'
 
-const listVariants = cva('flex flex-col px-2')
-const relayVariants = cva('flex flex-col')
-const relayHeaderVariants = cva('flex items-center gap-0.5 rounded-md hover:bg-hover')
-const relayToggleVariants = cva('flex min-w-0 flex-1 cursor-pointer items-center gap-2 px-2 py-2 text-left')
+const listVariants = cva('flex flex-col', {
+  variants: {
+    mobile: { true: 'gap-2.5', false: 'px-2' },
+  },
+  defaultVariants: { mobile: false },
+})
+const relayVariants = cva('flex flex-col', {
+  variants: {
+    mobile: { true: 'overflow-hidden rounded-lg bg-panel1', false: '' },
+  },
+  defaultVariants: { mobile: false },
+})
+const relayToggleVariants = cva('flex min-w-0 flex-1 cursor-pointer items-center gap-2 text-left', {
+  variants: {
+    mobile: { true: '', false: '' },
+  },
+  defaultVariants: { mobile: false },
+})
 const logoVariants = cva('inline-flex h-logo shrink-0 items-center')
-const hostVariants = cva('min-w-0 flex-1 ellipsis font-semibold text-fg')
-const boardsVariants = cva('flex flex-col pb-1 pl-3')
-const boardVariants = cva('grid cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-1.5 rounded-md px-2 py-1.5 no-underline hover:bg-hover', {
+const hostVariants = cva('min-w-0 flex-1 ellipsis font-semibold text-fg text-lg')
+const boardVariants = cva('grid cursor-pointer grid-cols-[44px_1fr_auto] items-center gap-1.5 rounded-md px-2 py-2.5 no-underline hover:bg-hover', {
   variants: {
     active: {
       true: 'bg-active',
     },
   },
 })
-const boardSlugVariants = cva('font-semibold text-accent')
-const boardTitleVariants = cva('min-w-0 ellipsis text-sm text-fg')
-const boardCountVariants = cva('text-xs text-secondary')
-const emptyVariants = cva('px-2 py-1.5 text-sm text-secondary')
-const errorVariants = cva('mx-2 mb-1 flex items-center gap-2 rounded-md bg-panel2 px-2 py-1.5 text-xs text-warn')
+const boardSlugVariants = cva('font-bold text-accent')
+const boardTitleVariants = cva('font-semibold text-fg')
+const boardCountVariants = cva('text-sm text-secondary')
+const emptyVariants = cva('text-sm text-secondary', {
+  variants: {
+    mobile: { true: 'px-4 py-3', false: 'px-2 py-1.5' },
+  },
+  defaultVariants: { mobile: false },
+})
+const errorVariants = cva('flex items-center gap-2 bg-panel2 text-warn', {
+  variants: {
+    mobile: { true: 'border-t border-separator px-4 py-2.5 text-sm', false: 'mx-2 mb-1 rounded-md px-2 py-1.5 text-xs' },
+  },
+  defaultVariants: { mobile: false },
+})
 const errorTextVariants = cva('min-w-0 flex-1 ellipsis')
 const retryVariants = cva('shrink-0 cursor-pointer font-semibold text-accent')
-const addRowVariants = cva('mt-2 flex items-center gap-2 pr-1')
+const addRowVariants = cva('flex items-center gap-2', {
+  variants: {
+    mobile: { true: 'rounded-lg bg-panel1 p-2', false: 'mt-2' },
+  },
+  defaultVariants: { mobile: false },
+})
 const compactListVariants = cva('flex flex-col items-center px-1')
 
-export function RelayList(props: { compact?: boolean }) {
+export function RelayList(props: { compact?: boolean; mobile?: boolean }) {
   const model = useForumModel()
   const read = useForumQueries()
   const controller = useForumController()
@@ -114,25 +142,28 @@ export function RelayList(props: { compact?: boolean }) {
         </div>
       )}
     >
-      <div class={listVariants()}>
+      <div class={listVariants({ mobile: props.mobile })}>
         <For each={model.navigation.forums}>
           {(forum) => {
             const error = () => model.navigation.forumErrors[forum.forumId] ?? null
             const boards = () => read.boardsOf(forum.forumId)
             return (
-              <div class={relayVariants()}>
-                <div class={relayHeaderVariants()}>
-                  <button type="button" class={relayToggleVariants()} onClick={() => toggle(forum.forumId)}>
+              <div class={relayVariants({ mobile: props.mobile })}>
+                <div class='flex items-center gap-0.5 rounded-md hover:bg-hover px-2 py-2'>
+                  <button type="button" class={relayToggleVariants({ mobile: props.mobile })} onClick={() => toggle(forum.forumId)}>
                     <span class={logoVariants()}>
                       <img class="h-full w-auto" src="/static/logo.svg" alt="" />
                     </span>
                     <span class={hostVariants()}>{host(forum)}</span>
                   </button>
-                  <DropdownMenu items={relayMenu(forum)} triggerSize="sm" triggerShape="circle" triggerVariant="glass" class="shrink-0 mr-1" />
+                  <DropdownMenu items={relayMenu(forum)} triggerSize={props.mobile ? 'md' : 'sm'} triggerShape="circle" class='shrink-0' />
                 </div>
+                <Show when={!isCollapsed(forum.forumId)}>
+                  <div class={compactSeparatorVariants()} />
+                </Show>
                 <Show when={error()}>
                   {(message) => (
-                    <div class={errorVariants()}>
+                    <div class={errorVariants({ mobile: props.mobile })}>
                       <span class={errorTextVariants()}>{errorMessage(message())}</span>
                       <button type="button" class={retryVariants()} onClick={() => { void controller.retryForum(forum.forumId) }}>
                         {t('forum.retry')}
@@ -141,10 +172,10 @@ export function RelayList(props: { compact?: boolean }) {
                   )}
                 </Show>
                 <Show when={!isCollapsed(forum.forumId)}>
-                  <div class={boardsVariants()}>
+                  <div class='flex flex-col px-1 py-1'>
                     <Show when={!error()}>
-                      <Show when={read.forumObjectOf(forum.forumId)} fallback={<div class={emptyVariants()}>{t('ui.loading')}</div>}>
-                        <Show when={boards().length > 0} fallback={<div class={emptyVariants()}>{t('forum.noBoards')}</div>}>
+                      <Show when={read.forumObjectOf(forum.forumId)} fallback={<div class={emptyVariants({ mobile: props.mobile })}>{t('ui.loading')}</div>}>
+                        <Show when={boards().length > 0} fallback={<div class={emptyVariants({ mobile: props.mobile })}>{t('forum.noBoards')}</div>}>
                           <For each={boards()}>
                             {(board) => (
                               <a
@@ -172,7 +203,7 @@ export function RelayList(props: { compact?: boolean }) {
             )
           }}
         </For>
-        <div class={addRowVariants()}>
+        <div class={addRowVariants({ mobile: props.mobile })}>
           <Field
             as="input"
             grow="min-w-0"
