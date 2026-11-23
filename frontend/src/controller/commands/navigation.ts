@@ -116,6 +116,21 @@ export function createNavigation(model: ForumState, commit: Commit, gateway: For
       commit({ type: 'navigation.patch', value: { collapsedForums } })
       saveCollapsedForums(collapsedForums)
     },
+    async removeRelay(forumId: string) {
+      const key = forumKey(forumId)
+      if (key === model.navigation.defaultForumId) return
+      if (!model.navigation.forums.some((forum) => forum.forumId === key)) return
+      const route = model.navigation.route
+      if (route && 'forumId' in route && forumKey(route.forumId) === key) await navigate({ page: 'boards' })
+      const forums = model.navigation.forums.filter((forum) => forum.forumId !== key)
+      const collapsedForums = model.navigation.collapsedForums.filter((id) => id !== key)
+      const fallback = forums.find((forum) => forum.forumId === model.navigation.defaultForumId) ?? forums[0] ?? null
+      const current = model.navigation.context?.forumId === key
+      const context = current ? (fallback ? { forumId: fallback.forumId, relayUrl: fallback.relayUrl } : null) : undefined
+      commit({ type: 'navigation.patch', value: { forums, collapsedForums, ...(context === undefined ? {} : { context }) } })
+      saveForums(forums)
+      saveCollapsedForums(collapsedForums)
+    },
     async loadMoreThreads() {
       const scope = currentScope(model), board = currentBoard(model)
       const feed = scope && board ? scope.boardPages[board.id] : null

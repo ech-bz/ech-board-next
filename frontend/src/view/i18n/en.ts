@@ -10,6 +10,7 @@ export const en: Dict = {
   'forum.boardSlugHint': '1–32 characters: a–z, 0–9 and hyphens. No slashes.',
   'forum.boardDescription': 'Description (optional)',
   'forum.addRelay': 'Add relay',
+  'forum.removeRelay': 'Remove',
   'forum.relayPlaceholder': 'https://…',
   'forum.retry': 'Retry',
   'forum.noBoards': 'No boards',

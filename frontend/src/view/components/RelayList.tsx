@@ -110,7 +110,14 @@ export function RelayList(props: { compact?: boolean; mobile?: boolean }) {
       },
       { label: t('mod.moderators'), onClick: () => ea.openForumModerators(forum.forumId) },
     )
+    if (forumKey(forum.forumId) !== model.navigation.defaultForumId) items.push({ label: t('forum.removeRelay'), danger: true, onClick: () => remove(forum) })
     return items
+  }
+  const remove = (forum: ForumInfo) => {
+    const key = forumKey(forum.forumId)
+    const route = model.navigation.route
+    controller.removeRelay(forum.forumId)
+    if (route && 'forumId' in route && forumKey(route.forumId) === key) nav.home()
   }
   const open = (forumId: string, board: BoardInfo) => {
     nav.navigate({ page: 'board', forumId, slug: board.slug })

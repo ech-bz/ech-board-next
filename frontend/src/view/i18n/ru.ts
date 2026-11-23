@@ -8,6 +8,7 @@ export const ru = {
   'forum.boardSlugHint': 'От 1 до 32 символов: a–z, 0–9 и дефис. Без слешей.',
   'forum.boardDescription': 'Описание (необязательно)',
   'forum.addRelay': 'Добавить relay',
+  'forum.removeRelay': 'Удалить',
   'forum.relayPlaceholder': 'https://…',
   'forum.retry': 'Повторить',
   'forum.noBoards': 'Досок нет',
