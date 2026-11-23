@@ -4,17 +4,25 @@ import type { Route, SettingKey, SettingSlug } from '../model/state/navigation'
 export type { Route, SettingKey, SettingSlug } from '../model/state/navigation'
 
 const SETTINGS: { slug: SettingSlug; key: SettingKey }[] = [
-  { slug: 'key', key: 'Master Key' },
+  { slug: 'account', key: 'Account' },
   { slug: 'appearance', key: 'Appearance' },
 ]
+
+const LEGACY_SETTINGS: Record<string, SettingSlug> = { user: 'account', key: 'account' }
 
 export function settingKeyToSlug(key: string): SettingSlug | null {
   const found = SETTINGS.find((s) => s.key === key)
   return found ? found.slug : null
 }
 
+export function canonicalSettingSlug(slug: string): SettingSlug | null {
+  const canonical = LEGACY_SETTINGS[slug] ?? slug
+  return SETTINGS.some((s) => s.slug === canonical) ? canonical as SettingSlug : null
+}
+
 export function settingSlugToKey(slug: string): SettingKey | null {
-  const found = SETTINGS.find((s) => s.slug === slug)
+  const canonical = canonicalSettingSlug(slug)
+  const found = canonical ? SETTINGS.find((s) => s.slug === canonical) : undefined
   return found ? found.key : null
 }
 
@@ -49,7 +57,10 @@ export function parseRoute(path: string, defaultForumId: string | null): Route {
   if (parts.length === 0) return defaultForumId ? { page: 'boards', forumId: defaultForumId } : { page: 'boards' }
   if (parts[0] === 'settings') {
     if (parts.length === 1) return { page: 'settings' }
-    if (parts.length === 2 && settingSlugToKey(parts[1])) return { page: 'settings', setting: parts[1] as SettingSlug }
+    if (parts.length === 2) {
+      const setting = canonicalSettingSlug(parts[1])
+      if (setting) return { page: 'settings', setting }
+    }
     return { page: 'boards' }
   }
   if (parts[0] === 'forum') {

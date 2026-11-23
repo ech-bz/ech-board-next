@@ -17,11 +17,13 @@ import {
   PostPageSchema,
   ThreadMetaSchema,
   ThreadPageSchema,
+  UserEntitySchema,
   UserRequestsSchema,
   type BoardPageEntity,
   type ForumPageEntity,
   type PostPageEntity,
   type ThreadPageEntity,
+  type UserEntity,
   type UserRequests,
 } from './protocol/entities'
 import { EntityId } from './protocol/entityId'
@@ -149,6 +151,17 @@ async function read<T>(
   return parseResources<T>(bytes, schema)
 }
 
+async function readRaw<T>(
+  relay: Relay,
+  identity: Identity,
+  request: Call,
+  access: Access,
+  schema: BcsType<any, any, any>,
+): Promise<T> {
+  const [bytes] = await query(relay, identity, [{ request, access }])
+  return schema.parse(bytes)
+}
+
 export function parseResources<T>(bytes: Uint8Array, schema: BcsType<any, any, any>): Resources<T> {
   const parsed = ResourcesSchema(schema).parse(bytes)
   return {
@@ -262,6 +275,20 @@ export function readPost(
     call(relay, 'post.get', id),
     access,
     PostPageSchema,
+  )
+}
+
+export function readUser(
+  relay: Relay,
+  identity: Identity,
+  access: Access,
+): Promise<UserEntity | null> {
+  return readRaw<UserEntity | null>(
+    relay,
+    identity,
+    call(relay, 'user.get', new Uint8Array()),
+    access,
+    bcs.option(UserEntitySchema),
   )
 }
 

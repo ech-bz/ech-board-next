@@ -1,6 +1,6 @@
 import type { Failure } from '../errors'
-export type SettingSlug = 'key' | 'appearance'
-export type SettingKey = 'Master Key' | 'Appearance'
+export type SettingSlug = 'account' | 'appearance'
+export type SettingKey = 'Account' | 'Appearance'
 
 
 export type Route =

@@ -1,4 +1,4 @@
-import type { BoardEntity, ForumEntity, PostEntity, ThreadEntity } from '../io/ech/protocol/entities'
+import type { BoardEntity, ForumEntity, PostEntity, ThreadEntity, UserEntity } from '../io/ech/protocol/entities'
 
 export function postValue(entity: PostEntity) {
   switch (entity.value.$kind) {
@@ -25,6 +25,13 @@ export function forumValue(entity: ForumEntity) {
   switch (entity.value.$kind) {
     case 'V1': return entity.value.V1
     default: throw new Error(`Unsupported forum version: ${entity.value.$kind}`)
+  }
+}
+
+export function userValue(entity: UserEntity) {
+  switch (entity.value.$kind) {
+    case 'V1': return entity.value.V1
+    default: throw new Error(`Unsupported user version: ${entity.value.$kind}`)
   }
 }
 

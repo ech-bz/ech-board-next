@@ -2,7 +2,7 @@ import type { ForumState } from '../model/state/forum'
 import type { BoardCursor } from '../model/entities/board'
 import type { BanScope } from '../model/rules/permissions'
 import type { Commit } from './commit'
-import { postValue, threadValue } from './convert/versions'
+import { postValue, threadValue, userValue } from './convert/versions'
 import { ForumApi } from './io/ech/forumApi'
 import type { BanMapValue, BoardEntity, ForumEntity, PostEntity, PostPageEntity, ThreadEntity, ThreadPreviewEntity, Tx } from './io/ech/protocol/entities'
 import { EntityId } from './io/ech/protocol/entityId'
@@ -45,6 +45,16 @@ export interface PostViewData extends PostCtx {
   thread: ThreadEntity
   post: PostEntity
   op: PostEntity | null
+}
+
+export interface UserViewData {
+  sid: string
+  genesis: string
+  history: number
+  postCount: number
+  threadCount: number
+  lastPost: number
+  lastReaction: number
 }
 
 function toBans(values: BanMapValue): Map<BanScope, Uint8Array[]> {
@@ -181,7 +191,23 @@ export function createForumGateway(model: ForumState, commit: Commit) {
     }
   }
 
-  return { connect, readThread, readBoard, readForum, readPost }
+  async function readUser(relayUrl: string): Promise<UserViewData | null> {
+    const api = await connect(relayUrl)
+    const entity = await api.user()
+    if (!entity) return null
+    const value = userValue(entity)
+    return {
+      sid: relay.hex(entity.key),
+      genesis: relay.hex(entity.genesis),
+      history: Number(entity.history.length),
+      postCount: Number(value.post_count),
+      threadCount: Number(value.thread_count),
+      lastPost: Number(value.last_post),
+      lastReaction: Number(value.last_reaction),
+    }
+  }
+
+  return { connect, readThread, readBoard, readForum, readPost, readUser }
 }
 
 export type ForumGateway = ReturnType<typeof createForumGateway>

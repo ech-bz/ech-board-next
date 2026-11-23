@@ -18,6 +18,7 @@ import { createSecretCommands } from './commands/secrets'
 import { createSelectionCommands } from './commands/selection'
 import { createSubmissionCommands } from './commands/submission'
 import { createUnreadCommands } from './commands/unread'
+import { createUserCommands } from './commands/user'
 import { createModel, type Commit } from './commit'
 import { failure } from './errors'
 import { createForumGateway } from './forumGateway'
@@ -86,6 +87,7 @@ export function createController() {
       copyText: writeClipboard,
       selection: createSelectionCommands(model, read, moderation, write),
       ...createUnreadCommands(model, write),
+      ...createUserCommands(gateway),
       loadBans: inspection.loadBans,
       transaction: inspection.transaction,
       loadSnapshot: inspection.loadSnapshot,

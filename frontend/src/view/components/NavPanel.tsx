@@ -1,16 +1,16 @@
 import { cva } from 'class-variance-authority'
-import { createSignal, For, Show } from 'solid-js'
+import { createSignal, For, Show, type JSX } from 'solid-js'
 import type { BoardInfo, ForumInfo } from '../../model/state/navigation'
 import { useI18n } from '../i18n'
 import { BoardsIcon } from '../icons/BoardsIcon'
 import { CheckIcon } from '../icons/CheckIcon'
 import { ChevronDownIcon } from '../icons/ChevronDownIcon'
-import { KeyRoundIcon } from '../icons/KeyRoundIcon'
 import { PaletteIcon } from '../icons/PaletteIcon'
 import { PanelLeftCloseIcon } from '../icons/PanelLeftCloseIcon'
 import { PanelLeftOpenIcon } from '../icons/PanelLeftOpenIcon'
 import { PlusIcon } from '../icons/PlusIcon'
 import { SettingsIcon } from '../icons/SettingsIcon'
+import { UserIcon } from '../icons/UserIcon'
 import type { Section } from '../nav'
 import { settingKeyToSlug, useRoutes, type SettingSlug } from '../route'
 import { settingLabel } from '../settings'
@@ -74,7 +74,7 @@ const spacerVariants = cva('flex-1')
 
 export type { Section }
 
-const SECURITY_SECTIONS: string[] = ['Master Key']
+const ACCOUNT_SECTIONS: string[] = ['Account']
 const APP_SECTIONS: string[] = ['Appearance']
 
 export function NavPanel(props: {
@@ -204,49 +204,19 @@ export function NavPanel(props: {
           </div>
         </section>
         <section class={navSectionVariants({ active: props.section === 'settings' })}>
-          <div class={sectionLabelVariants()}>{t('ui.security')}</div>
           <div class={navListVariants()}>
-            <For each={SECURITY_SECTIONS}>
+            <For each={ACCOUNT_SECTIONS}>
               {(name) => (
-                <a
-                  class={navItemVariants({ active: isActiveSetting(name) })}
-                  href={`${props.settingsHref}/${settingKeyToSlug(name)}`}
-                  onClick={(e) => {
-                    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return
-                    const slug = settingKeyToSlug(name)
-                    if (!slug) return
-                    e.preventDefault()
-                    props.onOpenSetting(slug)
-                  }}
-                >
-                  <div class={navItemIconVariants()}>
-                    <KeyRoundIcon width={18} height={18} />
-                  </div>
-                  <div class={navItemLabelVariants()}>{settingLabel(name, t)}</div>
-                </a>
+                <SettingItem name={name} settingsHref={props.settingsHref} active={isActiveSetting(name)} onOpen={props.onOpenSetting}>
+                  <UserIcon width={18} height={18} />
+                </SettingItem>
               )}
             </For>
-          </div>
-          <div class={sectionLabelVariants()}>{t('ui.application')}</div>
-          <div class={navListVariants()}>
             <For each={APP_SECTIONS}>
               {(name) => (
-                <a
-                  class={navItemVariants({ active: isActiveSetting(name) })}
-                  href={`${props.settingsHref}/${settingKeyToSlug(name)}`}
-                  onClick={(e) => {
-                    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return
-                    const slug = settingKeyToSlug(name)
-                    if (!slug) return
-                    e.preventDefault()
-                    props.onOpenSetting(slug)
-                  }}
-                >
-                  <div class={navItemIconVariants()}>
-                    <PaletteIcon width={18} height={18} />
-                  </div>
-                  <div class={navItemLabelVariants()}>{settingLabel(name, t)}</div>
-                </a>
+                <SettingItem name={name} settingsHref={props.settingsHref} active={isActiveSetting(name)} onOpen={props.onOpenSetting}>
+                  <PaletteIcon width={18} height={18} />
+                </SettingItem>
               )}
             </For>
           </div>
@@ -270,5 +240,25 @@ export function NavPanel(props: {
         </div>
       </div>
     </div>
+  )
+}
+
+function SettingItem(props: { name: string; settingsHref: string; active: boolean; onOpen: (slug: SettingSlug) => void; children: JSX.Element }) {
+  const { t } = useI18n()
+  return (
+    <a
+      class={navItemVariants({ active: props.active })}
+      href={`${props.settingsHref}/${settingKeyToSlug(props.name)}`}
+      onClick={(e) => {
+        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return
+        const slug = settingKeyToSlug(props.name)
+        if (!slug) return
+        e.preventDefault()
+        props.onOpen(slug)
+      }}
+    >
+      <div class={navItemIconVariants()}>{props.children}</div>
+      <div class={navItemLabelVariants()}>{settingLabel(props.name, t)}</div>
+    </a>
   )
 }

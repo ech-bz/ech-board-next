@@ -1,15 +1,15 @@
 import { A } from '@solidjs/router'
 import { cva } from 'class-variance-authority'
 import { Show } from 'solid-js'
+import { AccountView } from '../components/AccountView'
 import { AppearanceView } from '../components/AppearanceView'
 import { useIsMobile } from '../components/Gallery/useIsMobile'
-import { MasterKeyView } from '../components/MasterKeyView'
 import { PageHeader } from '../components/PageHeader'
 import { TabBar } from '../components/TabBar'
 import { useI18n } from '../i18n'
 import { ChevronRightIcon } from '../icons/ChevronRightIcon'
-import { KeyRoundIcon } from '../icons/KeyRoundIcon'
 import { PaletteIcon } from '../icons/PaletteIcon'
+import { UserIcon } from '../icons/UserIcon'
 import { useMobileTabs } from '../interactions/mobileNav'
 import { useNav } from '../nav'
 import { settingKeyToSlug, type SettingSlug } from '../route'
@@ -22,14 +22,13 @@ const stateTitleVariants = cva('mb-1.5 text-xl font-semibold text-fg leading-non
 const stateBodyVariants = cva('leading-normal')
 const screenVariants = cva('flex min-h-dvh flex-col')
 const mobilePadVariants = cva('pl-[calc(1rem+env(safe-area-inset-left,0px))] pr-[calc(1rem+env(safe-area-inset-right,0px))] pb-[calc(var(--mobile-tab)+18px)] pt-2.5')
-const mobileLabelVariants = cva('pl-[calc(1rem+env(safe-area-inset-left,0px))] pr-[calc(1rem+env(safe-area-inset-right,0px))] pb-1.5 pt-2.5 text-sm uppercase tracking-wider text-secondary')
 const mobileListVariants = cva('overflow-hidden rounded-lg')
 const mobileRowVariants = cva('ml-4 grid min-h-row cursor-pointer grid-cols-[52px_1fr_auto_auto] items-center gap-2 border-b border-separator py-2.5 pr-0 text-fg last:border-b-0 no-underline')
 const mobileRowIconVariants = cva('text-xl font-semibold text-accent leading-none')
 const mobileRowTitleVariants = cva('text-xl leading-none')
 const mobileRowChevronVariants = cva('text-3xl text-secondary leading-none')
 
-const SETTING_KEYS: Record<SettingSlug, string> = { key: 'Master Key', appearance: 'Appearance' }
+const SETTING_KEYS: Record<SettingSlug, string> = { account: 'Account', appearance: 'Appearance' }
 
 export function SettingsPage(props: { setting: SettingSlug | null; baseHref: string }) {
   const { t } = useI18n()
@@ -39,8 +38,8 @@ export function SettingsPage(props: { setting: SettingSlug | null; baseHref: str
   const key = () => (props.setting ? SETTING_KEYS[props.setting] : null)
   const label = () => (key() ? settingLabel(key()!, t) : t('ui.settings'))
   const view = () => (
-    <Show when={key() === 'Master Key'} fallback={<AppearanceView />}>
-      <MasterKeyView />
+    <Show when={key() === 'Appearance'} fallback={<AccountView />}>
+      <AppearanceView />
     </Show>
   )
   return (
@@ -79,15 +78,10 @@ export function SettingsPage(props: { setting: SettingSlug | null; baseHref: str
 }
 
 function SettingsList(props: { baseHref: string }) {
-  const { t } = useI18n()
   return (
     <div class={mobilePadVariants()}>
-      <div class={mobileLabelVariants()}>{t('ui.security')}</div>
       <div class={mobileListVariants()}>
-        <SettingsLink name="Master Key" baseHref={props.baseHref} />
-      </div>
-      <div class={mobileLabelVariants()}>{t('ui.application')}</div>
-      <div class={mobileListVariants()}>
+        <SettingsLink name="Account" baseHref={props.baseHref} />
         <SettingsLink name="Appearance" baseHref={props.baseHref} />
       </div>
     </div>
@@ -110,8 +104,8 @@ function SettingsLink(props: { name: string; baseHref: string }) {
       }}
     >
       <div class={mobileRowIconVariants()}>
-        <Show when={props.name === 'Master Key'} fallback={<PaletteIcon width={18} height={18} />}>
-          <KeyRoundIcon width={18} height={18} />
+        <Show when={props.name === 'Account'} fallback={<PaletteIcon width={18} height={18} />}>
+          <UserIcon width={18} height={18} />
         </Show>
       </div>
       <div class={mobileRowTitleVariants()}>{settingLabel(props.name, t)}</div>

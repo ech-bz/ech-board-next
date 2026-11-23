@@ -121,6 +121,16 @@ export const ThreadEntitySchema = entity(ThreadKeySchema, enumeration('Thread', 
 export const BoardEntitySchema = entity(BoardKeySchema, enumeration('Board', { V1: BoardV1Schema }))
 export const ForumEntitySchema = entity(ForumKeySchema, enumeration('Forum', { V1: ForumV1Schema }))
 
+const UserV1Schema = struct('UserV1', {
+  post_count: bcs.u64(),
+  thread_count: bcs.u64(),
+  last_post: bcs.u64(),
+  last_reaction: bcs.u64(),
+})
+
+export const UserEntitySchema = entity(bcs.bytes(32), enumeration('User', { V1: UserV1Schema }))
+export type UserEntity = typeof UserEntitySchema.$inferType
+
 export const HistoryPageSchema = struct('HistoryPage', {
   entries: bcs.vector(TxSchema),
   next: bcs.option(bcs.u64().transform({ input: (value: bigint) => value, output: (value) => BigInt(value) })),

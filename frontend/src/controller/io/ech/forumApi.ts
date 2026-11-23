@@ -3,7 +3,7 @@ import { bcs } from '@mysten/bcs'
 
 import type { SessionState } from '../../../model/state/session'
 import { Identity, randomTweak } from '../crypto/identity'
-import type { BoardPageEntity, PostPageEntity, ThreadPageEntity, UserRequests } from './protocol/entities'
+import type { BoardPageEntity, PostPageEntity, ThreadPageEntity, UserEntity, UserRequests } from './protocol/entities'
 import type { BoardCursor } from '../../../model/entities/board'
 import { EntityId } from './protocol/entityId'
 import { EsidSchema, type Esid, type Media, type Resources, type Tx } from './protocol/transactions'
@@ -445,6 +445,10 @@ export class ForumApi {
       this.access(),
     )
     return page
+  }
+
+  user(): Promise<UserEntity | null> {
+    return relay.readUser(this.relay, this.identity, this.access())
   }
 
 }
