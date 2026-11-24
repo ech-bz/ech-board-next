@@ -132,6 +132,7 @@ export const ru = {
   'postForm.becomeAdmin': 'Стать админом треда',
   'post.secret': 'приватный текст',
   'post.secretDecryptFailed': 'Не удалось расшифровать',
+  'post.you': '(You)',
   'roles.anonymous': 'Анонимно',
   'roles.forumMod': 'Как forum mod',
   'roles.boardMod': 'Как board mod',

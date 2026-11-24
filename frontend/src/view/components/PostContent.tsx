@@ -5,6 +5,7 @@ import type { PostPart as PostPartInput } from '../../model/content/postPart'
 import { replyLabel } from '../../model/content/posts'
 import { forumKey } from '../../model/selectors/forum'
 import { useForumController, useForumModel, useForumQueries } from '../bindings/forum'
+import { useI18n } from '../i18n'
 
 import { useNav } from '../nav'
 import { useRoutes, type Route } from '../route'
@@ -76,6 +77,8 @@ interface RenderOpts {
   forumHost: (forum: string) => string | null
   author: string | null
   hasPost: (id: string) => boolean
+  mineOf: (id: string, root: string) => boolean
+  t: ReturnType<typeof useI18n>['t']
   relayUrl: string
   navigate: (route: Route) => void
   forumIdHex: string
@@ -114,7 +117,15 @@ function renderPart(p: PostPartInput, opts: RenderOpts, renderNested: RenderNest
   if ('ReplyTo' in p) {
     const num = p.ReplyTo.post
     const targetForumId = toHex(p.ReplyTo.forum).replace(/^0x/, '')
-    const label = () => `>>${replyLabel(p.ReplyTo, { forumId: opts.forumIdHex, board: opts.slug, forumHost: opts.forumHost })}`
+    const quotedId = () => opts.postId(p.ReplyTo.board, num, targetForumId)
+    const mine = () => {
+      const id = quotedId()
+      return !!id && opts.hasPost(id) && opts.mineOf(id, targetForumId)
+    }
+    const label = () => {
+      const text = `>>${replyLabel(p.ReplyTo, { forumId: opts.forumIdHex, board: opts.slug, forumHost: opts.forumHost })}`
+      return mine() ? `${text} ${opts.t('post.you')}` : text
+    }
     const localHref = () => {
       if (targetForumId !== opts.forumIdHex || p.ReplyTo.board !== opts.slug) return null
       const postId = opts.postId(p.ReplyTo.board, num, targetForumId)
@@ -129,7 +140,7 @@ function renderPart(p: PostPartInput, opts: RenderOpts, renderNested: RenderNest
     })
     return (
       <PostRefLink
-        class={'cursor-pointer text-accent'}
+        class={mine() ? 'cursor-pointer font-semibold text-accent' : 'cursor-pointer text-accent'}
         href={localHref() ?? undefined}
         label={label()}
         target={target()}
@@ -222,6 +233,7 @@ export function PostContent(props: {
 }) {
   const nav = useNav()
   const { threadPath } = useRoutes()
+  const { t } = useI18n()
   const controller = useForumController()
   const read = useForumQueries()
   const model = useForumModel()
@@ -261,6 +273,8 @@ export function PostContent(props: {
       resolveRelayUrl: read.relayUrl,
       forumHost,
       hasPost: current.hasPost,
+      mineOf: (id, root) => read.get(id, root)?.mine === true,
+      t,
       relayUrl: current.relayUrl,
       navigate: nav.navigate,
       forumIdHex: current.forumId,

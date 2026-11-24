@@ -134,6 +134,7 @@ export const en: Dict = {
   'postForm.becomeAdmin': 'Become thread admin',
   'post.secret': 'private text',
   'post.secretDecryptFailed': 'Failed to decrypt',
+  'post.you': '(You)',
   'roles.anonymous': 'Anonymous',
   'roles.forumMod': 'As forum mod',
   'roles.boardMod': 'As board mod',
