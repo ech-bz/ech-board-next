@@ -1,7 +1,7 @@
 import { A } from '@solidjs/router'
 import { cva } from 'class-variance-authority'
 import { Show } from 'solid-js'
-import { AccountView } from '../components/AccountView'
+import { ProfileView } from '../components/ProfileView'
 import { AboutView } from '../components/AboutView'
 import { AppearanceView } from '../components/AppearanceView'
 import { useIsMobile } from '../components/Gallery/useIsMobile'
@@ -30,7 +30,7 @@ const mobileRowIconVariants = cva('text-xl font-semibold text-accent leading-non
 const mobileRowTitleVariants = cva('text-xl leading-none')
 const mobileRowChevronVariants = cva('text-3xl text-secondary leading-none')
 
-const SETTING_KEYS: Record<SettingSlug, string> = { account: 'Account', appearance: 'Appearance', about: 'About' }
+const SETTING_KEYS: Record<SettingSlug, string> = { profile: 'Profile', appearance: 'Appearance', about: 'About' }
 
 export function SettingsPage(props: { setting: SettingSlug | null; baseHref: string }) {
   const { t } = useI18n()
@@ -42,7 +42,7 @@ export function SettingsPage(props: { setting: SettingSlug | null; baseHref: str
   const view = () => {
     if (key() === 'Appearance') return <AppearanceView />
     if (key() === 'About') return <AboutView />
-    return <AccountView />
+    return <ProfileView />
   }
   return (
     <Show
@@ -83,7 +83,7 @@ function SettingsList(props: { baseHref: string }) {
   return (
     <div class={mobilePadVariants()}>
       <div class={mobileListVariants()}>
-        <SettingsLink name="Account" baseHref={props.baseHref} />
+        <SettingsLink name="Profile" baseHref={props.baseHref} />
         <SettingsLink name="Appearance" baseHref={props.baseHref} />
         <SettingsLink name="About" baseHref={props.baseHref} />
       </div>
@@ -107,7 +107,7 @@ function SettingsLink(props: { name: string; baseHref: string }) {
       }}
     >
       <div class={mobileRowIconVariants()}>
-        <Show when={props.name === 'Account'} fallback={<Show when={props.name === 'About'} fallback={<PaletteIcon width={18} height={18} />}><InfoIcon width={18} height={18} /></Show>}>
+        <Show when={props.name === 'Profile'} fallback={<Show when={props.name === 'About'} fallback={<PaletteIcon width={18} height={18} />}><InfoIcon width={18} height={18} /></Show>}>
           <UserIcon width={18} height={18} />
         </Show>
       </div>

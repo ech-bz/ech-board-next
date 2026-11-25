@@ -4,12 +4,12 @@ import type { Route, SettingKey, SettingSlug } from '../model/state/navigation'
 export type { Route, SettingKey, SettingSlug } from '../model/state/navigation'
 
 const SETTINGS: { slug: SettingSlug; key: SettingKey }[] = [
-  { slug: 'account', key: 'Account' },
+  { slug: 'profile', key: 'Profile' },
   { slug: 'appearance', key: 'Appearance' },
   { slug: 'about', key: 'About' },
 ]
 
-const LEGACY_SETTINGS: Record<string, SettingSlug> = { user: 'account', key: 'account' }
+const LEGACY_SETTINGS: Record<string, SettingSlug> = { user: 'profile', key: 'profile', account: 'profile' }
 
 export function settingKeyToSlug(key: string): SettingSlug | null {
   const found = SETTINGS.find((s) => s.key === key)

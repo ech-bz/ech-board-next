@@ -154,7 +154,7 @@ export const en: Dict = {
   'ui.forumName': 'ЭЧ',
   'ui.appPreferences': 'App preferences',
   'ui.application': 'Application',
-  'ui.account': 'Account',
+  'ui.profile': 'Profile',
   'ui.appearance': 'Appearance',
   'ui.about': 'About',
   'settings.showDeleted': 'Show deleted',

@@ -152,7 +152,7 @@ export const ru = {
   'ui.forumName': 'ЭЧ',
   'ui.appPreferences': 'Настройки приложения',
   'ui.application': 'Приложение',
-  'ui.account': 'Аккаунт',
+  'ui.profile': 'Профиль',
   'ui.appearance': 'Внешний вид',
   'ui.about': 'О приложении',
   'settings.showDeleted': 'Показывать удалённые',

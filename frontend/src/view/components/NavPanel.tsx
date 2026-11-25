@@ -52,7 +52,7 @@ const spacerVariants = cva('flex-1')
 
 export type { Section }
 
-const ACCOUNT_SECTIONS: string[] = ['Account']
+const PROFILE_SECTIONS: string[] = ['Profile']
 const APP_SECTIONS: string[] = ['Appearance', 'About']
 
 export function NavPanel(props: {
@@ -91,7 +91,7 @@ export function NavPanel(props: {
         </section>
         <section class={navSectionVariants({ active: props.section === 'settings' })}>
           <div class={navListVariants()}>
-            <For each={ACCOUNT_SECTIONS}>
+            <For each={PROFILE_SECTIONS}>
               {(name) => (
                 <SettingItem name={name} settingsHref={props.settingsHref} active={isActiveSetting(name)} onOpen={props.onOpenSetting}>
                   <UserIcon width={18} height={18} />
