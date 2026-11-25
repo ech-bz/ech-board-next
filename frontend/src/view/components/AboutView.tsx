@@ -11,6 +11,12 @@ const labelVariants = cva('text-secondary')
 const valueVariants = cva('min-w-0 text-right [overflow-wrap:anywhere]')
 const idVariants = cva('min-w-0 text-right font-mono [overflow-wrap:anywhere]')
 const actionRowVariants = cva('mt-4 flex items-center gap-2')
+const sectionVariants = cva('mt-6')
+const mirrorVariants = cva(
+  'w-fit py-1 text-accent no-underline hover:underline [overflow-wrap:anywhere]',
+)
+
+const MIRRORS = ['new.ech.bz', 'new.ech.rodeo', 'new.ech.st']
 
 export function AboutView() {
   const { t, months } = useI18n()
@@ -34,6 +40,21 @@ export function AboutView() {
       </div>
       <div class={actionRowVariants()}>
         <Button onClick={() => forceRefresh()}>{t('settings.refresh')}</Button>
+      </div>
+      <div class={sectionVariants()}>
+        <div class={titleVariants()}>{t('settings.mirrors')}</div>
+        <div class={listVariants()}>
+          {MIRRORS.map((host) => (
+            <a
+              class={mirrorVariants()}
+              href={`https://${host}/`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {host}
+            </a>
+          ))}
+        </div>
       </div>
     </div>
   )

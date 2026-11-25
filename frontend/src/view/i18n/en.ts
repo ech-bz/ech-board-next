@@ -316,6 +316,7 @@ export const en: Dict = {
   'settings.buildTitle': 'Build',
   'settings.buildId': 'Build number',
   'settings.buildTime': 'Built at',
+  'settings.mirrors': 'Mirrors',
   'settings.refresh': 'Refresh',
   'media.searchImage': 'Search image',
   'media.searchGoogle': 'Search in Google',

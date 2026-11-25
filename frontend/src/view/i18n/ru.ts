@@ -314,6 +314,7 @@ export const ru = {
   'settings.buildTitle': 'Сборка',
   'settings.buildId': 'Номер сборки',
   'settings.buildTime': 'Собрано',
+  'settings.mirrors': 'Зеркала',
   'settings.refresh': 'Обновить',
   'media.searchImage': 'Поиск по картинке',
   'media.searchGoogle': 'Поиск в Google',
