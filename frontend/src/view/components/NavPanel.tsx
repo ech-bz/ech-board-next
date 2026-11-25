@@ -17,7 +17,7 @@ import { RelayList } from './RelayList'
 
 const navScrollVariants = cva('flex-1 min-h-0 overflow-y-auto')
 const navInnerVariants = cva('flex min-h-full flex-col pb-3')
-const navPanelHeaderVariants = cva('glass-fade sticky top-0 z-header relative flex items-center px-4 py-3 min-h-header collapsed:justify-center gap-2.5')
+const navPanelHeaderVariants = cva('glass-fade sticky top-0 z-header relative flex items-center px-3 py-3 min-h-header collapsed:justify-center gap-2.5')
 const navPanelCollapseBtnVariants = cva('ml-auto collapsed:ml-0 hover:bg-hover')
 const navSectionVariants = cva('min-h-0', {
   variants: {

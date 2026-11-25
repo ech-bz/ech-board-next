@@ -4,7 +4,7 @@ import { ChevronLeftIcon } from '../icons/ChevronLeftIcon'
 import { Capsule } from './Capsule'
 import { IconButton } from './IconButton'
 
-const headerVariants = cva('glass-fade sticky top-0 z-nav flex min-h-header-mobile items-stretch gap-2 px-4 pb-2.5 pt-[calc(12px+env(safe-area-inset-top,0px))]')
+const headerVariants = cva('glass-fade sticky top-0 z-nav flex min-h-header-mobile items-stretch gap-2 px-3 pb-2.5 pt-[calc(12px+env(safe-area-inset-top,0px))]')
 const headerTitleVariants = cva('w-full min-w-0 ellipsis text-center text-xl font-semibold leading-none')
 const headerSubVariants = cva('w-full min-w-0 ellipsis overflow-y-visible text-center text-sm text-secondary leading-none')
 const backBtnVariants = cva('text-4xl leading-none')

@@ -17,7 +17,7 @@ import { OptionsPanel } from './OptionsPanel'
 
 const spinnerVariants = cva('size-4 animate-spin rounded-full border-2 border-track border-t-fg')
 const composerRootVariants = cva(
-  'glass-fade glass-fade--up sticky bottom-0 left-0 right-0 z-nav mt-auto flex flex-col gap-1.5 px-4 pt-4 pb-[max(16px,env(safe-area-inset-bottom,0px))] min-[900px]:min-h-[var(--global-bar-h)]',
+  'glass-fade glass-fade--up sticky bottom-0 left-0 right-0 z-nav mt-auto flex flex-col gap-1.5 px-3 pt-4 pb-[max(16px,env(safe-area-inset-bottom,0px))] min-[900px]:min-h-[var(--global-bar-h)]',
 )
 const dropOverlayVariants = cva(
   'pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-lg border-2 border-dashed border-accent bg-bg text-accent uppercase [letter-spacing:0.03em]',

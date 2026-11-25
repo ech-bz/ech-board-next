@@ -5,8 +5,8 @@ import { ArrowDownIcon } from '../icons/ArrowDownIcon'
 import { ArrowUpIcon } from '../icons/ArrowUpIcon'
 import { IconButton } from './IconButton'
 
-const upBtnVariants = cva('absolute right-4 top-full z-50')
-const downBtnVariants = cva('absolute right-4 bottom-full z-50')
+const upBtnVariants = cva('absolute right-3 top-full z-50')
+const downBtnVariants = cva('absolute right-3 bottom-full z-50')
 const unreadBadgeVariants = cva('absolute -right-1.5 -top-1.5 flex h-badge min-w-badge items-center justify-center rounded-md bg-danger px-1.5 text-center text-sm font-bold text-white')
 
 export function ThreadNavUp(props: { onClick: () => void }) {
