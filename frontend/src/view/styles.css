@@ -298,3 +298,9 @@
   background-position: center;
 }
 }
+
+@media (hover: hover) {
+  article[data-post]:not(:hover) .post-reactions[aria-expanded='false']:not(:focus-visible) {
+    opacity: 0;
+  }
+}

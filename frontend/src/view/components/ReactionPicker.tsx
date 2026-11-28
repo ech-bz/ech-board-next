@@ -48,7 +48,7 @@ export function ReactionPicker(props: {
           <button type="button"
             ref={button}
             data-overhang=""
-            class={`flex-none inline-flex items-center justify-center text-fg border-0 cursor-pointer disabled:opacity-45 disabled:cursor-default size-6 rounded-full ${'post-reactions absolute -bottom-1.5 -right-3 z-control bg-panel3 opacity-50 aria-expanded:z-50 aria-expanded:opacity-100'}`}
+            class={`flex-none inline-flex items-center justify-center text-fg border-0 cursor-pointer disabled:opacity-45 disabled:cursor-default size-6 rounded-full ${'post-reactions absolute -bottom-1.5 -right-3 z-control bg-panel3 opacity-50 transition-opacity duration-150 aria-expanded:z-50 aria-expanded:opacity-100'}`}
             aria-label={t('post.reactions')}
             aria-expanded={open()}
             style={{ '--glyph': `url("${glyph()}")` }}
